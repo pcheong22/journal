@@ -48,7 +48,7 @@ export default function Dashboard() {
         setUser(user)
 
         // 2. Fetch Accounts
-        const {  accs } = await supabase.from('accounts').select('*').order('created_at')
+        const { data: accs } = await supabase.from('accounts').select('*').order('created_at')
         setAccounts(accs || [])
         
         // Default selection: All accounts initially
