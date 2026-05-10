@@ -1,94 +1,61 @@
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
-import { parseExcelRows } from '../../lib/tradeUtils'
+import { parseTradeFile } from '../../lib/tradeUtils'
 
 export const config = { api: { bodyParser: false } }
-
-// Server-side Supabase with service role (for writes)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  
   try {
-    // Read raw body
-    const chunks = []
-    for await (const chunk of req) chunks.push(chunk)
-    const buffer = Buffer.concat(chunks)
+    const formData = await req.formData()
+    const file = formData.get('file')
+    const accountId = formData.get('accountId')
 
-    // Parse boundary from content-type
-    const contentType = req.headers['content-type'] || ''
-    const boundaryMatch = contentType.match(/boundary=(.+)$/)
-    if (!boundaryMatch) return res.status(400).json({ error: 'No boundary in content-type' })
+    if (!file || !accountId) return res.status(400).json({ error: 'Missing file or account ID' })
 
-    // Simple multipart parser
-    const boundary = '--' + boundaryMatch[1]
-    const parts = buffer.toString('binary').split(boundary)
-    let fileBuffer = null
+    // 1. Parse File
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    const json = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+    
+    // Use manual accountId override
+    const { trades, broker } = await parseTradeFile(json, file.name, accountId)
 
-    for (const part of parts) {
-      if (part.includes('filename=') && (part.includes('.xlsx') || part.includes('.xls') || part.includes('.csv'))) {
-        const headerEnd = part.indexOf('\r\n\r\n')
-        if (headerEnd >= 0) {
-          const body = part.slice(headerEnd + 4, part.lastIndexOf('\r\n'))
-          fileBuffer = Buffer.from(body, 'binary')
-        }
-      }
-    }
+    if (!trades.length) return res.status(400).json({ error: 'No valid trades found' })
 
-    if (!fileBuffer) return res.status(400).json({ error: 'No file found in request' })
-
-    // Parse workbook
-    const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
-
-    // Parse trades
-    const incoming = parseExcelRows(rows)
-    if (incoming.length === 0) {
-      return res.status(400).json({ error: 'No valid trades found in file. Check file format.' })
-    }
-
-    // Fetch existing position IDs for deduplication
-    const { data: existing } = await supabase
-      .from('trades')
-      .select('position_id')
-    const existingIds = new Set((existing || []).map(t => t.position_id))
-
-    // Filter to new trades only
-    const newTrades = incoming.filter(t => !existingIds.has(t.position_id))
-    const dupCount = incoming.length - newTrades.length
-
-    if (newTrades.length === 0) {
-      return res.status(200).json({
-        message: 'No new trades to import',
-        imported: 0,
-        duplicates: dupCount,
-        total: incoming.length,
+    // 2. Upsert Account (Safety check)
+    const { data: existingAcc } = await supabase.from('accounts').select('id').eq('id', accountId).single()
+    if (!existingAcc) {
+      await supabase.from('accounts').insert({
+        id: accountId,
+        broker: broker || 'Generic',
+        label: accountId,
+        currency: 'USD',
+        color: '#4bde80'
       })
     }
 
-    // Insert in batches of 500
-    const batchSize = 500
-    let inserted = 0
-    for (let i = 0; i < newTrades.length; i += batchSize) {
-      const batch = newTrades.slice(i, i + batchSize)
-      const { error } = await supabase.from('trades').insert(batch)
-      if (error) throw new Error(`DB insert error: ${error.message}`)
-      inserted += batch.length
+    // 3. Insert Trades (Ignore duplicates via ON CONFLICT)
+    const { data: existingIds } = await supabase.from('trades').select('position_id').eq('account_id', accountId)
+    const existingSet = new Set((existingIds || []).map(t => t.position_id))
+    const newTrades = trades.filter(t => !existingSet.has(t.position_id)).map(t => ({...t, account_id: accountId}))
+
+    if (newTrades.length) {
+      await supabase.from('trades').insert(newTrades)
     }
 
-    return res.status(200).json({
-      message: `Successfully imported ${inserted} new trades`,
-      imported: inserted,
-      duplicates: dupCount,
-      total: incoming.length,
+    return res.status(200).json({ 
+      success: true, 
+      count: newTrades.length, 
+      skipped: trades.length - newTrades.length 
     })
+
   } catch (err) {
-    console.error('Upload error:', err)
-    return res.status(500).json({ error: err.message || 'Upload failed' })
+    console.error(err)
+    return res.status(500).json({ error: err.message })
   }
 }
