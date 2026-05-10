@@ -84,29 +84,42 @@ export default function Dashboard() {
     if (file) { setUploadFile(file); setUploadModalOpen(true) }
   }
 
-  const handleUploadSubmit = async (accountId) => {
+   const handleUploadSubmit = async (accountId) => {
     if (!uploadFile || !accountId) return
     setUploadModalOpen(false)
     
-    // Show temporary loading state or toast here if desired
-    const formData = new FormData()
-    formData.append('file', uploadFile)
-    formData.append('accountId', accountId)
-
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      // 1. Convert file to Base64
+      const reader = new FileReader()
+      const fileAsBase64 = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(uploadFile)
+      })
+
+      // 2. Send JSON payload to API
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileContent: fileAsBase64,
+          fileName: uploadFile.name,
+          accountId: accountId
+        })
+      })
+
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
       
       alert(`✅ Imported ${data.count} trades. Skipped: ${data.skipped}`)
-      await loadTrades() // Refresh data
+      await loadTrades() // Refresh dashboard data
     } catch (err) {
+      console.error(err)
       alert('❌ Upload failed: ' + err.message)
     } finally {
       setUploadFile(null)
     }
   }
-
   if (loading) return <div style={{background:'#0c1117',height:'100vh'}} />
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
