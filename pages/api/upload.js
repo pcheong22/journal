@@ -26,16 +26,35 @@ export default async function handler(req, res) {
     if (!trades.length) return res.status(400).json({ error: 'No valid trades found. Check file format.' })
 
     // 1. Ensure Account Exists
-    const {  existingAcc } = await supabase.from('accounts').select('id').eq('id', accountId).single()
-    if (!existingAcc) {
-      await supabase.from('accounts').insert({
-        id: accountId,
-        broker: broker || 'Generic',
-        label: accountId,
-        currency: 'USD',
-        color: '#4bde80'
-      })
-    }
+// In the upload handler, replace the account creation part:
+const {  existingAcc } = await supabase.from('accounts').select('id').eq('id', accountId).single()
+if (!existingAcc) {
+  // Extract broker name from accountId or use default
+  let brokerName = 'Generic'
+  let labelName = accountId
+  
+  if (accountId.includes('PXT') || accountId.includes('PrimeXBT')) {
+    brokerName = 'PrimeXBT'
+    labelName = accountId.replace(/_/g, ' ')
+  } else if (accountId.includes('HL') || accountId.includes('hyperliquid')) {
+    brokerName = 'Hyperliquid'
+    labelName = accountId.replace(/_/g, ' ')
+  } else if (accountId.includes('BYB') || accountId.includes('bybit')) {
+    brokerName = 'Bybit'
+    labelName = accountId.replace(/_/g, ' ')
+  } else if (accountId.includes('IBKR')) {
+    brokerName = 'IBKR'
+    labelName = 'IBKR U11154227'
+  }
+
+  await supabase.from('accounts').insert({
+    id: accountId,
+    broker: brokerName,
+    label: labelName,
+    currency: 'USD',
+    color: '#4bde80'
+  })
+}
 
     // 2. Insert Trades (Skip Duplicates)
     const {  existingIds } = await supabase.from('trades').select('position_id').eq('account_id', accountId)
