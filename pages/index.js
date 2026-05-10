@@ -239,7 +239,7 @@ export default function Dashboard() {
                 <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#ffb300'}}>
                   0.62
                 </div>
-                <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>Target > 1.5</div>
+                <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>Target {'>'} 1.5</div>
               </div>
             </div>
 
