@@ -85,16 +85,27 @@ export default function Dashboard() {
     setTrades(data || [])
   }
 
-  // ── FILTERING LOGIC ────────────────────────────────────────────────────────
-  const filteredTrades = trades.filter(t => {
-    const tDate = new Date(t.entry_time)
-    const inTime = tDate >= dateRange.start && tDate <= dateRange.end
-    const inAcc = selectedAccounts.has(t.account_id)
-    return inTime && inAcc
-  })
-
-  const stats = computeStats(filteredTrades)
-
+// ── FILTERING LOGIC ────────────────────────────────────────────────────────
+const filteredTrades = trades.filter(t => {
+  // Account filter
+  const inAcc = selectedAccounts.size === 0 || selectedAccounts.has(t.account_id)
+  
+  // Date filter
+  let inTime = true
+  if (dateRange.start && dateRange.end) {
+    try {
+      const tradeDate = new Date(t.entry_time)
+      if (!isNaN(tradeDate.getTime())) {
+        inTime = tradeDate >= dateRange.start && tradeDate <= dateRange.end
+      }
+    } catch {
+      inTime = false
+    }
+  }
+  
+  return inAcc && inTime
+})
+  
   // ── HANDLERS ───────────────────────────────────────────────────────────────
   const toggleAccount = id => {
     const newSet = new Set(selectedAccounts)
