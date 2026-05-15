@@ -669,7 +669,6 @@ function AccountRenameModal({ account, onSave, onClose }) {
   )
 }
 
-}
 
 function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
   return (
