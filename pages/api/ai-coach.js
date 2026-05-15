@@ -92,7 +92,7 @@ Give 3 specific insights, 1 coaching tip, any pattern flags (e.g. no_stop_loss, 
   // ── CALL QWEN ─────────────────────────────────────────────────────────────
   const callQwen = async () => {
     const response = await fetch(
-      'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
       {
         method:  'POST',
         headers: {
