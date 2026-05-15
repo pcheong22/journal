@@ -18,6 +18,7 @@ function useChart(canvasRef, config) {
   }, [JSON.stringify(config)])
 }
 
+
 export default function ChartComp(props) {
   const { type } = props
 
@@ -37,6 +38,60 @@ export default function ChartComp(props) {
   return null
 }
 
+// In the BarCard component (for monthly chart):
+export function BarCard({ title, labels, values, height = 130 }) {
+  const canvasRef = useRef()
+  
+  useEffect(() => {
+    if (!canvasRef.current) return
+    
+    const ctx = canvasRef.current.getContext('2d')
+    const chart = new Chart(ctx, {
+      type: 'bar',
+       {
+        labels: labels.filter(l => l && l !== 'Unknown'), // Filter out unknown labels
+        datasets: [{
+           values.filter((_, i) => labels[i] && labels[i] !== 'Unknown'),
+          backgroundColor: values.map(v => v >= 0 ? 'rgba(75, 222, 128, 0.6)' : 'rgba(185, 65, 68, 0.6)'),
+          borderColor: values.map(v => v >= 0 ? '#4bde80' : '#b94144'),
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            grid: { color: 'rgba(48, 54, 61, 0.5)' },
+            ticks: { color: '#8b949e', font: { size: 10 } }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { 
+              color: '#8b949e', 
+              font: { size: 9 },
+              maxRotation: 45,
+              minRotation: 45
+            }
+          }
+        }
+      }
+    })
+    
+    return () => chart.destroy()
+  }, [labels, values])
+  
+  return (
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="card-title">
+        <span className="indicator" />
+        {title}
+      </div>
+      <canvas ref={canvasRef} height={height} />
+    </div>
+  )
+}
 function EquityChart({ data }) {
   const ref = useRef()
   const handleRef = useRef()
