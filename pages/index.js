@@ -16,19 +16,24 @@ const BROKER_ICONS  = { PrimeXBT:'🔷', Generic:'📊' }
 const BROKER_COLORS = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#be185d','#16a34a']
 
 // Date range helpers
-const toISO  = d => d.toISOString().slice(0, 10)
-const ytdStart = () => `${new Date().getUTCFullYear()}-01-01`
-const today    = () => toISO(new Date())
-const daysAgo  = n => { const d = new Date(); d.setDate(d.getDate() - n); return toISO(d) }
+const toISO     = d => d.toISOString().slice(0, 10)
+const today     = () => toISO(new Date())
+const daysAgo   = n => { const d = new Date(); d.setDate(d.getDate() - n); return toISO(d) }
 const monthsAgo = n => { const d = new Date(); d.setMonth(d.getMonth() - n); return toISO(d) }
+const ytdStart  = () => `${new Date().getUTCFullYear()}-01-01`
+const mtdStart  = () => { const d = new Date(); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-01` }
+const qtdStart  = () => { const d = new Date(); const q = Math.floor(d.getUTCMonth()/3); return `${d.getUTCFullYear()}-${String(q*3+1).padStart(2,'0')}-01` }
+const wtdStart  = () => { const d = new Date(); const day = d.getUTCDay(); const diff = day === 0 ? 6 : day - 1; d.setDate(d.getDate() - diff); return toISO(d) }
 
 const DATE_PRESETS = [
-  { label: '7D',  from: () => daysAgo(7),   to: today },
-  { label: '30D', from: () => daysAgo(30),  to: today },
+  { label: '1W',  from: () => daysAgo(7),   to: today },
+  { label: '1M',  from: () => monthsAgo(1), to: today },
   { label: '3M',  from: () => monthsAgo(3), to: today },
   { label: '6M',  from: () => monthsAgo(6), to: today },
-  { label: 'YTD', from: ytdStart,            to: today },
   { label: '1Y',  from: () => monthsAgo(12),to: today },
+  { label: 'MTD', from: mtdStart,            to: today },
+  { label: 'QTD', from: qtdStart,            to: today },
+  { label: 'YTD', from: ytdStart,            to: today },
   { label: 'All', from: () => '2000-01-01', to: today },
 ]
 
@@ -446,7 +451,7 @@ export default function Dashboard() {
 
         {/* COACH */}
         {tab==='coach' && (
-          <CoachTab stats={stats} tradeCount={visibleTrades.length} />
+          <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
         )}
 
         {/* STREAKS */}
@@ -664,7 +669,353 @@ function AccountRenameModal({ account, onSave, onClose }) {
   )
 }
 
-function CoachTab({ stats, tradeCount }) {
+function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
+  const [report,    setReport]    = useState(null)
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState(null)
+  const [generated, setGenerated] = useState(false)
+  const [lastRun,   setLastRun]   = useState(null)
+  const [saving,    setSaving]    = useState(false)
+  const [savedOk,   setSavedOk]   = useState(false)
+  const [history,   setHistory]   = useState([])
+  const [showHist,  setShowHist]  = useState(false)
+  const [histLoad,  setHistLoad]  = useState(false)
+
+  const periodLabel = datePreset || `${dateFrom} → ${dateTo}`
+
+  // ── Generate report ───────────────────────────────────────────────────────
+  const generate = async () => {
+    if (!stats) return
+    setLoading(true); setError(null); setSavedOk(false)
+    try {
+      const res  = await fetch('/api/ai-coach', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          mode:  'portfolio',
+          stats: {
+            overview:  stats.overview,
+            symbols:   stats.symbols,
+            sessions:  stats.sessions,
+            daily_dow: stats.daily_dow,
+            hourly:    stats.hourly,
+            duration:  stats.duration,
+            streaks:   stats.streaks,
+          },
+        }),
+      })
+      const data = await res.json()
+      console.log('AI coach response:', JSON.stringify(data).slice(0, 500))
+      if (data.stub)        setError(data.message)
+      else if (data.error)  setError(data.error)
+      else {
+        setReport({ ...data, period: periodLabel, generatedAt: new Date().toISOString() })
+        setGenerated(true)
+        setLastRun(new Date().toLocaleTimeString())
+      }
+    } catch(e) {
+      setError('Failed to connect to AI coach — check your API key in Vercel.')
+    }
+    setLoading(false)
+  }
+
+  // ── Save report to Supabase ───────────────────────────────────────────────
+  const saveReport = async () => {
+    if (!report) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/coach-reports', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          period:       periodLabel,
+          date_from:    dateFrom,
+          date_to:      dateTo,
+          trade_count:  tradeCount,
+          score:        report.score,
+          archetype:    report.archetype,
+          core_edge:    report.core_edge,
+          core_weakness:report.core_weakness,
+          coaching_tip: report.coaching_tip,
+          insights:     report.insights,
+          provider:     report.provider,
+        }),
+      })
+      if (res.ok) { setSavedOk(true); setTimeout(() => setSavedOk(false), 3000) }
+      else setError('Failed to save report.')
+    } catch(e) { setError('Failed to save report.') }
+    setSaving(false)
+  }
+
+  // ── Load report history ───────────────────────────────────────────────────
+  const loadHistory = async () => {
+    setHistLoad(true)
+    try {
+      const res  = await fetch('/api/coach-reports')
+      const data = await res.json()
+      setHistory(data.reports || [])
+    } catch(e) { console.error(e) }
+    setHistLoad(false)
+  }
+
+  const toggleHistory = () => {
+    if (!showHist) loadHistory()
+    setShowHist(h => !h)
+  }
+
+  // ── Delete saved report ───────────────────────────────────────────────────
+  const deleteReport = async (id) => {
+    if (!confirm('Delete this saved report?')) return
+    await fetch(`/api/coach-reports?id=${id}`, { method: 'DELETE' })
+    setHistory(h => h.filter(r => r.id !== id))
+  }
+
+  // ── Load a saved report into view ─────────────────────────────────────────
+  const loadSavedReport = (saved) => {
+    setReport({
+      ...saved,
+      insights: typeof saved.insights === 'string' ? JSON.parse(saved.insights) : saved.insights,
+    })
+    setGenerated(true)
+    setShowHist(false)
+    setLastRun(null)
+  }
+
+  // ── Export to PDF ─────────────────────────────────────────────────────────
+  const exportPDF = () => {
+    if (!report) return
+    const printWin = window.open('', '_blank')
+    const insights = (typeof report.insights === 'string' ? JSON.parse(report.insights) : report.insights) || []
+    const TYPE_COLOR = { critical:'#dc2626', bias:'#d97706', opportunity:'#1a56db', strength:'#059669' }
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>AI Coaching Report — ${report.period || periodLabel}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #0f1117; max-width: 900px; margin: 0 auto; padding: 32px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #6b7280; font-size: 12px; margin-bottom: 24px; }
+  .meta { display: flex; gap: 24px; margin-bottom: 24px; padding: 16px; background: #f7f8fa; border-radius: 8px; border: 1px solid #e2e5ea; }
+  .meta-item { }
+  .meta-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+  .meta-val { font-size: 18px; font-weight: 700; color: #1a56db; }
+  .edge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .edge-box { padding: 12px 16px; border-radius: 8px; }
+  .edge-win { background: #ecfdf5; border: 1px solid #a7f3d0; }
+  .edge-los { background: #fef2f2; border: 1px solid #fecaca; }
+  .edge-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .tip { padding: 12px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; margin-bottom: 24px; }
+  .tip-lbl { font-size: 10px; font-weight: 700; color: #1e429f; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .insights { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .insight { border-radius: 8px; padding: 14px; border: 1px solid #e2e5ea; page-break-inside: avoid; }
+  .ins-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+  .ins-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  .ins-body { font-size: 12px; color: #3a3f4a; line-height: 1.6; margin-bottom: 10px; }
+  .ins-action { font-size: 11px; padding: 8px 10px; background: #f7f8fa; border-radius: 4px; line-height: 1.6; }
+  .ins-action strong { color: #0f1117; }
+  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e5ea; font-size: 11px; color: #9ca3af; }
+  @media print { body { padding: 16px; } }
+</style></head><body>
+<h1>AI Trading Coach Report</h1>
+<div class="sub">Period: ${report.period || periodLabel} · Generated: ${report.generatedAt ? new Date(report.generatedAt).toLocaleString() : 'now'} · ${tradeCount?.toLocaleString()} trades · via ${report.provider === 'claude' ? 'Claude (Anthropic)' : 'Qwen-Plus'}</div>
+<div class="meta">
+  <div class="meta-item"><div class="meta-label">Consistency Score</div><div class="meta-val">${report.score ?? '—'}/100</div></div>
+  ${report.archetype ? `<div class="meta-item"><div class="meta-label">Trader Archetype</div><div class="meta-val" style="font-size:14px">${report.archetype}</div></div>` : ''}
+</div>
+${report.core_edge ? `<div class="edge-grid">
+  <div class="edge-box edge-win"><div class="edge-lbl" style="color:#065f46">✅ Core Edge</div><div style="color:#065f46">${report.core_edge}</div></div>
+  <div class="edge-box edge-los"><div class="edge-lbl" style="color:#991b1b">⚠ Core Weakness</div><div style="color:#991b1b">${report.core_weakness}</div></div>
+</div>` : ''}
+${report.coaching_tip ? `<div class="tip"><div class="tip-lbl">💡 This Week's Focus</div><div style="color:#1e429f">${report.coaching_tip}</div></div>` : ''}
+<div class="insights">
+${insights.map(ins => {
+  const c = TYPE_COLOR[ins.type] || '#6b7280'
+  return `<div class="insight" style="border-left: 3px solid ${c}">
+    <span class="ins-tag" style="background:${c}">${ins.tag || ins.type?.toUpperCase()}</span>
+    <div class="ins-title">${ins.title}</div>
+    <div class="ins-body">${ins.body}</div>
+    <div class="ins-action"><strong>Action:</strong> ${ins.action}</div>
+  </div>`
+}).join('')}
+</div>
+<div class="footer">Trading Journal · AI Coaching Report · ${report.period || periodLabel}</div>
+</body></html>`
+    printWin.document.write(html)
+    printWin.document.close()
+    printWin.onload = () => { printWin.print() }
+  }
+
+  const TYPE_CFG = {
+    critical:    { pillClass:'pr', borderColor:'var(--ls)', icClass:'ic-cr' },
+    bias:        { pillClass:'pw', borderColor:'var(--wa)', icClass:'ic-bi' },
+    opportunity: { pillClass:'pa', borderColor:'var(--ac)', icClass:'ic-op' },
+    strength:    { pillClass:'pb', borderColor:'var(--wn)', icClass:'ic-st' },
+  }
+  const providerLabel = report?.provider === 'claude' ? 'Claude (Anthropic)' : report?.provider === 'qwen' ? 'Qwen-Plus' : ''
+  const displayInsights = report?.insights ? (typeof report.insights === 'string' ? JSON.parse(report.insights) : report.insights) : []
+
+  return (
+    <div className="anim">
+
+      {/* ── HEADER CARD ──────────────────────────────────────────────── */}
+      <div className="card" style={{marginBottom:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>
+              AI TRADING COACH · LIVE REPORT
+            </div>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:2}}>
+              Performance Analysis · {tradeCount?.toLocaleString()||0} Trades
+            </div>
+            <div style={{fontSize:11,color:'var(--ac)',fontFamily:'var(--font-mono)',fontWeight:600,marginBottom:8}}>
+              Period: {periodLabel}
+            </div>
+            <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.6,maxWidth:520,marginBottom:12}}>
+              Change the date range at the top of the page first, then generate a report for that specific period.
+            </div>
+            {/* Action buttons */}
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <button className={`btn ${loading?'':'btn-p'}`} onClick={generate} disabled={loading||!stats} style={{padding:'8px 20px',fontSize:13,gap:8}}>
+                {loading ? (
+                  <><span style={{width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} /> Analysing {tradeCount?.toLocaleString()} trades…</>
+                ) : generated ? '🔄 Regenerate' : '🧠 Generate AI Coaching Report'}
+              </button>
+              {report && (
+                <>
+                  <button className="btn" onClick={saveReport} disabled={saving} style={{gap:6}}>
+                    {saving ? '💾 Saving…' : savedOk ? '✅ Saved!' : '💾 Save Report'}
+                  </button>
+                  <button className="btn" onClick={exportPDF} style={{gap:6}}>📄 Export PDF</button>
+                </>
+              )}
+              <button className="btn" onClick={toggleHistory} style={{gap:6,marginLeft:'auto'}}>
+                📋 {showHist ? 'Hide' : 'View'} Saved Reports
+              </button>
+            </div>
+            {lastRun && !loading && (
+              <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginTop:8}}>
+                Generated: {lastRun} · via {providerLabel} · period: {periodLabel}
+              </div>
+            )}
+            {!stats && <div style={{fontSize:11,color:'var(--mu)',marginTop:8}}>Upload trades first to enable AI analysis.</div>}
+          </div>
+
+          {/* Score */}
+          {report && (
+            <div style={{textAlign:'center',padding:'12px 24px',borderLeft:'1px solid var(--bd)',flexShrink:0}}>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:52,fontWeight:700,color:'var(--ac)',lineHeight:1}}>{report.score ?? '—'}</div>
+              <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',marginTop:2}}>CONSISTENCY</div>
+              {report.archetype && <div style={{marginTop:10,padding:'4px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:11,color:'var(--ac2)',fontWeight:600}}>{report.archetype}</div>}
+              {report.score_rationale && <div style={{fontSize:10,color:'var(--mu)',marginTop:6,maxWidth:140,lineHeight:1.4}}>{report.score_rationale}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Edge / Weakness */}
+        {report?.core_edge && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:14,paddingTop:14,borderTop:'1px solid var(--bd)'}} className="g2">
+            <div style={{background:'var(--wn-bg)',border:'1px solid var(--wn-bd)',borderRadius:7,padding:'10px 14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--wn-tx)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>✅ CORE EDGE</div>
+              <div style={{fontSize:12,color:'var(--wn-tx)',lineHeight:1.6}}>{report.core_edge}</div>
+            </div>
+            <div style={{background:'var(--ls-bg)',border:'1px solid var(--ls-bd)',borderRadius:7,padding:'10px 14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--ls-tx)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>⚠ CORE WEAKNESS</div>
+              <div style={{fontSize:12,color:'var(--ls-tx)',lineHeight:1.6}}>{report.core_weakness}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Coaching tip */}
+        {report?.coaching_tip && (
+          <div style={{marginTop:12,padding:'10px 14px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:7}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--ac2)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>💡 THIS WEEK'S FOCUS</div>
+            <div style={{fontSize:12,color:'var(--ac2)',lineHeight:1.6}}>{report.coaching_tip}</div>
+          </div>
+        )}
+      </div>
+
+      {/* ── SAVED REPORTS HISTORY ─────────────────────────────────────── */}
+      {showHist && (
+        <div className="card" style={{marginBottom:14}}>
+          <div className="ct"><span className="ind" />SAVED REPORTS {histLoad && <span style={{fontSize:10,fontWeight:400,color:'var(--mu)'}}>Loading…</span>}</div>
+          {history.length === 0 && !histLoad && (
+            <div style={{color:'var(--mu)',fontSize:12,padding:'8px 0'}}>No saved reports yet. Generate a report and click "Save Report" to keep a record.</div>
+          )}
+          {history.length > 0 && (
+            <div style={{display:'grid',gap:8}}>
+              {history.map(r => (
+                <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',background:'var(--sf2)',borderRadius:7,border:'1px solid var(--bd)'}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+                      <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:'var(--ac)'}}>{r.score}</span>
+                      <span style={{fontSize:12,fontWeight:600}}>{r.period}</span>
+                      {r.archetype && <span style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{r.archetype}</span>}
+                    </div>
+                    <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
+                      {new Date(r.created_at).toLocaleString()} · {r.trade_count?.toLocaleString()} trades · {r.provider === 'claude' ? 'Claude' : 'Qwen'}
+                    </div>
+                  </div>
+                  <button className="btn btn-sm" onClick={() => loadSavedReport(r)}>Load</button>
+                  <button className="btn btn-sm btn-d" onClick={() => deleteReport(r.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div style={{background:'var(--wa-bg)',border:'1px solid var(--wa-bd)',borderRadius:8,padding:'14px 16px',marginBottom:14,fontSize:12,color:'var(--wa-tx)',lineHeight:1.6}}>
+          ℹ️ {error}
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
+          {[1,2,3,4,5,6,7,8].map(i => (
+            <div key={i} className="ic" style={{minHeight:140}}>
+              <div style={{width:'40%',height:18,background:'var(--sf3)',borderRadius:4,marginBottom:10,animation:'pulse 1.5s infinite'}} />
+              <div style={{width:'80%',height:14,background:'var(--sf3)',borderRadius:4,marginBottom:6,animation:'pulse 1.5s infinite'}} />
+              <div style={{width:'90%',height:14,background:'var(--sf3)',borderRadius:4,marginBottom:6,animation:'pulse 1.5s infinite'}} />
+              <div style={{width:'70%',height:14,background:'var(--sf3)',borderRadius:4,animation:'pulse 1.5s infinite'}} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Insights grid */}
+      {displayInsights.length > 0 && !loading && (
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
+          {displayInsights.map((ins, i) => {
+            const cfg = TYPE_CFG[ins.type] || TYPE_CFG.opportunity
+            return (
+              <div key={i} className={`ic ${cfg.icClass}`}>
+                <div style={{marginBottom:8}}><span className={`pill ${cfg.pillClass}`}>{ins.tag || ins.type?.toUpperCase()}</span></div>
+                <div style={{fontWeight:600,fontSize:13,marginBottom:5,color:'var(--tx)'}}>{ins.title}</div>
+                <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.65,marginBottom:10}}>{ins.body}</div>
+                <div style={{padding:'8px 10px',background:'var(--sf2)',borderRadius:5,fontSize:11,color:'var(--tx2)',lineHeight:1.6,borderLeft:`2px solid ${cfg.borderColor}`}}>
+                  <span style={{fontWeight:600,color:'var(--tx)'}}>Action: </span>{ins.action}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!report && !loading && !error && (
+        <div style={{textAlign:'center',padding:'48px 20px',color:'var(--mu)'}}>
+          <div style={{fontSize:40,marginBottom:12}}>🧠</div>
+          <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:'var(--tx)'}}>Ready to analyse your trading</div>
+          <div style={{fontSize:12,maxWidth:420,margin:'0 auto',lineHeight:1.7}}>
+            Select a date range above (WTD, MTD, QTD, YTD, or All), then click Generate. Each report is saved separately so you can compare periods over time.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
   const [report,    setReport]    = useState(null)
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState(null)
