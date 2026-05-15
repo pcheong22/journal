@@ -750,6 +750,7 @@ export default function Dashboard() {
                         ['direction','Dir'],
                         ['entry_price','Entry Px'],
                         ['exit_price','Exit Px'],
+                        ['notional_usd','Notional'],
                         ['pnl','P&L'],
                         ['pct_gain','% Ret'],
                         ['duration_mins','Duration'],
@@ -793,6 +794,7 @@ export default function Dashboard() {
                           </td>
                           <td>{t.entry_price?.toLocaleString() || '—'}</td>
                           <td>{t.exit_price?.toLocaleString() || '—'}</td>
+                          <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? fA(t.notional_usd) : '—'}</td>    
                           <td className={`${t.pnl >= 0 ? 'pos' : 'neg'} private`}>{fU(t.pnl)}</td>
                           <td className={t.pct_gain >= 0 ? 'pos' : 'neg'}>{pct}</td>
                           <td className="mu">{dur}</td>
