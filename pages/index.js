@@ -853,6 +853,9 @@ ${insights.map(ins => {
   const providerLabel = report?.provider === 'claude' ? 'Claude (Anthropic)' : report?.provider === 'qwen' ? 'Qwen-Plus' : ''
   const displayInsights = report?.insights ? (typeof report.insights === 'string' ? JSON.parse(report.insights) : report.insights) : []
 
+  }
+
+function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
   return (
     <div className="anim">
 
