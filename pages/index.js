@@ -508,7 +508,7 @@ export default function Dashboard() {
                 <div key={l} className="kpi">
                   <div className="kl">{l}</div>
                   <div className={`kv ${c} ${priv ? 'private' : ''}`}>{v}</div>
-                  <div className="ks">{s}</div>
+                  <div className={`ks ${l==='RISK/REWARD'?'private':''}`}>{s}</div>
                 </div>
               ))}
             </div>
