@@ -364,7 +364,7 @@ export default function Dashboard() {
             title={privacy ? 'Show values' : 'Hide values'}
             style={{background:privacy ? 'var(--ac-bg)' : 'var(--sf)',border:`1px solid ${privacy ? 'var(--ac-bd)' : 'var(--bd)'}`,borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:14,transition:'all .15s'}}
           >
-            {privacy ? '🙈' : '👁'}
+            {privacy ? '🚫' : '👁'}
           </button>
           
           <span style={{display:'inline-flex',alignItems:'center',gap:5,color:'var(--mu)',fontSize:10}}>
