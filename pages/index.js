@@ -218,46 +218,45 @@ export default function Dashboard() {
             {/* DATE FILTER */}
             <DateRangeFilter onRangeChange={setDateRange} defaultValue="MTD" />
 
-            {/* KPI CARDS */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24}}>
-              <div className="kpi-card" onClick={() => setHidePnl(!hidePnl)} style={{cursor:'pointer',background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
-                <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>
-                  NET P&L {hidePnl ? '👁️‍🗨️' : '👁️'}
-                </div>
-                <div className="kpi-value" style={{fontSize:24,fontWeight:700,color: (stats?.overview?.total_pnl || 0) >= 0 ? '#4bde80' : '#b94144',filter: hidePnl ? 'blur(4px)' : 'none'}}>
-                  {hidePnl ? '*********' : fU(stats?.overview?.total_pnl || 0)}
-                </div>
-                <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>
-                  {((stats?.overview?.total_pnl || 0) / 1000 * 100).toFixed(1)}% ROI
-                </div>
-              </div>
+{/* KPI CARDS */}
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24}}>
+  <div className="kpi-card" onClick={() => setHidePnl(!hidePnl)} style={{cursor:'pointer',background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
+    <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>
+      NET P&L {hidePnl ? '👁️‍🗨️' : '👁️'}
+    </div>
+    <div className="kpi-value" style={{fontSize:24,fontWeight:700,color: (stats?.overview?.total_pnl || 0) >= 0 ? '#4bde80' : '#b94144',filter: hidePnl ? 'blur(4px)' : 'none'}}>
+      {hidePnl ? '*********' : formatNumber(stats?.overview?.total_pnl || 0, true)}
+    </div>
+    <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>
+      {((stats?.overview?.total_pnl || 0) / 1000 * 100).toFixed(1)}% ROI
+    </div>
+  </div>
 
-              <div className="kpi-card" style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
-                <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>WIN RATE</div>
-                <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#4bde80'}}>
-                  {stats?.overview?.win_rate ? (stats.overview.win_rate * 100).toFixed(1) : 0}%
-                </div>
-                <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>
-                  {filteredTrades.filter(t => t.pnl > 0).length} Wins / {filteredTrades.filter(t => t.pnl < 0).length} Losses
-                </div>
-              </div>
+  <div className="kpi-card" style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
+    <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>WIN RATE</div>
+    <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#4bde80'}}>
+      {stats?.overview?.win_rate ? (stats.overview.win_rate * 100).toFixed(1) : 0}%
+    </div>
+    <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>
+      {filteredTrades.filter(t => t.pnl > 0).length} Wins / {filteredTrades.filter(t => t.pnl < 0).length} Losses
+    </div>
+  </div>
 
-              <div className="kpi-card" style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
-                <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>TRADES</div>
-                <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#e6edf3'}}>
-                  +{filteredTrades.length}
-                </div>
-              </div>
+  <div className="kpi-card" style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
+    <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>TRADES</div>
+    <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#e6edf3'}}>
+      +{formatNumber(filteredTrades.length, false)} {/* Plain number, no currency */}
+    </div>
+  </div>
 
-              <div className="kpi-card" style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
-                <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>AVG R:R</div>
-                <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#ffb300'}}>
-                  0.62
-                </div>
-                <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>Target {'>'} 1.5</div>
-              </div>
-            </div>
-
+  <div className="kpi-card" style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16}}>
+    <div className="kpi-label" style={{fontSize:11,color:'#8b949e',textTransform:'uppercase',marginBottom:4}}>AVG R:R</div>
+    <div className="kpi-value" style={{fontSize:24,fontWeight:700,color:'#ffb300'}}>
+      0.62
+    </div>
+    <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>Target {'>'} 1.5</div>
+  </div>
+</div>
             {/* CHARTS */}
             <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:16,marginBottom:24}}>
               <ChartComp type="equity" data={stats?.cumulative || []} privacyMode={hidePnl} />
