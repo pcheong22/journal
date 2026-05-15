@@ -8,26 +8,60 @@ export default function DateRangeFilter({ onRangeChange, defaultValue='MTD' }) {
   const [customEnd, setCustomEnd] = useState('')
   const [showCustom, setShowCustom] = useState(false)
 
-  const getRange = (range, startStr, endStr) => {
-    const now = new Date()
-    const startOfDay = d => { d.setUTCHours(0,0,0,0); return d }
-    const endOfDay = d => { d.setUTCHours(23,59,59,999); return d }
-    let start = new Date(0), end = endOfDay(new Date(now))
-
-    switch(range) {
-      case '1D': start = startOfDay(new Date(now)); break
-      case '1W': start = startOfDay(new Date(now.getTime() - 6*86400000)); break
-      case 'MTD': start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)); break
-      case '1M': start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-1, now.getUTCDate())); break
-      case 'QTD': start = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth()/3)*3, 1)); break
-      case '3M': start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-3, now.getUTCDate())); break
-      case 'YTD': start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1)); break
-      case '1Y': start = new Date(Date.UTC(now.getUTCFullYear()-1, now.getUTCMonth(), now.getUTCDate())); break
-      case 'Custom': if(startStr && endStr) { start = startOfDay(new Date(startStr)); end = endOfDay(new Date(endStr)); } break
-      default: start = new Date(0)
-    }
-    return { start, end, label: range === 'Custom' ? `${startStr} → ${endStr}` : range }
+const getRange = (range, startStr, endStr) => {
+  const now = new Date()
+  const startOfDay = d => { 
+    const dt = new Date(d)
+    dt.setUTCHours(0,0,0,0)
+    return dt
   }
+  const endOfDay = d => { 
+    const dt = new Date(d)
+    dt.setUTCHours(23,59,59,999)
+    return dt
+  }
+  
+  let start = new Date(0)
+  let end = endOfDay(new Date(now))
+
+  switch(range) {
+    case '1D':
+      start = startOfDay(new Date(now))
+      break
+    case '1W':
+      start = startOfDay(new Date(now.getTime() - 6*86400000))
+      break
+    case 'MTD':
+      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      break
+    case '1M':
+      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-1, now.getUTCDate()))
+      break
+    case 'QTD':
+      start = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth()/3)*3, 1))
+      break
+    case '3M':
+      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-3, now.getUTCDate()))
+      break
+    case 'YTD':
+      start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
+      break
+    case '1Y':
+      start = new Date(Date.UTC(now.getUTCFullYear()-1, now.getUTCMonth(), now.getUTCDate()))
+      break
+    case 'Custom':
+      if (startStr && endStr) {
+        start = startOfDay(new Date(startStr))
+        end = endOfDay(new Date(endStr))
+      }
+      break
+    case 'All':
+    default:
+      start = new Date(0)
+  }
+  
+  return { start, end, label: range === 'Custom' ? `${startStr} → ${endStr}` : range }
+}
 
   useEffect(() => {
     onRangeChange?.(getRange(active, customStart, customEnd))
