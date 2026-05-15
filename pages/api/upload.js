@@ -1,79 +1,145 @@
+// pages/api/upload.js
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
 import { parseTradeFile } from '../../lib/tradeUtils'
+import { computeStreaks } from '../../lib/parserUtils'
+
+export const config = { api: { bodyParser: false } }
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+
+const BROKER_COLORS  = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#be185d','#16a34a']
+const BROKER_LABELS  = { PrimeXBT: id => `PrimeXBT ${id}` }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-
   try {
-    const { fileContent, fileName, accountId } = req.body
-    if (!fileContent || !accountId) return res.status(400).json({ error: 'Missing data' })
+    // Read raw multipart body
+    const chunks = []
+    for await (const chunk of req) chunks.push(chunk)
+    const buffer = Buffer.concat(chunks)
 
-    // Decode Base64 (removes the "data:text/csv;base64," prefix)
-    const base64Data = fileContent.replace(/^data:[a-zA-Z/]*;base64,/, '')
-    const buffer = Buffer.from(base64Data, 'base64')
+    const contentType   = req.headers['content-type'] || ''
+    const boundaryMatch = contentType.match(/boundary=(.+)$/)
+    if (!boundaryMatch) return res.status(400).json({ error: 'No boundary in content-type' })
 
-    // Parse the Excel/CSV buffer
-    const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const json = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+    // Simple multipart parser
+    const boundary = '--' + boundaryMatch[1]
+    const parts    = buffer.toString('binary').split(boundary)
+    let fileBuffer = null
+    let filename   = 'upload.csv'
 
-    // Process trades using your utility
-    const { trades, broker } = await parseTradeFile(json, fileName, accountId)
+    for (const part of parts) {
+      if (part.includes('filename=')) {
+        const fnMatch = part.match(/filename="([^"]+)"/)
+        if (fnMatch) filename = fnMatch[1]
+        const headerEnd = part.indexOf('\r\n\r\n')
+        if (headerEnd >= 0) {
+          const body = part.slice(headerEnd + 4, part.lastIndexOf('\r\n'))
+          fileBuffer = Buffer.from(body, 'binary')
+        }
+      }
+    }
+    if (!fileBuffer) return res.status(400).json({ error: 'No file found in request' })
 
-    if (!trades.length) return res.status(400).json({ error: 'No valid trades found. Check file format.' })
-
-    // 1. Ensure Account Exists
-// In the upload handler, replace the account creation part:
-const {  existingAcc } = await supabase.from('accounts').select('id').eq('id', accountId).single()
-if (!existingAcc) {
-  // Extract broker name from accountId or use default
-  let brokerName = 'Generic'
-  let labelName = accountId
-  
-  if (accountId.includes('PXT') || accountId.includes('PrimeXBT')) {
-    brokerName = 'PrimeXBT'
-    labelName = accountId.replace(/_/g, ' ')
-  } else if (accountId.includes('HL') || accountId.includes('hyperliquid')) {
-    brokerName = 'Hyperliquid'
-    labelName = accountId.replace(/_/g, ' ')
-  } else if (accountId.includes('BYB') || accountId.includes('bybit')) {
-    brokerName = 'Bybit'
-    labelName = accountId.replace(/_/g, ' ')
-  } else if (accountId.includes('IBKR')) {
-    brokerName = 'IBKR'
-    labelName = 'IBKR U11154227'
-  }
-
-  await supabase.from('accounts').insert({
-    id: accountId,
-    broker: brokerName,
-    label: labelName,
-    currency: 'USD',
-    color: '#4bde80'
-  })
-}
-
-    // 2. Insert Trades (Skip Duplicates)
-    const {  existingIds } = await supabase.from('trades').select('position_id').eq('account_id', accountId)
-    const existingSet = new Set((existingIds || []).map(t => t.position_id))
-    const newTrades = trades.filter(t => !existingSet.has(t.position_id)).map(t => ({...t, account_id: accountId}))
-
-    if (newTrades.length) {
-      const { error } = await supabase.from('trades').insert(newTrades)
-      if (error) throw error
+    // Parse into rows
+    let rows
+    if (filename.toLowerCase().endsWith('.csv')) {
+      const text = fileBuffer.toString('utf8')
+      rows = text.split('\n').map(l =>
+        l.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+      )
+    } else {
+      const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      count: newTrades.length, 
-      skipped: trades.length - newTrades.length 
-    })
+    // Detect broker + parse trades
+    const accountIdOverride = req.headers['x-account-id'] || null
+    const parsed = parseTradeFile(rows, filename, accountIdOverride)
+    const { broker, accountId, currency, trades: incoming } = parsed
 
+    if (!incoming.length) {
+      return res.status(400).json({
+        error: 'No valid trades found. Check the file format matches your broker export.'
+      })
+    }
+
+    // Upsert account
+    const { data: existingAccts } = await supabase.from('accounts').select('id').eq('id', accountId)
+    if (!existingAccts?.length) {
+      const { count } = await supabase.from('accounts').select('*', { count: 'exact', head: true })
+      const colorIdx  = (count || 0) % BROKER_COLORS.length
+      const labelFn   = BROKER_LABELS[broker] || (id => id)
+      await supabase.from('accounts').insert({
+        id:       accountId,
+        broker,
+        label:    labelFn(accountId),
+        currency,
+        color:    BROKER_COLORS[colorIdx],
+      })
+    }
+
+    // Fetch existing position IDs for deduplication
+    const { data: existing } = await supabase
+      .from('trades').select('position_id').eq('account_id', accountId)
+    const existingIds = new Set((existing || []).map(t => t.position_id))
+
+    const newTrades = incoming.filter(t => !existingIds.has(t.position_id))
+    const dupCount  = incoming.length - newTrades.length
+
+    if (!newTrades.length) {
+      return res.status(200).json({
+        message:    'All trades already imported — no duplicates added',
+        imported:   0,
+        duplicates: dupCount,
+        total:      incoming.length,
+        broker,
+        accountId,
+      })
+    }
+
+    // Compute streaks across all trades (existing + new), sorted by entry_time
+    const { data: allExisting } = await supabase
+      .from('trades')
+      .select('position_id, pnl, entry_time')
+      .eq('account_id', accountId)
+      .order('entry_time', { ascending: true })
+
+    const combined = [
+      ...(allExisting || []),
+      ...newTrades.map(t => ({ position_id: t.position_id, pnl: t.pnl, entry_time: t.entry_time }))
+    ].sort((a, b) => a.entry_time.localeCompare(b.entry_time))
+
+    const withStreaks   = computeStreaks(combined)
+    const streakMap     = Object.fromEntries(withStreaks.map(t => [t.position_id, t.streak_id]))
+    const tradesToInsert = newTrades.map(t => ({ ...t, streak_id: streakMap[t.position_id] || null }))
+
+    // Insert in batches of 500
+    let inserted = 0
+    for (let i = 0; i < tradesToInsert.length; i += 500) {
+      const batch        = tradesToInsert.slice(i, i + 500)
+      const { error }    = await supabase.from('trades').insert(batch)
+      if (error) throw new Error(`DB insert error: ${error.message}`)
+      inserted += batch.length
+    }
+
+    return res.status(200).json({
+      message:    `Imported ${inserted} new trades for account ${accountId}`,
+      imported:   inserted,
+      duplicates: dupCount,
+      total:      incoming.length,
+      broker,
+      accountId,
+      currency,
+    })
   } catch (err) {
-    console.error('Upload Error:', err)
-    return res.status(500).json({ error: err.message })
+    console.error('Upload error:', err)
+    return res.status(500).json({ error: err.message || 'Upload failed' })
   }
 }
