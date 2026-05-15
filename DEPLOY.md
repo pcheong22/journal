@@ -1,151 +1,176 @@
-# Trading Journal — Deployment Guide
-# Live on Vercel + Supabase in ~15 minutes, completely free
+# Trading Journal v4 — Deployment Guide
+# PrimeXBT · Phase 1 Features · AI Stub Ready
 
 ============================================================
-STEP 1 — SET UP SUPABASE (your database)
+WHAT'S NEW IN V4
 ============================================================
 
-1. Go to https://supabase.com and click "Start your project" (free, no card needed)
-
-2. Create a new project:
-   - Name: trading-journal
-   - Database password: choose a strong password (save it)
-   - Region: pick the one closest to you
-
-3. Wait ~2 minutes for the project to spin up
-
-4. Go to the SQL Editor (left sidebar) and run the contents of:
-   supabase-schema.sql
-   (copy-paste the whole file and click Run)
-
-5. Collect your API keys:
-   - Go to Settings → API
-   - Copy "Project URL" → this is NEXT_PUBLIC_SUPABASE_URL
-   - Copy "anon public" key → this is NEXT_PUBLIC_SUPABASE_ANON_KEY
-   - Copy "service_role" key → this is SUPABASE_SERVICE_ROLE_KEY
-     ⚠️  Keep the service role key secret — never put it in frontend code
+✓ Supabase schema v3 — tags, notes, stop_loss, R-Multiple, streaks
+✓ Trade tagging system — Setup / Psychology / Execution (21 default tags)
+✓ Per-trade notes — structured template + free-text
+✓ R-Multiple — optional, auto-calculates when stop loss entered
+✓ Win/Loss Streaks — dedicated Streaks tab with visualisation
+✓ Date range filter — YTD default, presets + custom picker (server-side)
+✓ Privacy toggle — eye icon blurs all P&L values + chart Y-axis
+✓ AI coach stub — /api/ai-coach.js ready, activate with QWEN_API_KEY
+✓ Modular broker parsers — lib/parsers/primexbt.js (easily add more)
+✓ Unified parseDate() — handles all date formats across brokers
 
 ============================================================
-STEP 2 — SET UP GITHUB (to connect to Vercel)
+STEP 1 — SUPABASE SCHEMA (run once)
 ============================================================
 
-1. Create a free account at https://github.com if you don't have one
+1. Go to supabase.com → your project → SQL Editor
 
-2. Create a new repository called "trading-journal" (private is fine)
+2. If upgrading from a previous version, clear old tables first:
 
-3. Upload all the project files to the repo:
-   - Click "Add file" → "Upload files"
-   - Drag the entire trading-journal folder contents
-   - OR use Git if you're comfortable:
-     git init
-     git add .
-     git commit -m "Initial trading journal"
-     git remote add origin https://github.com/YOUR_USERNAME/trading-journal.git
-     git push -u origin main
+     DROP TABLE IF EXISTS trade_tag_mappings CASCADE;
+     DROP TABLE IF EXISTS trade_tags CASCADE;
+     DROP TABLE IF EXISTS missed_trades CASCADE;
+     DROP TABLE IF EXISTS trades CASCADE;
+     DROP TABLE IF EXISTS accounts CASCADE;
 
-============================================================
-STEP 3 — DEPLOY TO VERCEL
-============================================================
+3. Open supabase-schema.sql from this zip.
+   Copy all contents → paste into SQL Editor → click Run.
 
-1. Go to https://vercel.com and sign up with your GitHub account
+4. The schema creates:
+   - accounts         (one row per broker sub-account)
+   - trades           (all trade data + notes + stop_loss)
+   - trade_tags       (21 default tags pre-seeded)
+   - trade_tag_mappings (many-to-many trades ↔ tags)
+   - missed_trades    (manually logged missed opportunities)
 
-2. Click "Add New Project" → "Import Git Repository"
+5. Verify: click Table Editor — you should see all 5 tables.
 
-3. Select your "trading-journal" repo
-
-4. On the configuration screen:
-   - Framework Preset: Next.js (auto-detected)
-   - Root Directory: leave as /
-   - Build Command: leave as default (npm run build)
-
-5. Click "Environment Variables" and add these three:
-   
-   Name: NEXT_PUBLIC_SUPABASE_URL
-   Value: https://your-project-id.supabase.co   (from Step 1)
-   
-   Name: NEXT_PUBLIC_SUPABASE_ANON_KEY
-   Value: your-anon-key                         (from Step 1)
-   
-   Name: SUPABASE_SERVICE_ROLE_KEY
-   Value: your-service-role-key                 (from Step 1)
-
-6. Click "Deploy"
-
-7. Wait ~60 seconds. Your app is live at:
-   https://trading-journal-YOUR_USERNAME.vercel.app
+6. Get your API keys:
+   Settings → API:
+   - Project URL         → NEXT_PUBLIC_SUPABASE_URL
+   - anon/public key     → NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - service_role key    → SUPABASE_SERVICE_ROLE_KEY
 
 ============================================================
-STEP 4 — UPLOAD YOUR TRADES
+STEP 2 — GITHUB (upload files)
 ============================================================
 
-1. Visit your live URL
+Go to your GitHub repo, click Add file → Upload files.
+Open this zip, open the trading-journal folder inside,
+select ALL contents and drag onto GitHub. Commit.
 
-2. Use the upload bar at the top of the page
+Key new/changed files:
+  supabase-schema.sql              ← v3 schema (run in Supabase first)
+  lib/tradeUtils.js                ← master router + stats + simulation
+  lib/parserUtils.js               ← shared date/symbol/session utils
+  lib/parsers/primexbt.js          ← PrimeXBT-specific parser
+  pages/api/upload.js              ← upload with streak computation
+  pages/api/trades.js              ← server-side date + account filter
+  pages/api/trade-notes.js         ← save notes, tags, stop loss
+  pages/api/ai-coach.js            ← AI stub (activate with QWEN_API_KEY)
+  pages/index.js                   ← full dashboard with Phase 1 features
+  components/Charts.js             ← all charts incl. streaks
+  components/TradeModal.js         ← trade detail with notes + tags
+  styles/globals.css               ← privacy mode + tag + streak styles
 
-3. Drag your broker export (Excel or CSV) onto it
-
-4. It will:
-   - Parse all trades
-   - Skip any duplicates (by Position ID)
-   - Show you a count of new trades imported
-   - Instantly refresh the dashboard
-
-5. Every future upload will only add NEW trades — safe to re-upload
-   the same file multiple times, nothing duplicates
-
-============================================================
-UPDATING THE SITE IN FUTURE
-============================================================
-
-If I make changes to your code:
-1. Download the new files
-2. Update them in your GitHub repo (drag-and-drop upload, replace files)
-3. Vercel auto-deploys within ~30 seconds of any GitHub push
-
-That's it — no servers to manage, no ongoing costs for personal use.
+Vercel auto-deploys within ~30 seconds of any GitHub push.
 
 ============================================================
-COSTS
+STEP 3 — VERCEL ENVIRONMENT VARIABLES
 ============================================================
 
-Vercel Hobby (free):
-- Unlimited deployments
-- 100GB bandwidth/month
-- Serverless functions included
-- Custom domain supported
+In Vercel → your project → Settings → Environment Variables:
 
-Supabase Free:
-- 500MB database storage
-- Unlimited API requests
-- Enough for 100,000+ trades
+  NEXT_PUBLIC_SUPABASE_URL      = https://xxxxx.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJhbGci...
+  SUPABASE_SERVICE_ROLE_KEY     = eyJhbGci...
+  QWEN_API_KEY                  = (leave blank for stub mode)
 
-Both are free for personal use indefinitely.
+If you already had these set, no change needed.
+Add QWEN_API_KEY when you're ready to activate AI coaching.
 
 ============================================================
-OPTIONAL — CUSTOM DOMAIN
+STEP 4 — UPLOADING TRADES
 ============================================================
 
-1. In Vercel dashboard → Your project → Settings → Domains
-2. Add your domain (e.g. trades.yourdomain.com)
-3. Follow DNS instructions
-4. SSL certificate is automatic and free
+PrimeXBT:
+  Orders → Closed Orders → Export CSV
+  Filename: DATE_ACCOUNTID_CURRENCY_orders.csv
+  e.g. 2026-05-08_L259832_USDC_orders.csv
+
+Each upload:
+  - Auto-detects PrimeXBT format from filename + headers
+  - Extracts account ID and currency from filename
+  - Deduplicates by position_id per account
+  - Computes win/loss streaks across all trades on import
+  - Creates account entry automatically if new
 
 ============================================================
-TROUBLESHOOTING
+PHASE 1 FEATURES — HOW TO USE
 ============================================================
 
-"No trades showing after upload"
-→ Check Vercel logs: Dashboard → Your project → Functions tab
-→ Verify Supabase environment variables are set correctly
+DATE RANGE FILTER (bar below header):
+  Defaults to YTD (Jan 1 of current year → today)
+  Presets: 7D · 30D · 3M · 6M · YTD · 1Y · All
+  Custom: pick any start and end date
+  All charts + stats update instantly, server-side filtering
 
-"Upload says 0 trades imported"
-→ The file format may differ from expected. Check the column names match:
-  Position ID, Direction, Entry time (GMT), Exit/Transfer Time (GMT),
-  Symbol, Size, Entry price, Exit price, Notional (USD), Profit/Loss
+PRIVACY TOGGLE (eye icon in header):
+  Click 👁 to blur all P&L values and chart Y-axes
+  Click again to reveal
+  Useful for screenshots or sharing screen
 
-"Build fails on Vercel"
-→ Check the build logs for the specific error
-→ Most common: missing environment variable
+TRADE TAGGING (in trade detail modal):
+  Click any trade row → Tags section at bottom
+  Select from 21 pre-built tags across Setup / Psychology / Execution
+  Tags are colour-coded and saved to database
+  Filter trade log by tag (coming in filter bar)
+  Upload your own tag reference list to extend defaults
 
-For any issues, the Vercel and Supabase dashboards both have
-excellent free support via their community forums.
+PER-TRADE NOTES (in trade detail modal):
+  Structured template:
+    - Why did you enter this trade?
+    - How did you manage it?
+    - What would you do differently?
+    - Emotional state during trade
+  Plus free-text notes field below
+  All saved to Supabase, visible on next load
+
+R-MULTIPLE (in trade detail modal):
+  Enter your stop loss price → R-Multiple auto-calculates
+  Formula: (exit - entry) / (entry - stop) for Long
+           (entry - exit) / (stop - entry) for Short
+  Optional — only shown when stop loss is entered
+  Saved to database
+
+WIN/LOSS STREAKS (Streaks tab):
+  Visual timeline of consecutive wins/losses
+  Shows current streak, max win streak, max loss streak
+  Computed on upload, updated on each import
+
+AI COACH (stub mode):
+  Trade detail modal → "Get AI Analysis" button
+  Returns stub message until QWEN_API_KEY is set
+  When activated: analyses trade + notes and returns
+  insights, coaching tip, pattern flags, rule compliance
+
+============================================================
+ADDING MORE BROKERS LATER
+============================================================
+
+1. Create lib/parsers/yourbroker.js
+   Export: parseBroker(rows, accountId) → trade[]
+   Export: extractBrokerMeta(filename) → { accountId, currency }
+
+2. Add detection logic in lib/parserUtils.js → detectBroker()
+
+3. Add routing in lib/tradeUtils.js → parseTradeFile()
+
+That's it. Each parser is fully isolated.
+
+============================================================
+REMINDER — PENDING ITEMS
+============================================================
+
+- Tag list screenshots: upload when ready to extend default tags
+- Extended/Generic format: add when you have the file with
+  entry_time and exit_time separated
+- Bybit / Hyperliquid / IBKR: parsers ready to add when needed
+- AI activation: set QWEN_API_KEY in Vercel when you have key
