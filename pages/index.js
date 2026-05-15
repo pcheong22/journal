@@ -446,20 +446,7 @@ export default function Dashboard() {
 
         {/* COACH */}
         {tab==='coach' && (
-          <div className="anim">
-            <div className="card" style={{marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
-              <div>
-                <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>TRADING COACH REPORT</div>
-                <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Performance Analysis · {ov?.total_trades?.toLocaleString()||0} Trades</div>
-                <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.6,maxWidth:500}}>Recurring errors, behavioural biases, and missed opportunities.</div>
-              </div>
-              <div style={{textAlign:'center',padding:'8px 20px',borderLeft:'1px solid var(--bd)',flexShrink:0}}>
-                <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:44,fontWeight:700,color:'var(--ac)',lineHeight:1}}>62</div>
-                <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',marginTop:2}}>SCORE</div>
-              </div>
-            </div>
-            <CoachInsights />
-          </div>
+          <CoachTab stats={stats} tradeCount={visibleTrades.length} />
         )}
 
         {/* STREAKS */}
@@ -677,33 +664,195 @@ function AccountRenameModal({ account, onSave, onClose }) {
   )
 }
 
-function CoachInsights() {
-  const items = [
-    {type:'cr',tag:'⚠ CRITICAL #1',title:'Inverted Risk:Reward Ratio',body:'67.9% WR is excellent but avg loss (-$3,650) is 1.6× avg win (+$2,256). R:R = 0.62×. Three losses erase five wins.',action:'Hard 1.0× R:R minimum before every entry. If target < stop, skip.'},
-    {type:'cr',tag:'⚠ CRITICAL #2',title:'Letting Losers Run',body:'Losing trades held 2× longer. Positions >24h: only 51% WR, cost -$179,530. Waiting for recoveries that rarely arrive.',action:'Hard 24-hour maximum on any losing position. Never hold a loser overnight twice.'},
-    {type:'cr',tag:'⚠ CRITICAL #3',title:'EUR50, GER30, JAPAN — No Edge',body:'EUR50 (40% WR, -$60k) · GER30 (46%, -$38k) · JAPAN (41%, -$31k). Combined -$129k on 198 trades.',action:'Remove all three. Redeploy capital to XAG/USD and HK-HSI.'},
-    {type:'cr',tag:'⚠ CRITICAL #4',title:'XAG/USD — Catastrophic Sizing',body:'82.6% WR, +$340k (SILVER + XAG combined). One trade on 31 Oct 2024 lost -$65,356 — no size discipline.',action:'Max 5% account equity per instrument per day. One outlier should never be possible.'},
-    {type:'bi',tag:'⚡ BIAS #1',title:'Revenge Trading — Confirmed',body:'WR after a win: 90.2%. WR after a loss: 20.6%. A 69-point collapse — textbook reactive re-entry.',action:'Mandatory 30-min break after every losing trade.'},
-    {type:'bi',tag:'⚡ BIAS #2',title:'Thursday Consistency Collapse',body:'Mon–Wed: 66–76% WR. Thursday: 52.8% WR, -$26,681. Friday: 74.2% WR, +$209k. Systematic every week.',action:'Half position size on Thursdays until pattern is understood.'},
-    {type:'op',tag:'💡 OPPORTUNITY #1',title:'XAG/USD — Core Edge (Correctly Measured)',body:'144 trades, 82.6% WR, +$340,746. Average win $5,773. Long-side dominates. This is your primary alpha.',action:'Increase allocation. Document your best 20 entries into a playbook.'},
-    {type:'st',tag:'✅ STRENGTH',title:'HK-HSI — Elite Edge, Underallocated',body:'91.6% WR, 143 trades, +$130k. Never a catastrophic loss. Only 10% of trades here vs 33% in breakeven NASDAQ.',action:'Double HK-HSI allocation. Asian open 01:00–04:00 GMT peaks at 96% WR.'},
-  ]
-  const cfg={cr:{tag:'pr',border:'var(--ls)'},bi:{tag:'pw',border:'var(--wa)'},op:{tag:'pa',border:'var(--ac)'},st:{tag:'pb',border:'var(--wn)'}}
+function CoachTab({ stats, tradeCount }) {
+  const [report,    setReport]    = useState(null)
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState(null)
+  const [generated, setGenerated] = useState(false)
+  const [lastRun,   setLastRun]   = useState(null)
+
+  const generate = async () => {
+    if (!stats) return
+    setLoading(true); setError(null)
+    try {
+      const res  = await fetch('/api/ai-coach', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          mode:      'portfolio',
+          stats:     {
+            overview:  stats.overview,
+            symbols:   stats.symbols,
+            sessions:  stats.sessions,
+            daily_dow: stats.daily_dow,
+            hourly:    stats.hourly,
+            duration:  stats.duration,
+            streaks:   stats.streaks,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (data.stub) {
+        setError(data.message)
+      } else if (data.error) {
+        setError(data.error)
+      } else {
+        setReport(data)
+        setGenerated(true)
+        setLastRun(new Date().toLocaleTimeString())
+      }
+    } catch(e) {
+      setError('Failed to connect to AI coach — check your API key in Vercel.')
+    }
+    setLoading(false)
+  }
+
+  const TYPE_CFG = {
+    critical:    { pillClass:'pr', borderColor:'var(--ls)', icClass:'ic-cr' },
+    bias:        { pillClass:'pw', borderColor:'var(--wa)', icClass:'ic-bi' },
+    opportunity: { pillClass:'pa', borderColor:'var(--ac)', icClass:'ic-op' },
+    strength:    { pillClass:'pb', borderColor:'var(--wn)', icClass:'ic-st' },
+  }
+
+  const providerLabel = report?.provider === 'claude' ? 'Claude (Anthropic)' : report?.provider === 'qwen' ? 'Qwen-Plus (Alibaba)' : ''
+
   return (
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
-      {items.map((ins,i)=>{
-        const c=cfg[ins.type]
-        return (
-          <div key={i} className={`ic ic-${ins.type}`}>
-            <div style={{marginBottom:8}}><span className={`pill ${c.tag}`}>{ins.tag}</span></div>
-            <div style={{fontWeight:600,fontSize:13,marginBottom:5}}>{ins.title}</div>
-            <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.65,marginBottom:10}}>{ins.body}</div>
-            <div style={{padding:'8px 10px',background:'var(--sf2)',borderRadius:5,fontSize:11,color:'var(--tx2)',lineHeight:1.6,borderLeft:`2px solid ${c.border}`}}>
-              <span style={{fontWeight:600,color:'var(--tx)'}}>Action: </span>{ins.action}
+    <div className="anim">
+      {/* Header card */}
+      <div className="card" style={{marginBottom:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>
+              AI TRADING COACH · LIVE REPORT
+            </div>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>
+              Performance Analysis · {tradeCount?.toLocaleString()||0} Trades
+            </div>
+            <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.6,maxWidth:520,marginBottom:12}}>
+              Analyses your full trading statistics — symbols, sessions, timing, risk/reward, streaks — and generates personalised insights based on your actual data.
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+              <button
+                className={`btn ${loading ? '' : 'btn-p'}`}
+                onClick={generate}
+                disabled={loading || !stats}
+                style={{padding:'8px 20px',fontSize:13,gap:8}}>
+                {loading ? (
+                  <>
+                    <span style={{width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} />
+                    Analysing {tradeCount?.toLocaleString()} trades…
+                  </>
+                ) : generated ? (
+                  '🔄 Regenerate Insights'
+                ) : (
+                  '🧠 Generate AI Coaching Report'
+                )}
+              </button>
+              {lastRun && !loading && (
+                <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
+                  Last run: {lastRun} · via {providerLabel}
+                </span>
+              )}
+            </div>
+            {!stats && <div style={{fontSize:11,color:'var(--mu)',marginTop:8}}>Upload trades first to enable AI analysis.</div>}
+          </div>
+
+          {/* Score + metadata */}
+          {report && (
+            <div style={{textAlign:'center',padding:'12px 24px',borderLeft:'1px solid var(--bd)',flexShrink:0}}>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:52,fontWeight:700,color:'var(--ac)',lineHeight:1}}>{report.score ?? '—'}</div>
+              <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',marginTop:2}}>CONSISTENCY</div>
+              {report.archetype && (
+                <div style={{marginTop:10,padding:'4px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:11,color:'var(--ac2)',fontWeight:600}}>{report.archetype}</div>
+              )}
+              {report.score_rationale && (
+                <div style={{fontSize:10,color:'var(--mu)',marginTop:6,maxWidth:140,lineHeight:1.4}}>{report.score_rationale}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Core edge / weakness */}
+        {report?.core_edge && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:14,paddingTop:14,borderTop:'1px solid var(--bd)'}} className="g2">
+            <div style={{background:'var(--wn-bg)',border:'1px solid var(--wn-bd)',borderRadius:7,padding:'10px 14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--wn-tx)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>✅ CORE EDGE</div>
+              <div style={{fontSize:12,color:'var(--wn-tx)',lineHeight:1.6}}>{report.core_edge}</div>
+            </div>
+            <div style={{background:'var(--ls-bg)',border:'1px solid var(--ls-bd)',borderRadius:7,padding:'10px 14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--ls-tx)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>⚠ CORE WEAKNESS</div>
+              <div style={{fontSize:12,color:'var(--ls-tx)',lineHeight:1.6}}>{report.core_weakness}</div>
             </div>
           </div>
-        )
-      })}
+        )}
+
+        {/* Coaching tip */}
+        {report?.coaching_tip && (
+          <div style={{marginTop:12,padding:'10px 14px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:7}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--ac2)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>💡 THIS WEEK'S FOCUS</div>
+            <div style={{fontSize:12,color:'var(--ac2)',lineHeight:1.6}}>{report.coaching_tip}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Error state */}
+      {error && (
+        <div style={{background:'var(--wa-bg)',border:'1px solid var(--wa-bd)',borderRadius:8,padding:'14px 16px',marginBottom:14,fontSize:12,color:'var(--wa-tx)',lineHeight:1.6}}>
+          ℹ️ {error}
+          {error.includes('QWEN_API_KEY') && (
+            <div style={{marginTop:8,fontSize:11}}>
+              Go to <strong>Vercel → Settings → Environment Variables</strong> and add <code style={{background:'var(--wa-bd)',padding:'1px 5px',borderRadius:3}}>QWEN_API_KEY</code> and set <code style={{background:'var(--wa-bd)',padding:'1px 5px',borderRadius:3}}>AI_PROVIDER=qwen</code>, then redeploy.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
+          {[1,2,3,4,5,6,7,8].map(i => (
+            <div key={i} className="ic" style={{minHeight:140}}>
+              <div style={{width:'40%',height:18,background:'var(--sf3)',borderRadius:4,marginBottom:10,animation:'pulse 1.5s infinite'}} />
+              <div style={{width:'80%',height:14,background:'var(--sf3)',borderRadius:4,marginBottom:6,animation:'pulse 1.5s infinite'}} />
+              <div style={{width:'90%',height:14,background:'var(--sf3)',borderRadius:4,marginBottom:6,animation:'pulse 1.5s infinite'}} />
+              <div style={{width:'70%',height:14,background:'var(--sf3)',borderRadius:4,animation:'pulse 1.5s infinite'}} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* AI insights grid */}
+      {report?.insights?.length > 0 && !loading && (
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
+          {report.insights.map((ins, i) => {
+            const cfg = TYPE_CFG[ins.type] || TYPE_CFG.opportunity
+            return (
+              <div key={i} className={`ic ${cfg.icClass}`}>
+                <div style={{marginBottom:8}}>
+                  <span className={`pill ${cfg.pillClass}`}>{ins.tag || ins.type?.toUpperCase()}</span>
+                </div>
+                <div style={{fontWeight:600,fontSize:13,marginBottom:5,color:'var(--tx)'}}>{ins.title}</div>
+                <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.65,marginBottom:10}}>{ins.body}</div>
+                <div style={{padding:'8px 10px',background:'var(--sf2)',borderRadius:5,fontSize:11,color:'var(--tx2)',lineHeight:1.6,borderLeft:`2px solid ${cfg.borderColor}`}}>
+                  <span style={{fontWeight:600,color:'var(--tx)'}}>Action: </span>{ins.action}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Pre-generate empty state */}
+      {!report && !loading && !error && (
+        <div style={{textAlign:'center',padding:'48px 20px',color:'var(--mu)'}}>
+          <div style={{fontSize:40,marginBottom:12}}>🧠</div>
+          <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:'var(--tx)'}}>Ready to analyse your trading</div>
+          <div style={{fontSize:12,maxWidth:420,margin:'0 auto',lineHeight:1.7}}>
+            Click the button above to generate a personalised coaching report based on your {tradeCount?.toLocaleString()} trades. Powered by AI — insights update each time you click Regenerate.
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
