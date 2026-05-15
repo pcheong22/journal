@@ -671,6 +671,17 @@ function AccountRenameModal({ account, onSave, onClose }) {
 
 
 function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
+  const [report,setReport]=useState(null)
+  const [loading,setLoading]=useState(false)
+  const [error,setError]=useState(null)
+  const [generated,setGenerated]=useState(false)
+  const [lastRun,setLastRun]=useState(null)
+  const [saving,setSaving]=useState(false)
+  const [savedOk,setSavedOk]=useState(false)
+  const [history,setHistory]=useState([])
+  const [showHist,setShowHist]=useState(false)
+  const [histLoad,setHistLoad]=useState(false)
+  const periodLabel=datePreset||`${dateFrom} → ${dateTo}`
   return (
     <div className="anim">
 
