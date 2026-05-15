@@ -227,7 +227,12 @@ const filteredTrades = trades.filter(t => {
         {activeTab === 'overview' && (
           <>
             {/* DATE FILTER */}
-            <DateRangeFilter onRangeChange={setDateRange} defaultValue="MTD" />
+  <DateRangeFilter 
+  onRangeChange={(range) => {
+    setDateRange(range)
+  }} 
+  defaultValue="MTD" 
+/>
 
 {/* KPI CARDS */}
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24}}>
