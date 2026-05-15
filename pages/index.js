@@ -538,8 +538,8 @@ export default function Dashboard() {
               </div>
             )}
             
-            <ChartComp type="equity" data={stats.cumulative} privacy={privacy} />
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
+<ChartComp key={privacy ? 'privacy-on' : 'privacy-off'} type="equity" data={stats.cumulative} privacy={privacy} /> 
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
               <ChartComp type="monthly"  data={stats.monthly} privacy={privacy} />
               <ChartComp type="duration" data={stats.duration} privacy={privacy} />
             </div>
