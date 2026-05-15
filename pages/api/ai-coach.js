@@ -2,6 +2,11 @@
 // Two modes: "trade" (single trade) | "portfolio" (full history)
 // Providers: Qwen-Plus (QWEN_API_KEY) | Claude (CLAUDE_API_KEY)
 
+// Tell Vercel this function needs up to 60 seconds (Fluid Compute required)
+export const config = {
+  maxDuration: 60,
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
