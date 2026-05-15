@@ -75,8 +75,13 @@ export default function Dashboard() {
   // Editing
   const [editingAccount, setEditingAccount] = useState(null)
 
+  const [isClient,    setIsClient]    = useState(false)
+
   const PAGE    = 50
   const fileRef = useRef()
+
+  // Prevent SSR crash — only render full UI on client
+  useEffect(() => { setIsClient(true) }, [])
 
   // Privacy class toggle
   useEffect(() => {
@@ -246,7 +251,7 @@ export default function Dashboard() {
     </>)
   }
 
-  if (loading) return (
+  if (!isClient || loading) return (
     <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
       <div style={{width:28,height:28,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',animation:'spin 1s linear infinite'}} />
       <div style={{color:'var(--mu)',fontFamily:'var(--font-mono)',fontSize:11,letterSpacing:'.04em'}}>LOADING…</div>
@@ -465,7 +470,7 @@ export default function Dashboard() {
         )}
 
         {/* CALENDAR */}
-        {tab==='calendar' && <div className="anim"><div className="card">{renderCalendar()}</div></div>}
+        {tab==='calendar' && <div className="anim"><div className="card">{stats ? renderCalendar() : <div style={{color:'var(--mu)',textAlign:'center',padding:20}}>Loading…</div>}</div></div>}
 
         {/* SYMBOLS */}
         {tab==='symbols' && stats && (
