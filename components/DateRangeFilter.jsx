@@ -1,97 +1,143 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import Chart from 'chart.js/auto'
 
-const PRESETS = ['1D','1W','MTD','1M','QTD','3M','YTD','1Y','All','Custom']
+// ── COMMON CHART OPTIONS ─────────────────────────────────────────────────────
+const LEGEND = { display: false }
+const GRID = { color: 'rgba(48, 54, 61, 0.5)' }
+const TICK = { color: '#8b949e', font: { size: 10, family: 'JetBrains Mono' } }
 
-export default function DateRangeFilter({ onRangeChange, defaultValue='MTD' }) {
-  const [active, setActive] = useState(defaultValue)
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-  const [showCustom, setShowCustom] = useState(false)
-
-const getRange = (range, startStr, endStr) => {
-  const now = new Date()
-  const startOfDay = d => { 
-    const dt = new Date(d)
-    dt.setUTCHours(0,0,0,0)
-    return dt
-  }
-  const endOfDay = d => { 
-    const dt = new Date(d)
-    dt.setUTCHours(23,59,59,999)
-    return dt
-  }
+// ── BAR CHART (Monthly P&L) ──────────────────────────────────────────────────
+export function BarCard({ title, labels, values, height = 130 }) {
+  const canvasRef = useRef()
   
-  let start = new Date(0)
-  let end = endOfDay(new Date(now))
-
-  switch(range) {
-    case '1D':
-      start = startOfDay(new Date(now))
-      break
-    case '1W':
-      start = startOfDay(new Date(now.getTime() - 6*86400000))
-      break
-    case 'MTD':
-      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-      break
-    case '1M':
-      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-1, now.getUTCDate()))
-      break
-    case 'QTD':
-      start = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth()/3)*3, 1))
-      break
-    case '3M':
-      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-3, now.getUTCDate()))
-      break
-    case 'YTD':
-      start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
-      break
-    case '1Y':
-      start = new Date(Date.UTC(now.getUTCFullYear()-1, now.getUTCMonth(), now.getUTCDate()))
-      break
-    case 'Custom':
-      if (startStr && endStr) {
-        start = startOfDay(new Date(startStr))
-        end = endOfDay(new Date(endStr))
-      }
-      break
-    case 'All':
-    default:
-      start = new Date(0)
-  }
-  
-  return { start, end, label: range === 'Custom' ? `${startStr} → ${endStr}` : range }
-}
-
   useEffect(() => {
-    onRangeChange?.(getRange(active, customStart, customEnd))
-  }, [active, customStart, customEnd])
-
-  const handlePreset = (val) => {
-    setActive(val)
-    setShowCustom(val === 'Custom')
-    if(val !== 'Custom') { setCustomStart(''); setCustomEnd('') }
-  }
-
+    if (!canvasRef.current) return
+    
+    const ctx = canvasRef.current.getContext('2d')
+    
+    // Filter out 'Unknown' labels
+    const filteredLabels = labels.filter((l, i) => l && l !== 'Unknown' && values[i] !== undefined)
+    const filteredValues = values.filter((v, i) => labels[i] && labels[i] !== 'Unknown' && v !== undefined)
+    
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {  // 👈 FIXED: Added 'data:' key
+        labels: filteredLabels,
+        datasets: [{
+          data: filteredValues,  // 👈 FIXED: Added 'data:' key
+          backgroundColor: filteredValues.map(v => v >= 0 ? 'rgba(75, 222, 128, 0.6)' : 'rgba(185, 65, 68, 0.6)'),
+          borderColor: filteredValues.map(v => v >= 0 ? '#4bde80' : '#b94144'),
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: LEGEND },
+        scales: {
+          y: {
+            grid: GRID,
+            ticks: { ...TICK, callback: v => '$' + Math.round(v / 1000) + 'k' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { ...TICK, maxRotation: 45, minRotation: 45 }
+          }
+        }
+      }
+    })
+    
+    return () => chart.destroy()
+  }, [labels, values])
+  
   return (
-    <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:4,marginBottom:16}}>
-      {PRESETS.map(p => (
-        <button key={p} onClick={()=>handlePreset(p)} style={{
-          padding:'4px 8px',borderRadius:4,border:'1px solid',
-          background: active===p ? '#4bde80' : 'transparent',
-          borderColor: active===p ? '#4bde80' : '#30363d',
-          color: active===p ? '#0c1117' : '#8b949e',
-          fontSize:11,fontWeight:600,cursor:'pointer',transition:'.15s'
-        }}>{p}</button>
-      ))}
-      {showCustom && (
-        <div style={{display:'flex',alignItems:'center',gap:4,marginLeft:4}}>
-          <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:'#161b22',border:'1px solid #30363d',color:'#e6edf3',padding:3,borderRadius:4,fontSize:11}} />
-          <span style={{color:'#8b949e',fontSize:11}}>→</span>
-          <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:'#161b22',border:'1px solid #30363d',color:'#e6edf3',padding:3,borderRadius:4,fontSize:11}} />
-          <button onClick={()=>{if(customStart&&customEnd){setShowCustom(false);setActive('Custom')}}} disabled={!customStart||!customEnd} style={{background:'#4bde80',color:'#0c1117',border:'none',padding:'4px 8px',borderRadius:4,fontSize:11,fontWeight:600,cursor:'pointer'}}>Apply</button>
-        </div>
-      )}
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="card-title">
+        <span className="indicator" />
+        {title}
+      </div>
+      <canvas ref={canvasRef} height={height} />
     </div>
   )
+}
+
+// ── LINE CHART (Equity Curve) ─────────────────────────────────────────────────
+export function EquityChart({ data, privacyMode }) {
+  const canvasRef = useRef()
+  
+  useEffect(() => {
+    if (!canvasRef.current || !data?.length) return
+    
+    const ctx = canvasRef.current.getContext('2d')
+    const vals = data.map(d => d.cum_pnl || 0)
+    
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {  // 👈 FIXED: Added 'data:' key
+        labels: data.map(d => d.date),
+        datasets: [{
+          data: vals,  // 👈 FIXED: Added 'data:' key
+          borderColor: '#4bde80',
+          backgroundColor: 'rgba(75, 222, 128, 0.1)',
+          fill: true,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: LEGEND,
+          tooltip: {
+            backgroundColor: '#161b22',
+            titleColor: '#e6edf3',
+            bodyColor: '#8b949e',
+            borderColor: '#30363d',
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => {
+                if (privacyMode) return '******'
+                const val = ctx.parsed.y
+                return '$' + Math.round(val).toLocaleString()
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            grid: GRID,
+            ticks: {
+              ...TICK,
+              callback: v => privacyMode ? '******' : '$' + Math.round(v / 1000) + 'k'
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { ...TICK, maxTicksLimit: 8, maxRotation: 0 }
+          }
+        }
+      }
+    })
+    
+    return () => chart.destroy()
+  }, [data, privacyMode])
+  
+  return (
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="card-title">
+        <span className="indicator" />
+        EQUITY CURVE
+      </div>
+      <canvas ref={canvasRef} height={140} />
+    </div>
+  )
+}
+
+// ── CHART COMPONENT WRAPPER ──────────────────────────────────────────────────
+export default function ChartComp({ type, ...props }) {
+  if (type === 'equity') return <EquityChart {...props} />
+  if (type === 'monthly') return <BarCard {...props} />
+  return null
 }
