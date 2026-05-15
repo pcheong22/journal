@@ -86,19 +86,61 @@ function EquityChart({ data, privacy }) {
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
 function BarChart({ title, labels, values, height, privacy }) {
   const ref = useRef()
+  
   useEffect(() => {
     if (!ref.current) return
-    const cs = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
-    const bc = values.map(v => v>=0?'#059669':'#dc2626')
+    
+    const cs = values.map(v => v >=0 ? 'rgba(5,150,105,.12)' : 'rgba(220,38,38,.12)')
+    const bc = values.map(v => v >=0 ? '#059669' : '#dc2626')
+    
     const ch = new Chart(ref.current, {
-      type:'bar',
-      data:{labels, datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
-      options:{responsive:true, plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c => privacy?'***':fU(c.parsed.y)}}},
-        scales:{y:{grid:GRID, ticks:{...TICK, callback: privTick(privacy)}}, x:{grid:{display:false}, ticks:{...TICK, maxRotation:45}}}}
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: cs,
+          borderColor: bc,
+          borderWidth: 1.5,
+          borderRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: NOLEG,
+          tooltip: {
+            ...TIP,
+            callbacks: {
+              label: ctx => privacy ? '***' : fU(ctx.parsed.y) // ← Privacy-safe tooltip
+            }
+          }
+        },
+        scales: {
+          y: {
+            grid: GRID,
+            ticks: {
+              ...TICK,
+              callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' // ← Privacy-safe y-axis
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { ...TICK, maxRotation: 45 }
+          }
+        }
+      }
     })
+    
     return () => ch.destroy()
-  }, [JSON.stringify(values), privacy])
-  return (<div className="card"><div className="ct"><span className="ind" />{title}</div><canvas ref={ref} height={height} /></div>)
+  }, [JSON.stringify(values), privacy]) // ← privacy in dependency array
+  
+  return (
+    <div className="card">
+      <div className="ct"><span className="ind" />{title}</div>
+      <canvas ref={ref} height={height} />
+    </div>
+  )
 }
 
 // ── WIN RATE BAR ─────────────────────────────────────────────────────────────
