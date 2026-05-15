@@ -695,8 +695,7 @@ function CoachTab({ stats, tradeCount }) {
       if (data.stub) {
         setError(data.message)
       } else if (data.error) {
-        setError(data.error)
-      } else {
+        setError(data.error)  // Now shows the real error from the API
         setReport(data)
         setGenerated(true)
         setLastRun(new Date().toLocaleTimeString())
