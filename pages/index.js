@@ -8,6 +8,21 @@ import UploadModal from '../components/UploadModal'
 import ChartComp from '../components/Charts'
 import TradeModal from '../components/TradeModal'
 
+
+// Add this helper near the top of the file
+const formatNumber = (n, isCurrency = true) => {
+  if (n === undefined || n === null) return isCurrency ? '$0' : '0'
+  if (isCurrency) {
+    return n.toLocaleString('en-US', { 
+      style: 'currency', 
+      currency: 'USD', 
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0 
+    })
+  }
+  return n.toLocaleString('en-US') // Plain number with commas, no currency symbol
+}
+
 // ── FORMATTING HELPERS ───────────────────────────────────────────────────────
 const fU = n => {
   if (n === undefined || n === null) return '$0'
