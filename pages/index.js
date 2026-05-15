@@ -692,10 +692,12 @@ function CoachTab({ stats, tradeCount }) {
         }),
       })
       const data = await res.json()
+      console.log('AI coach raw response:', JSON.stringify(data).slice(0, 500))
       if (data.stub) {
         setError(data.message)
       } else if (data.error) {
-        setError(data.error)  // Now shows the real error from the API
+        setError(data.error)
+      } else {
         setReport(data)
         setGenerated(true)
         setLastRun(new Date().toLocaleTimeString())
