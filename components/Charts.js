@@ -270,16 +270,6 @@ function DistChart({ trades, privacy }) {
   )
 }
 
-  return (
-    <div className="card">
-      <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:200}}>
-        <canvas ref={canvasRef} />
-      </div>
-    </div>
-  )
-}
-
 // ── STREAKS VISUALISATION ────────────────────────────────────────────────────
 function StreaksView({ trades, stats, privacy }) {
   if (!trades?.length || !stats) return (
