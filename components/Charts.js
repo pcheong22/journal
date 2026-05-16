@@ -183,7 +183,7 @@ function DistChartInner({ trades, privacy }) {
     if (!ref.current) return
     const ch = new Chart(ref.current, {
       type:'bar',
-      data:{ labels, datasets:[
+      data:{ labels:lbls, datasets:[
         { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
         { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
