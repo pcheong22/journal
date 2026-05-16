@@ -9,7 +9,7 @@ Chart.defaults.font.family = "'JetBrains Mono', 'Fira Code', monospace"
 Chart.defaults.font.size = 11
 
 const fU   = n => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0})
-const GRID  = { color:'#f0f2f5', lineWidth:1 }
+const GRID  = { color:'rgba(255,255,255,0.06)', lineWidth:1 }
 const TICK  = { color:'#9ca3af', font:{size:10} }
 const NOLEG = { display:false }
 const TIP   = { backgroundColor:'#fff', titleColor:'#0f1117', bodyColor:'#6b7280', borderColor:'#e2e5ea', borderWidth:1 }
@@ -50,7 +50,7 @@ function EquityChart({ data, privacy }) {
       type: 'line',
       data: { labels: data.map(d=>d.date), datasets: [{ data:vals, borderColor:'#1a56db', borderWidth:2, fill:true, backgroundColor:grad, pointRadius:2, pointBackgroundColor:'#1a56db', tension:.3 }] },
       options: {
-        responsive:true, maintainAspectRatio:false, animation:{duration:300},
+        responsive:true, animation:{duration:300},
         plugins: { legend:NOLEG, tooltip:{...TIP, callbacks:{label: c => privacy ? '***' : fU(Math.round(c.parsed.y))}} },
         scales: {
           y: { min:Math.min(0,...vals)*1.12, max:Math.max(...vals)*1.12, grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k'} },
@@ -74,9 +74,7 @@ function EquityChart({ data, privacy }) {
     <div className="card" style={{marginBottom:10}}>
       <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400}}>Drag right edge ⇅ to rescale</span></div>
       <div style={{position:'relative',userSelect:'none'}}>
-        <div style={{position:'relative',height:360}}>
-          <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
-        </div>
+        <canvas ref={canvasRef} height={140} />
         <div ref={handleRef} className="eq-h" />
       </div>
     </div>
@@ -94,7 +92,7 @@ function BarChart({ title, labels, values, height, privacy }) {
       type:'bar',
       data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
       options:{
-        responsive:true, maintainAspectRatio:false,
+        responsive:true,
         plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{ label: ctx => privacy ? '***' : fU(ctx.parsed.y) }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
@@ -104,10 +102,10 @@ function BarChart({ title, labels, values, height, privacy }) {
     })
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
-return (
+  return (
     <div className="card">
       <div className="ct"><span className="ind" />{title}</div>
-      <div style={{position:'relative',height:height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      <canvas ref={ref} height={height} />
     </div>
   )
 }
@@ -154,30 +152,39 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     const ch = new Chart(ref.current, {
       type:'doughnut',
       data:{labels:['Long P&L','Short P&L'], datasets:[{data:[Math.max(longPnl,0),Math.max(shortPnl,0)], backgroundColor:['rgba(5,150,105,.75)','rgba(220,38,38,.65)'], borderColor:['#059669','#dc2626'], borderWidth:1.5}]},
-      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},padding:14,color:'#6b7280'}},        tooltip:{...TIP, callbacks:{label: c=>privacy?'***':c.label+': '+fU(Math.round(c.parsed))}}}}
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},padding:14,color:'#6b7280'}},
+        tooltip:{...TIP, callbacks:{label: c=>privacy?'***':c.label+': '+fU(Math.round(c.parsed))}}}}
     })
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
-  return (<div className="card"><div className="ct"><span className="ind" />LONG VS SHORT</div><div style={{position:'relative',height:200}}><canvas ref={ref} /></div></div>)
+  return (
+    <div className="card" style={{minHeight:290}}>
+      <div className="ct"><span className="ind" />LONG VS SHORT</div>
+      <div style={{position:'relative',height:240}}><canvas ref={ref} /></div>
+    </div>
+  )
 }
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
-const [tick, setTick] = useState(0)
-  const canvasId = 'dist-' + tick
+  const canvasRef = useRef()
+  const chartRef  = useRef(null)
+  const privacyRef = useRef(privacy)
 
-const wins   = trades?.filter(t=>t.pnl>0) || []
+  const wins   = trades?.filter(t=>t.pnl>0) || []
   const losses = trades?.filter(t=>t.pnl<0) || []
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
   const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
-  const lbls   = privacy ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
+
+  const getLabels = (p) => p ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
+
+  // Create chart on mount
   useEffect(() => {
-    const canvas = document.getElementById(canvasId)
-    if (!canvas) return
-    const ch = new Chart(canvas, {
+    if (!canvasRef.current) return
+    chartRef.current = new Chart(canvasRef.current, {
       type:'bar',
-      data:{ labels:lbls, datasets:[
+      data:{ labels: getLabels(privacyRef.current), datasets:[
         { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
         { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
@@ -187,15 +194,21 @@ const wins   = trades?.filter(t=>t.pnl>0) || []
         scales:{ y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:TICK} },
       },
     })
-    return () => ch.destroy()
-  }, [canvasId])
-  useEffect(() => { setTick(t => t + 1) }, [privacy])
+    return () => { chartRef.current?.destroy(); chartRef.current = null }
+  }, [])
+
+  // Update labels when privacy changes using ref to avoid stale closure
+  useEffect(() => {
+    privacyRef.current = privacy
+    if (!chartRef.current) return
+    chartRef.current.data.labels = getLabels(privacy)
+    chartRef.current.update()
+  }, [privacy])
+
   return (
     <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:240}}>
-        <canvas id={canvasId} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
-      </div>
+      <div style={{position:'relative',height:240}}><canvas ref={canvasRef} /></div>
     </div>
   )
 }
