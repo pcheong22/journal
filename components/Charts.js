@@ -14,7 +14,6 @@ const TICK  = { color:'#9ca3af', font:{size:10} }
 const NOLEG = { display:false }
 const TIP   = { backgroundColor:'#fff', titleColor:'#0f1117', bodyColor:'#6b7280', borderColor:'#e2e5ea', borderWidth:1 }
 
-// Privacy-safe Y-axis formatter — shows ??? when privacy is on
 const privTick = (privacy) => (v) => privacy ? '***' : '$'+(v/1000).toFixed(0)+'k'
 
 export default function ChartComp(props) {
@@ -60,7 +59,6 @@ function EquityChart({ data, privacy }) {
       }
     })
 
-    // Drag Y axis rescale
     let drag=false, dY=0, dMin=0, dMax=0
     const hdl = handleRef.current
     const onDown = e => { drag=true; dY=e.clientY; dMin=chartRef.current.scales.y.min; dMax=chartRef.current.scales.y.max; document.body.style.cursor='ns-resize'; e.preventDefault() }
@@ -86,55 +84,24 @@ function EquityChart({ data, privacy }) {
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
 function BarChart({ title, labels, values, height, privacy }) {
   const ref = useRef()
-  
   useEffect(() => {
     if (!ref.current) return
-    
-    const cs = values.map(v => v >=0 ? 'rgba(5,150,105,.12)' : 'rgba(220,38,38,.12)')
-    const bc = values.map(v => v >=0 ? '#059669' : '#dc2626')
-    
+    const cs = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
+    const bc = values.map(v => v>=0?'#059669':'#dc2626')
     const ch = new Chart(ref.current, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: cs,
-          borderColor: bc,
-          borderWidth: 1.5,
-          borderRadius: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: NOLEG,
-          tooltip: {
-            ...TIP,
-            callbacks: {
-              label: ctx => privacy ? '***' : fU(ctx.parsed.y) // ← Privacy-safe tooltip
-            }
-          }
-        },
-        scales: {
-          y: {
-            grid: GRID,
-            ticks: {
-              ...TICK,
-              callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' // ← Privacy-safe y-axis
-            }
-          },
-          x: {
-            grid: { display: false },
-            ticks: { ...TICK, maxRotation: 45 }
-          }
+      type:'bar',
+      data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
+      options:{
+        responsive:true,
+        plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{ label: ctx => privacy ? '***' : fU(ctx.parsed.y) }} },
+        scales:{
+          y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:45} }
         }
       }
     })
-    
     return () => ch.destroy()
-  }, [JSON.stringify(values), privacy]) // ← privacy in dependency array
-  
+  }, [JSON.stringify(values), privacy])
   return (
     <div className="card">
       <div className="ct"><span className="ind" />{title}</div>
@@ -166,7 +133,7 @@ function HBarChart({ title, labels, values, height, isWr, privacy }) {
   useEffect(() => {
     if (!ref.current) return
     const cs = isWr ? values.map(v=>v>=65?'rgba(26,86,219,.1)':'rgba(217,119,6,.1)') : values.map(v=>v>=0?'rgba(5,150,105,.1)':'rgba(220,38,38,.1)')
-    const bc = isWr ? values.map(v=>v>=65?'#1a56db':'#d97706')                        : values.map(v=>v>=0?'#059669':'#dc2626')
+    const bc = isWr ? values.map(v=>v>=65?'#1a56db':'#d97706') : values.map(v=>v>=0?'#059669':'#dc2626')
     const ch = new Chart(ref.current, {
       type:'bar', data:{labels, datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
       options:{indexAxis:'y', responsive:true, plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c=>isWr?c.parsed.x+'%':(privacy?'***':fU(c.parsed.x))}}},
@@ -191,14 +158,18 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
   return (
-    <div className="card">
+    <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />LONG VS SHORT</div>
-      <div style={{position:'relative',height:220}}><canvas ref={ref} /></div>
+      <div style={{position:'relative',height:240}}><canvas ref={ref} /></div>
     </div>
   )
 }
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
+// Split into inner/outer so key-based remount works cleanly.
+// When privacy toggles, key changes from "true" to "false", React fully
+// unmounts DistChartInner (destroying canvas + chart) and mounts a fresh one
+// with the correct labels computed at render time.
 function DistChartInner({ trades, privacy }) {
   const ref = useRef()
   const wins   = trades?.filter(t=>t.pnl>0) || []
@@ -207,11 +178,12 @@ function DistChartInner({ trades, privacy }) {
   const lbls   = privacy ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
   const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
+
   useEffect(() => {
     if (!ref.current) return
     const ch = new Chart(ref.current, {
       type:'bar',
-      data:{ labels:lbls, datasets:[
+      data:{ labels, datasets:[
         { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
         { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
@@ -223,14 +195,41 @@ function DistChartInner({ trades, privacy }) {
     })
     return () => ch.destroy()
   }, [])
-  return <div style={{position:'relative',height:220}}><canvas ref={ref} /></div>
+
+  return <div style={{position:'relative',height:240}}><canvas ref={ref} /></div>
 }
 
 function DistChart({ trades, privacy }) {
   return (
-    <div className="card">
+    <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <DistChartInner key={privacy ? 'priv' : 'pub'} trades={trades} privacy={privacy} />
+      <DistChartInner key={String(privacy)} trades={trades} privacy={privacy} />
+    </div>
+  )
+}
+
+// ── HOURLY CHART ─────────────────────────────────────────────────────────────
+function HourlyChart({ data, privacy }) {
+  const ref = useRef()
+  const hrMap = {}; data?.forEach(h => { hrMap[h.hour] = h })
+  const allH   = Array.from({length:24},(_,i)=>i)
+  const values = allH.map(h => hrMap[h] ? Math.round(hrMap[h].total_pnl) : 0)
+  const cs     = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
+  const bc     = values.map(v => v>=0?'#059669':'#dc2626')
+  useEffect(() => {
+    if (!ref.current) return
+    const ch = new Chart(ref.current, {
+      type:'bar',
+      data:{labels:allH.map(h=>(h<10?'0':'')+h+':00'), datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
+      options:{responsive:true, plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c=>{const h=hrMap[c.dataIndex]; return h?[privacy?'***':fU(Math.round(h.total_pnl)),(h.win_rate*100).toFixed(0)+'% WR',h.count+' trades']:[];}}}},
+        scales:{y:{grid:GRID, ticks:{...TICK, callback: privTick(privacy)}}, x:{grid:{display:false}, ticks:TICK}}}
+    })
+    return () => ch.destroy()
+  }, [JSON.stringify(values), privacy])
+  return (
+    <div className="card" style={{marginBottom:10}}>
+      <div className="ct"><span className="ind" />P&L BY HOUR (GMT)</div>
+      <canvas ref={ref} height={130} />
     </div>
   )
 }
@@ -244,7 +243,6 @@ function StreaksView({ trades, stats, privacy }) {
   const ov      = stats.overview
   const sorted  = [...trades].sort((a,b) => a.entry_time.localeCompare(b.entry_time))
 
-  // Build streak segments
   const segments = []
   let cur = null
   sorted.forEach((t, i) => {
@@ -258,16 +256,12 @@ function StreaksView({ trades, stats, privacy }) {
     if (i === sorted.length-1) segments.push(cur)
   })
 
-  // Top streaks
   const topWin  = [...segments].filter(s=>s.type==='W').sort((a,b)=>b.count-a.count).slice(0,5)
   const topLoss = [...segments].filter(s=>s.type==='L').sort((a,b)=>b.count-a.count).slice(0,5)
-
-  // Current streak
   const lastSeg = segments[segments.length-1]
 
   return (
     <div className="anim">
-      {/* Summary KPIs */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:16}}>
         {[
           ['MAX WIN STREAK',  ov.max_win_streak  + ' trades', 'pos', 'Consecutive wins'],
@@ -285,7 +279,6 @@ function StreaksView({ trades, stats, privacy }) {
         ))}
       </div>
 
-      {/* Visual timeline — last 100 trades */}
       <div className="card" style={{marginBottom:12}}>
         <div className="ct"><span className="ind" />TRADE OUTCOME TIMELINE · Last {Math.min(sorted.length,120)} trades</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:3,marginBottom:8}}>
@@ -306,7 +299,6 @@ function StreaksView({ trades, stats, privacy }) {
         </div>
       </div>
 
-      {/* Streak bar chart */}
       <div className="card" style={{marginBottom:12}}>
         <div className="ct"><span className="ind" />STREAK LENGTHS — All segments</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'flex-end',minHeight:80}}>
@@ -324,7 +316,6 @@ function StreaksView({ trades, stats, privacy }) {
         </div>
       </div>
 
-      {/* Top streaks tables */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}} className="g2">
         <div className="card">
           <div className="ct"><span className="ind" style={{background:'var(--wn)'}} />TOP WIN STREAKS</div>
