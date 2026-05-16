@@ -195,27 +195,45 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
-const ref = useRef()
-const wins   = trades?.filter(t=>t.pnl>0) || []
-const losses = trades?.filter(t=>t.pnl<0) || []
-const bkt    = (arr,mn,mx)=>arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
-const lbls   = ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
-const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
-const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
+  const ref    = useRef()
+  const wins   = trades?.filter(t=>t.pnl>0) || []
+  const losses = trades?.filter(t=>t.pnl<0) || []
+  const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
+  const realLbls = ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
+  const privLbls = ['***','***','***','***','***']
+  const lbls   = privacy ? privLbls : realLbls
+  const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
+  const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
 
-useEffect(()=>{
-if(!ref.current) return
-const ch = new Chart(ref.current, {
-type:'bar', data:{labels:lbls, datasets:[
-{label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)',  borderColor:'#059669', borderWidth:1.5, borderRadius:3},
-{label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3},
-]},
-options:{responsive:true, plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},padding:12,color:'#6b7280'}}, tooltip:TIP},
-scales:{y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:{...TICK, callback: privacy ? ()=>'***' : undefined}}}}
-})
-return ()=>ch.destroy()
-}, [JSON.stringify(wv), privacy])
-return ( <div className="card"> <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div><canvas ref={ref} height={170} /></div>)
+  useEffect(() => {
+    if (!ref.current) return
+    const ch = new Chart(ref.current, {
+      type: 'bar',
+      data: { labels: lbls, datasets: [
+        { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)',  borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
+        { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
+      ]},
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display:true, position:'bottom', labels:{ font:{size:11}, padding:12, color:'#6b7280' }},
+          tooltip: { ...TIP, callbacks: { label: c => privacy ? '***' : `${c.dataset.label}: ${Math.abs(c.parsed.y)}` }},
+        },
+        scales: {
+          y: { grid:GRID, ticks:TICK },
+          x: { grid:{ display:false }, ticks:TICK },
+        },
+      },
+    })
+    return () => ch.destroy()
+  }, [JSON.stringify(wv), privacy])
+
+  return (
+    <div className="card">
+      <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
+      <canvas ref={ref} height={170} />
+    </div>
+  )
 }
 
 // ── STREAKS VISUALISATION ────────────────────────────────────────────────────
