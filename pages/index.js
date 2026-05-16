@@ -545,7 +545,7 @@ export default function Dashboard() {
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
               <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
-              <ChartComp type="distribution" trades={visibleTrades} />
+             <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
             </div>
           </div>
         )}
