@@ -23,7 +23,7 @@ export default function ChartComp(props) {
   if (type==='monthly')      return <BarChart   title="MONTHLY P&L"      labels={props.data.map(d=>d.month_str)}   values={props.data.map(d=>Math.round(d.total_pnl))} height={170} privacy={privacy} />
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={170} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
-  if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
+  if (type==='distribution') return  <DistChart       trades={props.trades} privacy={privacy} / >
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
   if (type==='symbolWr')     return <HBarChart  title="WIN RATE BY SYMBOL" labels={props.data.map(d=>d.symbol)}    values={props.data.map(d=>Math.round(d.win_rate*100))} height={270} isWr />
   if (type==='sessionPnl')   return <BarChart   title="SESSION P&L"      labels={props.data.map(d=>d.session)}     values={props.data.map(d=>Math.round(d.total_pnl))} height={200} privacy={privacy} />
@@ -185,23 +185,15 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     const ch = new Chart(ref.current, {
       type:'doughnut',
       data:{labels:['Long P&L','Short P&L'], datasets:[{data:[Math.max(longPnl,0),Math.max(shortPnl,0)], backgroundColor:['rgba(5,150,105,.75)','rgba(220,38,38,.65)'], borderColor:['#059669','#dc2626'], borderWidth:1.5}]},
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{display:true,position:'bottom',labels:{font:{size:11},padding:14,color:'#6b7280'}},
-          tooltip:{...TIP, callbacks:{label: c=>privacy?'***':c.label+': '+fU(Math.round(c.parsed))}}
-        }
-      }
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},padding:14,color:'#6b7280'}},
+        tooltip:{...TIP, callbacks:{label: c=>privacy?'***':c.label+': '+fU(Math.round(c.parsed))}}}}
     })
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
   return (
     <div className="card">
       <div className="ct"><span className="ind" />LONG VS SHORT</div>
-      <div style={{position:'relative',height:200}}>
-        <canvas ref={ref} />
-      </div>
+      <div style={{position:'relative',height:220}}><canvas ref={ref} /></div>
     </div>
   )
 }
@@ -210,7 +202,6 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 function DistChart({ trades, privacy }) {
   const canvasRef = useRef()
   const chartRef  = useRef()
-
   const wins   = trades?.filter(t=>t.pnl>0) || []
   const losses = trades?.filter(t=>t.pnl<0) || []
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
@@ -219,37 +210,29 @@ function DistChart({ trades, privacy }) {
   const realLbls = ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
   const privLbls = ['***','***','***','***','***']
 
-  // Create chart once on mount
+  // Create chart once
   useEffect(() => {
     if (!canvasRef.current) return
     chartRef.current = new Chart(canvasRef.current, {
       type: 'bar',
       data: { labels: [...realLbls], datasets: [
-        { label:'Wins',   data:[...wv], backgroundColor:'rgba(5,150,105,.12)',  borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
+        { label:'Wins',   data:[...wv], backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
         { label:'Losses', data:[...lv], backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display:true, position:'bottom', labels:{ font:{size:11}, padding:12, color:'#6b7280' }},
-          tooltip: { ...TIP },
-        },
-        scales: {
-          y: { grid:GRID, ticks:TICK },
-          x: { grid:{ display:false }, ticks:TICK },
-        },
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{display:true,position:'bottom',labels:{font:{size:11},padding:12,color:'#6b7280'}}, tooltip:TIP },
+        scales: { y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:TICK} },
       },
     })
-    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null } }
+    return () => { chartRef.current?.destroy(); chartRef.current = null }
   }, [])
 
-  // Update labels when privacy changes — no destroy needed
+  // Update labels only when privacy changes
   useEffect(() => {
     if (!chartRef.current) return
-    const lbls = privacy ? privLbls : realLbls
-    chartRef.current.data.labels = lbls
-    chartRef.current.update()
+    chartRef.current.data.labels = privacy ? [...privLbls] : [...realLbls]
+    chartRef.current.update('none')
   }, [privacy])
 
   // Update data when trades change
@@ -257,15 +240,13 @@ function DistChart({ trades, privacy }) {
     if (!chartRef.current) return
     chartRef.current.data.datasets[0].data = [...wv]
     chartRef.current.data.datasets[1].data = [...lv]
-    chartRef.current.update()
+    chartRef.current.update('none')
   }, [JSON.stringify(wv)])
 
   return (
     <div className="card">
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:200}}>
-        <canvas ref={canvasRef} />
-      </div>
+      <div style={{position:'relative',height:220}}><canvas ref={canvasRef} /></div>
     </div>
   )
 }
