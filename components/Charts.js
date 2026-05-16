@@ -157,7 +157,6 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
   return (<div className="card"><div className="ct"><span className="ind" />LONG VS SHORT</div><div style={{position:'relative',height:200}}><canvas ref={ref} /></div></div>)
-  )
 }
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
