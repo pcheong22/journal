@@ -74,7 +74,7 @@ function EquityChart({ data, privacy }) {
     <div className="card" style={{marginBottom:10}}>
       <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400}}>Drag right edge ⇅ to rescale</span></div>
       <div style={{position:'relative',userSelect:'none'}}>
-        <div style={{position:'relative',height:480}}>
+        <div style={{position:'relative',height:360}}>
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
         </div>
         <div ref={handleRef} className="eq-h" />
