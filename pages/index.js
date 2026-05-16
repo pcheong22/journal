@@ -230,10 +230,19 @@ export default function Dashboard() {
       </Head>
 
       <header className="page-hdr">
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:28,height:28,background:'var(--ac)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:13,fontWeight:700}}>TJ</div>
-          <span style={{fontWeight:700,fontSize:13,letterSpacing:'.04em',textTransform:'uppercase'}}>Trading Journal</span>
-          <span style={{color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',letterSpacing:'.06em',textTransform:'uppercase'}}>Performance Intelligence</span>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {/* Logo icon — green rounded square with trend arrow, matching Swinglytics style */}
+          <div style={{width:36,height:36,background:'#1a2e1a',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #2a4a2a'}}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <polyline points="2,14 7,8 11,11 18,4" stroke="var(--wn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="14,4 18,4 18,8" stroke="var(--wn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          {/* Name + subtitle stacked */}
+          <div style={{display:'flex',flexDirection:'column',gap:1}}>
+            <span style={{fontWeight:700,fontSize:15,letterSpacing:'.06em',textTransform:'uppercase',color:'var(--tx)'}}>TradeIntel</span>
+            <span style={{color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',letterSpacing:'.10em',textTransform:'uppercase'}}>Performance Intelligence</span>
+          </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:14,fontFamily:'var(--font-mono)',fontSize:11}}>
           {ov ? (<>
