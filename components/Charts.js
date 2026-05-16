@@ -23,7 +23,7 @@ export default function ChartComp(props) {
   if (type==='monthly')      return <BarChart   title="MONTHLY P&L"      labels={props.data.map(d=>d.month_str)}   values={props.data.map(d=>Math.round(d.total_pnl))} height={170} privacy={privacy} />
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={170} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
-  if (type==='distribution') return  <DistChart       trades={props.trades} privacy={privacy} / >
+  if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
   if (type==='symbolWr')     return <HBarChart  title="WIN RATE BY SYMBOL" labels={props.data.map(d=>d.symbol)}    values={props.data.map(d=>Math.round(d.win_rate*100))} height={270} isWr />
   if (type==='sessionPnl')   return <BarChart   title="SESSION P&L"      labels={props.data.map(d=>d.session)}     values={props.data.map(d=>Math.round(d.total_pnl))} height={200} privacy={privacy} />
@@ -208,7 +208,9 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
-  const ref  = useRef()
+  const canvasRef = useRef()
+  const chartRef  = useRef()
+
   const wins   = trades?.filter(t=>t.pnl>0) || []
   const losses = trades?.filter(t=>t.pnl<0) || []
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
@@ -216,12 +218,19 @@ function DistChart({ trades, privacy }) {
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
 
   useEffect(() => {
-    if (!ref.current) return
-    // Compute labels inside effect so they're always current
+    if (!canvasRef.current) return
+
+    // Explicitly destroy previous instance before creating new one
+    if (chartRef.current) {
+      chartRef.current.destroy()
+      chartRef.current = null
+    }
+
     const lbls = privacy
       ? ['***', '***', '***', '***', '***']
       : ['>$20k', '$10-20k', '$5-10k', '$1-5k', '<$1k']
-    const ch = new Chart(ref.current, {
+
+    chartRef.current = new Chart(canvasRef.current, {
       type: 'bar',
       data: { labels: lbls, datasets: [
         { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)',  borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
@@ -240,15 +249,20 @@ function DistChart({ trades, privacy }) {
         },
       },
     })
-    return () => ch.destroy()
+
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy()
+        chartRef.current = null
+      }
+    }
   }, [JSON.stringify(wv), privacy])
 
   return (
     <div className="card">
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      {/* key forces full canvas remount when privacy changes so Chart.js starts fresh */}
       <div style={{position:'relative',height:200}}>
-        <canvas ref={ref} />
+        <canvas ref={canvasRef} />
       </div>
     </div>
   )
