@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
 
 Chart.register(...registerables)
@@ -166,24 +166,25 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 }
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
-// Split into inner/outer so key-based remount works cleanly.
-// When privacy toggles, key changes from "true" to "false", React fully
-// unmounts DistChartInner (destroying canvas + chart) and mounts a fresh one
-// with the correct labels computed at render time.
-function DistChartInner({ trades, privacy }) {
-  const ref = useRef()
+function DistChart({ trades, privacy }) {
+  const canvasRef = useRef()
+  const chartRef  = useRef(null)
+  const privacyRef = useRef(privacy)
+
   const wins   = trades?.filter(t=>t.pnl>0) || []
   const losses = trades?.filter(t=>t.pnl<0) || []
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
-  const lbls   = privacy ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
   const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
 
+  const getLabels = (p) => p ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
+
+  // Create chart on mount
   useEffect(() => {
-    if (!ref.current) return
-    const ch = new Chart(ref.current, {
+    if (!canvasRef.current) return
+    chartRef.current = new Chart(canvasRef.current, {
       type:'bar',
-      data:{ labels:lbls, datasets:[
+      data:{ labels: getLabels(privacyRef.current), datasets:[
         { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
         { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
@@ -193,17 +194,21 @@ function DistChartInner({ trades, privacy }) {
         scales:{ y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:TICK} },
       },
     })
-    return () => ch.destroy()
+    return () => { chartRef.current?.destroy(); chartRef.current = null }
   }, [])
 
-  return <div style={{position:'relative',height:240}}><canvas ref={ref} /></div>
-}
+  // Update labels when privacy changes using ref to avoid stale closure
+  useEffect(() => {
+    privacyRef.current = privacy
+    if (!chartRef.current) return
+    chartRef.current.data.labels = getLabels(privacy)
+    chartRef.current.update()
+  }, [privacy])
 
-function DistChart({ trades, privacy }) {
   return (
     <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <DistChartInner key={String(privacy)} trades={trades} privacy={privacy} />
+      <div style={{position:'relative',height:240}}><canvas ref={canvasRef} /></div>
     </div>
   )
 }
