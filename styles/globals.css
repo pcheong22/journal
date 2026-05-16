@@ -38,6 +38,39 @@
   --sh-lg: 0 8px 30px rgba(0,0,0,.1), 0 4px 8px rgba(0,0,0,.04);
 }
 
+/* ── DARK MODE ────────────────────────────────────────────────────────── */
+body.dark-mode {
+  --bg:      #0c1117;
+  --sf:      #161b21;
+  --sf2:     #1c2128;
+  --sf3:     #21262c;
+  --bd:      #21262c;
+  --bd2:     #2e333a;
+  --tx:      #e8edf3;
+  --tx2:     #b0b8c8;
+  --mu:      #6b7280;
+  --mu2:     #454a52;
+  --ac:      #3b82f6;
+  --ac2:     #60a5fa;
+  --ac-bg:   #0f1e35;
+  --ac-bd:   #1e3a5f;
+  --wn:      #66ffa5;
+  --wn-bg:   #0a1f14;
+  --wn-bd:   #143d24;
+  --wn-tx:   #66ffa5;
+  --ls:      #ff5258;
+  --ls-bg:   #1f0c0d;
+  --ls-bd:   #3d1516;
+  --ls-tx:   #ff5258;
+  --wa:      #ffb300;
+  --wa-bg:   #1f1800;
+  --wa-bd:   #3d3000;
+  --wa-tx:   #ffb300;
+  --sh-sm: 0 1px 3px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.4);
+  --sh:    0 2px 6px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
+  --sh-lg: 0 8px 30px rgba(0,0,0,.7), 0 4px 8px rgba(0,0,0,.5);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 body { background: var(--bg); color: var(--tx); font-family: var(--font-sans); font-size: 13px; line-height: 1.5; min-height: 100vh; }
