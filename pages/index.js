@@ -231,11 +231,18 @@ export default function Dashboard() {
 
       <header className="page-hdr">
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          {/* Logo icon — green rounded square with trend arrow, matching Swinglytics style */}
-          <div style={{width:36,height:36,background:'#1a2e1a',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #2a4a2a'}}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <polyline points="2,14 7,8 11,11 18,4" stroke="var(--wn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <polyline points="14,4 18,4 18,8" stroke="var(--wn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          {/* Logo icon — Apache TADS corner bracket reticle */}
+          <div style={{width:36,height:36,background:'#0c1117',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #1a2a1a'}}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M3,8 L3,3 L8,3" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M21,8 L21,3 L16,3" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3,16 L3,21 L8,21" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M21,16 L21,21 L16,21" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="12" y1="8" x2="12" y2="10.5" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="12" y1="13.5" x2="12" y2="16" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="8" y1="12" x2="10.5" y2="12" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="13.5" y1="12" x2="16" y2="12" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="1.5" fill="#66ffa5"/>
             </svg>
           </div>
           {/* Name + subtitle stacked */}
