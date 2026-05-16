@@ -48,8 +48,8 @@ export default function Dashboard() {
   const [upload,      setUpload]      = useState({ status:'idle', message:'', broker:'', accountId:'' })
   const [dragOver,    setDragOver]    = useState(false)
   const [selected,    setSelected]    = useState(null)
-  const [privacy,     setPrivacy]     = useState(false)
-  const [darkMode,    setDarkMode]    = useState(false)
+  const [privacy,     setPrivacy]     = useState(true)
+  const [darkMode,    setDarkMode]    = useState(true)
 
   // Account selector
   const [selAccounts, setSelAccounts] = useState(new Set())
