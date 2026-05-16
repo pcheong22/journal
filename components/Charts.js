@@ -92,7 +92,7 @@ function BarChart({ title, labels, values, height, privacy }) {
       type:'bar',
       data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
       options:{
-        responsive:true,
+        responsive:true, maintainAspectRatio:false,
         plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{ label: ctx => privacy ? '***' : fU(ctx.parsed.y) }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
@@ -102,10 +102,10 @@ function BarChart({ title, labels, values, height, privacy }) {
     })
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
-  return (
+return (
     <div className="card">
       <div className="ct"><span className="ind" />{title}</div>
-      <canvas ref={ref} height={height} />
+      <div style={{position:'relative',height:height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
   )
 }
