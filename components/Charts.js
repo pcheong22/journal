@@ -216,32 +216,24 @@ function DistChart({ trades, privacy }) {
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
   const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
+  const realLbls = ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
+  const privLbls = ['***','***','***','***','***']
 
+  // Create chart once on mount
   useEffect(() => {
     if (!canvasRef.current) return
-
-    // Explicitly destroy previous instance before creating new one
-    if (chartRef.current) {
-      chartRef.current.destroy()
-      chartRef.current = null
-    }
-
-    const lbls = privacy
-      ? ['***', '***', '***', '***', '***']
-      : ['>$20k', '$10-20k', '$5-10k', '$1-5k', '<$1k']
-
     chartRef.current = new Chart(canvasRef.current, {
       type: 'bar',
-      data: { labels: lbls, datasets: [
-        { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)',  borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
-        { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
+      data: { labels: [...realLbls], datasets: [
+        { label:'Wins',   data:[...wv], backgroundColor:'rgba(5,150,105,.12)',  borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
+        { label:'Losses', data:[...lv], backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           legend: { display:true, position:'bottom', labels:{ font:{size:11}, padding:12, color:'#6b7280' }},
-          tooltip: { ...TIP, callbacks: { label: c => privacy ? '***' : `${c.dataset.label}: ${Math.abs(c.parsed.y)}` }},
+          tooltip: { ...TIP },
         },
         scales: {
           y: { grid:GRID, ticks:TICK },
@@ -249,14 +241,34 @@ function DistChart({ trades, privacy }) {
         },
       },
     })
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null } }
+  }, [])
 
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy()
-        chartRef.current = null
-      }
-    }
-  }, [JSON.stringify(wv), privacy])
+  // Update labels when privacy changes — no destroy needed
+  useEffect(() => {
+    if (!chartRef.current) return
+    const lbls = privacy ? privLbls : realLbls
+    chartRef.current.data.labels = lbls
+    chartRef.current.update()
+  }, [privacy])
+
+  // Update data when trades change
+  useEffect(() => {
+    if (!chartRef.current) return
+    chartRef.current.data.datasets[0].data = [...wv]
+    chartRef.current.data.datasets[1].data = [...lv]
+    chartRef.current.update()
+  }, [JSON.stringify(wv)])
+
+  return (
+    <div className="card">
+      <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
+      <div style={{position:'relative',height:200}}>
+        <canvas ref={canvasRef} />
+      </div>
+    </div>
+  )
+}
 
   return (
     <div className="card">
