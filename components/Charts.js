@@ -195,18 +195,19 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
-  const ref    = useRef()
+  const ref  = useRef()
   const wins   = trades?.filter(t=>t.pnl>0) || []
   const losses = trades?.filter(t=>t.pnl<0) || []
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
-  const realLbls = ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
-  const privLbls = ['***','***','***','***','***']
-  const lbls   = privacy ? privLbls : realLbls
   const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
 
   useEffect(() => {
     if (!ref.current) return
+    // Compute labels inside effect so they're always current
+    const lbls = privacy
+      ? ['***', '***', '***', '***', '***']
+      : ['>$20k', '$10-20k', '$5-10k', '$1-5k', '<$1k']
     const ch = new Chart(ref.current, {
       type: 'bar',
       data: { labels: lbls, datasets: [
@@ -231,7 +232,8 @@ function DistChart({ trades, privacy }) {
   return (
     <div className="card">
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <canvas ref={ref} height={170} />
+      {/* key forces full canvas remount when privacy changes so Chart.js starts fresh */}
+      <canvas key={privacy ? 'priv' : 'pub'} ref={ref} height={170} />
     </div>
   )
 }
