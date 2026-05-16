@@ -167,24 +167,21 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
-  const canvasRef = useRef()
-  const chartRef  = useRef(null)
-  const privacyRef = useRef(privacy)
+const [tick, setTick] = useState(0)
+  const canvasId = 'dist-' + tick
 
-  const wins   = trades?.filter(t=>t.pnl>0) || []
+const wins   = trades?.filter(t=>t.pnl>0) || []
   const losses = trades?.filter(t=>t.pnl<0) || []
   const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
   const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
   const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
-
-  const getLabels = (p) => p ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
-
-  // Create chart on mount
+  const lbls   = privacy ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
   useEffect(() => {
-    if (!canvasRef.current) return
-    chartRef.current = new Chart(canvasRef.current, {
+    const canvas = document.getElementById(canvasId)
+    if (!canvas) return
+    const ch = new Chart(canvas, {
       type:'bar',
-      data:{ labels: getLabels(privacyRef.current), datasets:[
+      data:{ labels:lbls, datasets:[
         { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
         { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
       ]},
@@ -194,23 +191,15 @@ function DistChart({ trades, privacy }) {
         scales:{ y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:TICK} },
       },
     })
-    return () => { chartRef.current?.destroy(); chartRef.current = null }
-  }, [])
-
-  // Update labels when privacy changes using ref to avoid stale closure
-  useEffect(() => {
-    privacyRef.current = privacy
-    if (!chartRef.current) return
-    chartRef.current.data.labels = getLabels(privacy)
-    chartRef.current.config.data.labels = getLabels(privacy)
-    chartRef.current.update('none')
-    chartRef.current.render()
-  }, [privacy])
-
+    return () => ch.destroy()
+  }, [canvasId])
+  useEffect(() => { setTick(t => t + 1) }, [privacy])
   return (
     <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:240}}><canvas ref={canvasRef} /></div>
+      <div style={{position:'relative',height:240}}>
+        <canvas id={canvasId} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
+      </div>
     </div>
   )
 }
