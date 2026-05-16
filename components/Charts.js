@@ -50,7 +50,7 @@ function EquityChart({ data, privacy }) {
       type: 'line',
       data: { labels: data.map(d=>d.date), datasets: [{ data:vals, borderColor:'#1a56db', borderWidth:2, fill:true, backgroundColor:grad, pointRadius:2, pointBackgroundColor:'#1a56db', tension:.3 }] },
       options: {
-        responsive:true, animation:{duration:300},
+        responsive:true, maintainAspectRatio:false, animation:{duration:300},
         plugins: { legend:NOLEG, tooltip:{...TIP, callbacks:{label: c => privacy ? '***' : fU(Math.round(c.parsed.y))}} },
         scales: {
           y: { min:Math.min(0,...vals)*1.12, max:Math.max(...vals)*1.12, grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k'} },
@@ -74,7 +74,9 @@ function EquityChart({ data, privacy }) {
     <div className="card" style={{marginBottom:10}}>
       <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400}}>Drag right edge ⇅ to rescale</span></div>
       <div style={{position:'relative',userSelect:'none'}}>
-        <canvas ref={canvasRef} height={140} />
+        <div style={{position:'relative',height:480}}>
+          <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
+        </div>
         <div ref={handleRef} className="eq-h" />
       </div>
     </div>
