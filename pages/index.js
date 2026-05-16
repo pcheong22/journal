@@ -226,22 +226,24 @@ export default function Dashboard() {
         <title>Trading Journal · Performance Intelligence</title>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
       <header className="page-hdr">
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          {/* Logo icon — Apache TADS corner bracket reticle */}
+          {/* Logo icon — 1D: single thick ring, 4 long ticks, inner ring, accent dots */}
           <div style={{width:36,height:36,background:'#0c1117',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #1a2a1a'}}>
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path d="M2,9 L2,2 L9,2" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M26,9 L26,2 L19,2" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2,19 L2,26 L9,26" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M26,19 L26,26 L19,26" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="14" y1="9" x2="14" y2="12" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
-              <line x1="14" y1="16" x2="14" y2="19" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
-              <line x1="9" y1="14" x2="12" y2="14" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
-              <line x1="16" y1="14" x2="19" y2="14" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <circle cx="16" cy="16" r="13" stroke="#66ffa5" strokeWidth="2.2"/>
+              <circle cx="16" cy="16" r="5" stroke="#66ffa5" strokeWidth="1.5"/>
+              <line x1="16" y1="0" x2="16" y2="11" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="16" y1="21" x2="16" y2="32" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="0" y1="16" x2="11" y2="16" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="21" y1="16" x2="32" y2="16" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
+              <circle cx="16" cy="3" r="1.5" fill="#66ffa5"/>
+              <circle cx="16" cy="29" r="1.5" fill="#66ffa5"/>
+              <circle cx="3" cy="16" r="1.5" fill="#66ffa5"/>
+              <circle cx="29" cy="16" r="1.5" fill="#66ffa5"/>
             </svg>
           </div>
           {/* Name + subtitle stacked */}
