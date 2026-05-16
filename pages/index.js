@@ -233,16 +233,15 @@ export default function Dashboard() {
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           {/* Logo icon — Apache TADS corner bracket reticle */}
           <div style={{width:36,height:36,background:'#0c1117',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #1a2a1a'}}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M3,8 L3,3 L8,3" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M21,8 L21,3 L16,3" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M3,16 L3,21 L8,21" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M21,16 L21,21 L16,21" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="8" x2="12" y2="10.5" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="12" y1="13.5" x2="12" y2="16" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="8" y1="12" x2="10.5" y2="12" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="13.5" y1="12" x2="16" y2="12" stroke="#66ffa5" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="1.5" fill="#66ffa5"/>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path d="M2,9 L2,2 L9,2" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M26,9 L26,2 L19,2" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2,19 L2,26 L9,26" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M26,19 L26,26 L19,26" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="14" y1="9" x2="14" y2="12" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="14" y1="16" x2="14" y2="19" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="9" y1="14" x2="12" y2="14" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="16" y1="14" x2="19" y2="14" stroke="#66ffa5" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </div>
           {/* Name + subtitle stacked */}
