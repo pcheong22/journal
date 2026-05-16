@@ -202,7 +202,9 @@ function DistChart({ trades, privacy }) {
     privacyRef.current = privacy
     if (!chartRef.current) return
     chartRef.current.data.labels = getLabels(privacy)
-    chartRef.current.update()
+    chartRef.current.config.data.labels = getLabels(privacy)
+    chartRef.current.update('none')
+    chartRef.current.render()
   }, [privacy])
 
   return (
