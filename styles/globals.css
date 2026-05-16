@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -31,7 +31,7 @@
   --wa-bg:   #fffbeb;
   --wa-bd:   #fde68a;
   --wa-tx:   #92400e;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Barlow', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --sh-sm: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
   --sh:    0 1px 3px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
@@ -40,10 +40,10 @@
 
 /* ── DARK MODE ────────────────────────────────────────────────────────── */
 body.dark-mode {
-  --bg:      #0c1117;
-  --sf:      #161b21;
-  --sf2:     #1c2128;
-  --sf3:     #21262c;
+  --bg:      #080b10;
+  --sf:      #0c1117;
+  --sf2:     #111720;
+  --sf3:     #161c24;
   --bd:      #21262c;
   --bd2:     #2e333a;
   --tx:      #e8edf3;
