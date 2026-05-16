@@ -177,30 +177,55 @@ const paged       = filtered.slice(page*PAGE, (page+1)*PAGE)
 const ov          = stats?.overview
 // Calendar render
 const renderCalendar = () => {
-if (!stats) return null
-const calMap = {}; stats.calendar.forEach(d => { calMap[d.date] = d })
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const first  = new Date(Date.UTC(calYear, calMonth, 1)).getDay()
-const shift  = first===0 ? 6 : first-1
-const days   = new Date(Date.UTC(calYear, calMonth+1, 0)).getDate()
-let mPnl=0, mTrades=0, mWins=0, mDays=0
-const cells = []
-for (let i=0; i <shift; i++) cells.push( <div key={ `e${i}` } className="cal-cell emp " />)
-for (let d=1; d <=days; d++) {
-const ds   =  `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` 
-const info = calMap[ds]
-if (info) { mPnl+=info.total_pnl; mTrades+=info.count; mWins+=info.win_rate*info.count; mDays++ }
-cells.push(
- <div key={d} className={ `cal-cell${info?' hd '+(info.total_pnl >=0?' wd':' ld'):''}` } >
- <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:1}} >{d} </div >
-{info  & &  < >
- <div className= "private " style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:600,color:info.total_pnl >=0?'var(--wn-tx)':'var(--ls-tx)'}} >
-{(info.total_pnl >=0?'+':'-')+fA(info.total_pnl)}
- </div >
- <div style={{fontSize:9,color:'var(--mu)',marginTop:1}} >{info.count}t </div >
- </ >}
- </div >
-)
+  if (!stats) return null
+  const calMap = {}; stats.calendar.forEach(d => { calMap[d.date] = d })
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const first  = new Date(Date.UTC(calYear, calMonth, 1)).getDay()
+  const shift  = first===0 ? 6 : first-1
+  const days   = new Date(Date.UTC(calYear, calMonth+1, 0)).getDate()
+  let mPnl=0, mTrades=0, mWins=0, mDays=0
+  const cells = []
+  for (let i=0; i <shift; i++) cells.push( <div key={`e${i}`} className="cal-cell emp" />)
+  for (let d=1; d <=days; d++) {
+    const ds   =  `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` 
+    const info = calMap[ds]
+    if (info) { mPnl+=info.total_pnl; mTrades+=info.count; mWins+=info.win_rate*info.count; mDays++ }
+    cells.push(
+      <div key={d} className={`cal-cell${info?' hd '+(info.total_pnl>=0?' wd':' ld'):''}`}>
+        <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:1}}>{d}</div>
+        {info && <>
+          <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:600,color:info.total_pnl>=0?'var(--wn-tx)':'var(--ls-tx)'}}>
+            {(info.total_pnl>=0?'+':'-')+fA(info.total_pnl)}
+          </div>
+          <div style={{fontSize:9,color:'var(--mu)',marginTop:1}}>{info.count}t</div>
+        </>}
+      </div>
+    )
+  }
+  const mwr = mTrades > 0 ? ((mWins/mTrades)*100).toFixed(1)+'%' : '—'
+  const nav  = dir => { let m=calMonth+dir,y=calYear; if(m>11){m=0;y++}else if(m<0){m=11;y--}; setCalMonth(m); setCalYear(y) }
+  return (<>
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+      <button className="btn btn-sm" onClick={()=>nav(-1)}>←</button>
+      <div style={{flex:1,textAlign:'center',fontWeight:700,fontSize:14}}>{MONTHS[calMonth]} {calYear}</div>
+      <button className="btn btn-sm" onClick={()=>nav(1)}>→</button>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
+      {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>(
+        <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'var(--mu)',fontFamily:'var(--font-mono)',padding:'3px 0',textTransform:'uppercase',letterSpacing:'.04em'}}>{d}</div>
+      ))}
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>{cells}</div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginTop:12}}>
+      {[['MONTH P&L',mDays?(mPnl>=0?'+':'-')+fA(mPnl):'No data',mPnl>=0?'var(--wn-tx)':'var(--ls-tx)'],
+       ['TRADING DAYS',mDays,'var(--tx)'],['TRADES',mTrades,'var(--tx)'],['WIN RATE',mwr,'var(--ac)']].map(([l,v,c])=>(
+        <div key={l} style={{background:'var(--sf2)',borderRadius:6,padding:'10px 12px',border:'1px solid var(--bd)'}}>
+          <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:3}}>{l}</div>
+          <div className={l==='MONTH P&L'?'private':''} style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:600,color:c}}>{v}</div>
+        </div>
+      ))}
+    </div>
+  </>)
 }
 const mwr = mTrades  > 0 ? ((mWins/mTrades)*100).toFixed(1)+'%' : '—'
 const nav  = dir => { let m=calMonth+dir,y=calYear; if(m >11){m=0;y++}else if(m <0){m=11;y--}; setCalMonth(m); setCalYear(y) }
