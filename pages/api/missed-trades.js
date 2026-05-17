@@ -9,9 +9,12 @@ export default async function handler(req, res) {
   // ── GET — list missed trades ──────────────────────────────────────────────
   if (req.method === 'GET') {
     const { from, to } = req.query
-    let q = supabase.from('missed_trades').select('*').order('entry_time', { ascending: false })
-    if (from) q = q.gte('entry_time', from)
-    if (to)   q = q.lte('entry_time', to)
+    let q = supabase.from('missed_trades').select('*').order('created_at', { ascending: false })
+    // Filter by entry_time if provided, but always include trades with null entry_time
+    if (from && to) {
+      q = q.or(`entry_time.gte.${from},entry_time.is.null`)
+      q = q.or(`entry_time.lte.${to},entry_time.is.null`)
+    }
     const { data, error } = await q
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ missed_trades: data || [] })
