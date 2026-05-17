@@ -8,14 +8,10 @@ const supabase = createClient(
 export default async function handler(req, res) {
   // ── GET — list missed trades ──────────────────────────────────────────────
   if (req.method === 'GET') {
-    const { from, to } = req.query
-    let q = supabase.from('missed_trades').select('*').order('created_at', { ascending: false })
-    // Filter by entry_time if provided, but always include trades with null entry_time
-    if (from && to) {
-      q = q.or(`entry_time.gte.${from},entry_time.is.null`)
-      q = q.or(`entry_time.lte.${to},entry_time.is.null`)
-    }
-    const { data, error } = await q
+    const { data, error } = await supabase
+      .from('missed_trades')
+      .select('*')
+      .order('id', { ascending: false })
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ missed_trades: data || [] })
   }
