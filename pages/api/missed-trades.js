@@ -63,17 +63,23 @@ export default async function handler(req, res) {
 
   // ── PATCH — update missed trade ───────────────────────────────────────────
   if (req.method === 'PATCH') {
-    const { id, ...fields } = req.body
+    const { id, temp_id, ...rawFields } = req.body
     if (!id) return res.status(400).json({ error: 'id required' })
 
-    // Recalculate hypothetical P&L if prices changed
+    // Only allow known DB columns
+    const allowed = ['symbol','direction','entry_time','exit_time','entry_price','exit_price',
+      'position_size_usd','reason_missed','confidence_level','notes',
+      'hypothetical_pnl_usd','hypothetical_pct','updated_at']
+    const fields = Object.fromEntries(Object.entries(rawFields).filter(([k]) => allowed.includes(k)))
+
+    // Recalculate hypothetical P&L if prices provided
     const { entry_price, exit_price, direction, position_size_usd } = fields
-    if (entry_price && exit_price && entry_price > 0 && position_size_usd) {
+    if (entry_price && exit_price && parseFloat(entry_price) > 0 && position_size_usd) {
       const pct = direction === 'Long'
-        ? (exit_price / entry_price - 1)
-        : (entry_price / exit_price - 1)
+        ? (parseFloat(exit_price) / parseFloat(entry_price) - 1)
+        : (parseFloat(entry_price) / parseFloat(exit_price) - 1)
       fields.hypothetical_pct     = pct * 100
-      fields.hypothetical_pnl_usd = pct * position_size_usd
+      fields.hypothetical_pnl_usd = pct * parseFloat(position_size_usd)
     }
     fields.updated_at = new Date().toISOString()
 
