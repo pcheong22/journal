@@ -12,6 +12,8 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
 
   useEffect(() => {
     if (!entityId) return
+    // For temp IDs, don't fetch from server — images are tracked in local state only
+    if (isTempId) { setLoading(false); return }
     loadImages()
   }, [entityId, entityType])
 
@@ -102,7 +104,7 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
       {/* Empty state */}
       {!loading && images.length === 0 && (
         <div style={{ color: 'var(--mu)', fontSize: 12, padding: '8px 0' }}>
-          No images attached yet.{!readOnly && ' Upload chart screenshots above.'}
+          {readOnly ? 'No images attached.' : isTempId ? 'No screenshots yet — drag & drop or click above to attach.' : 'No images attached yet. Upload chart screenshots above.'}
         </div>
       )}
 
