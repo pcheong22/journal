@@ -1,0 +1,195 @@
+import { useState, useEffect, useRef } from 'react'
+
+// Reusable image gallery + uploader
+// Supports: file upload (drag/drop or click), URL paste (TradingView snapshots etc.)
+export default function ImageGallery({ entityType, entityId, readOnly = false, isTempId = false, externalImages, onImagesChange }) {
+  const [internalImages, setInternalImages] = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [uploading,  setUploading]  = useState(false)
+  const [lightbox,   setLightbox]   = useState(null)
+  const [dragOver,   setDragOver]   = useState(false)
+  const [urlRows,    setUrlRows]    = useState([{ id:1, value:'', status:'idle', message:'' }])
+  const [showUrls,   setShowUrls]   = useState(false)
+  const fileRef = useRef()
+
+  const images    = externalImages !== undefined ? externalImages : internalImages
+  const setImages = onImagesChange !== undefined ? onImagesChange : setInternalImages
+
+  useEffect(() => {
+    if (!entityId) return
+    if (isTempId) { setLoading(false); return }
+    loadImages()
+  }, [entityId, entityType])
+
+  const loadImages = async () => {
+    setLoading(true)
+    try {
+      const res  = await fetch(`/api/images?entity_type=${entityType}&entity_id=${entityId}`)
+      const data = await res.json()
+      setImages(data.images || [])
+    } catch(e) { console.error(e) }
+    setLoading(false)
+  }
+
+  const uploadFiles = async (files) => {
+    if (!files?.length || !entityId) return
+    setUploading(true)
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue
+      const form = new FormData()
+      form.append('file', file)
+      form.append('entity_type', entityType)
+      form.append('entity_id', String(entityId))
+      try {
+        const res  = await fetch('/api/images', { method:'POST', body:form })
+        const data = await res.json()
+        if (data.image) setImages(prev => [...prev, data.image])
+      } catch(e) { console.error('Upload failed:', e) }
+    }
+    setUploading(false)
+  }
+
+  const fetchUrl = async (rowId, url) => {
+    if (!url.trim() || !entityId) return
+    setUrlRows(prev => prev.map(r => r.id===rowId ? {...r, status:'loading', message:'Fetching…'} : r))
+    try {
+      const res  = await fetch('/api/fetch-image', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ url:url.trim(), entity_type:entityType, entity_id:String(entityId) }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setUrlRows(prev => prev.map(r => r.id===rowId ? {...r, status:'error', message:data.error||'Failed'} : r))
+      } else {
+        setImages(prev => [...prev, data.image])
+        setUrlRows(prev => prev.map(r => r.id===rowId ? {...r, status:'ok', message:'✅ Saved!', value:''} : r))
+        setTimeout(() => setUrlRows(prev => prev.map(r => r.id===rowId ? {...r, status:'idle', message:''} : r)), 2000)
+      }
+    } catch(e) {
+      setUrlRows(prev => prev.map(r => r.id===rowId ? {...r, status:'error', message:e.message} : r))
+    }
+  }
+
+  const addUrlRow    = () => setUrlRows(prev => [...prev, {id:Date.now(), value:'', status:'idle', message:''}])
+  const removeUrlRow = id => setUrlRows(prev => prev.filter(r => r.id !== id))
+  const updateUrl    = (id, value) => setUrlRows(prev => prev.map(r => r.id===id ? {...r, value, status:'idle', message:''} : r))
+  const deleteImage  = async img => {
+    if (!confirm('Delete this image?')) return
+    try {
+      await fetch(`/api/images?id=${img.id}&entity_type=${entityType}&entity_id=${entityId}&filename=${img.filename}`, {method:'DELETE'})
+      setImages(prev => prev.filter(i => i.id !== img.id))
+      if (lightbox === img.url) setLightbox(null)
+    } catch(e) { console.error(e) }
+  }
+  const handleDrop = e => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files) }
+
+  if (!entityId) return <div style={{color:'var(--mu)',fontSize:12,padding:'12px 0'}}>Save the trade first to attach images.</div>
+
+  return (
+    <div>
+      {!readOnly && (<>
+        {/* File upload zone */}
+        <div onClick={()=>fileRef.current?.click()}
+          onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
+          style={{border:`2px dashed ${dragOver?'var(--ac)':'var(--bd)'}`,borderRadius:8,padding:'12px 16px',marginBottom:8,background:dragOver?'var(--ac-bg)':'var(--sf2)',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:18}}>{uploading?'⏳':'🖼️'}</span>
+          <div>
+            <div style={{fontSize:12,fontWeight:600,color:'var(--tx)'}}>{uploading?'Uploading…':'Attach screenshots'}</div>
+            <div style={{fontSize:11,color:'var(--mu)'}}>Drag & drop or click · PNG, JPG, WEBP · max 10MB each</div>
+          </div>
+          {uploading && <span style={{marginLeft:'auto',width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} />}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>uploadFiles(e.target.files)} />
+
+        {/* URL paste section */}
+        <div style={{marginBottom:12}}>
+          <button onClick={()=>setShowUrls(s=>!s)}
+            style={{fontSize:11,color:'var(--ac)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-mono)',padding:'4px 0',display:'flex',alignItems:'center',gap:5}}>
+            🔗 {showUrls?'▲ Hide URL import':'▼ Paste image URLs (TradingView snapshots etc.)'}
+          </button>
+          {showUrls && (
+            <div style={{marginTop:8,background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:10,letterSpacing:'.04em'}}>
+                PASTE IMAGE URLS — e.g. https://www.tradingview.com/x/AUWRhbRt
+              </div>
+              <div style={{display:'grid',gap:6}}>
+                {urlRows.map(row => (
+                  <div key={row.id} style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                    <input className="inp"
+                      style={{flex:1,minWidth:200,fontFamily:'var(--font-mono)',fontSize:11,
+                        borderColor:row.status==='error'?'var(--ls)':row.status==='ok'?'var(--wn)':undefined}}
+                      placeholder="https://www.tradingview.com/x/..."
+                      value={row.value}
+                      onChange={e=>updateUrl(row.id, e.target.value)}
+                      onKeyDown={e=>{if(e.key==='Enter') fetchUrl(row.id, row.value)}}
+                    />
+                    <button className="btn btn-p btn-sm"
+                      disabled={!row.value.trim()||row.status==='loading'}
+                      onClick={()=>fetchUrl(row.id, row.value)}
+                      style={{flexShrink:0,minWidth:52}}>
+                      {row.status==='loading'
+                        ? <span style={{width:10,height:10,border:'2px solid rgba(255,255,255,.4)',borderTop:'2px solid #fff',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} />
+                        : 'Save'}
+                    </button>
+                    {urlRows.length > 1 && (
+                      <button onClick={()=>removeUrlRow(row.id)}
+                        style={{flexShrink:0,width:24,height:24,borderRadius:'50%',border:'1px solid var(--bd)',background:'var(--sf)',color:'var(--mu)',cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        ✕
+                      </button>
+                    )}
+                    {row.message && (
+                      <span style={{fontSize:10,color:row.status==='error'?'var(--ls)':'var(--wn)',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>
+                        {row.message}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button onClick={addUrlRow}
+                style={{marginTop:8,fontSize:11,color:'var(--ac)',background:'none',border:'1px dashed var(--bd)',borderRadius:5,cursor:'pointer',padding:'4px 10px',fontFamily:'var(--font-mono)',display:'flex',alignItems:'center',gap:4}}>
+                + Add another URL
+              </button>
+            </div>
+          )}
+        </div>
+      </>)}
+
+      {loading && <div style={{color:'var(--mu)',fontSize:12,padding:'8px 0'}}>Loading images…</div>}
+
+      {!loading && images.length===0 && (
+        <div style={{color:'var(--mu)',fontSize:12,padding:'4px 0'}}>
+          {readOnly?'No images attached.':'No screenshots yet — upload files above or paste a TradingView URL.'}
+        </div>
+      )}
+
+      {images.length > 0 && (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))',gap:8}}>
+          {images.map(img => (
+            <div key={img.id} style={{position:'relative',borderRadius:7,overflow:'hidden',border:'1px solid var(--bd)',background:'var(--sf3)',aspectRatio:'4/3'}}>
+              <img src={img.url} alt={img.filename} onClick={()=>setLightbox(img.url)}
+                style={{width:'100%',height:'100%',objectFit:'cover',cursor:'pointer',display:'block',transition:'opacity .15s'}}
+                onMouseEnter={e=>e.target.style.opacity='.8'} onMouseLeave={e=>e.target.style.opacity='1'} />
+              {!readOnly && (
+                <button onClick={()=>deleteImage(img)}
+                  style={{position:'absolute',top:4,right:4,width:20,height:20,borderRadius:'50%',border:'none',background:'rgba(0,0,0,.7)',color:'#fff',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lightbox && (
+        <div onClick={()=>setLightbox(null)}
+          style={{position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <img src={lightbox} alt="Screenshot" style={{maxWidth:'100%',maxHeight:'90vh',objectFit:'contain',borderRadius:8,boxShadow:'0 0 60px rgba(0,0,0,.5)'}} />
+          <button onClick={()=>setLightbox(null)}
+            style={{position:'absolute',top:20,right:24,background:'rgba(255,255,255,.15)',border:'none',color:'#fff',fontSize:20,width:40,height:40,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            ✕
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

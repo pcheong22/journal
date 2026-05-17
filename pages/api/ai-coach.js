@@ -78,6 +78,92 @@ TOP HOURS (GMT): ${topHours}
 
 Return a JSON coaching report. Score 0-100. Provide 6-8 insights mixing critical issues, biases, opportunities and strengths. Reference specific numbers. insight.type must be one of: critical, bias, opportunity, strength.`
 
+  } else if (mode === 'passed_portfolio') {
+    // ── PASSED TRADES PORTFOLIO ANALYSIS ──────────────────────────────────
+    const { passed, actual } = req.body
+    if (!passed?.length) return res.status(400).json({ error: 'passed trades required' })
+
+    systemPrompt = `You are a quantitative trading coach specialising in decision quality analysis. Analyse a trader's passed (skipped) trades alongside their actual trades. Return ONLY valid JSON with no markdown. Use exactly this structure:
+{"score":0,"score_rationale":"","verdict":"","opportunity_cost":"","discipline_rating":"","insights":[{"type":"critical","tag":"TAG","title":"","body":"","action":""}],"coaching_tip":""}
+
+score: 0-100 rating of the trader's pass/skip decision quality (100 = perfect discipline, skipping losers and catching winners)
+verdict: one sentence summary e.g. "Your passes are costing you more than they save"
+opportunity_cost: one sentence on net P&L impact of passing
+discipline_rating: "Overcautious" | "Well-calibrated" | "Undertaking" based on data
+insights: 4-6 insights of types: critical, bias, opportunity, strength`
+
+    // Compute passed trade stats
+    const passedWins    = passed.filter(p => (p.hypothetical_pnl_usd||0) > 0)
+    const passedLosses  = passed.filter(p => (p.hypothetical_pnl_usd||0) < 0)
+    const totalPassedPnl = passed.reduce((s,p) => s+(p.hypothetical_pnl_usd||0), 0)
+    const passedWr      = passed.length ? (passedWins.length/passed.length*100).toFixed(1) : 0
+    const avgPassedPnl  = passed.length ? totalPassedPnl/passed.length : 0
+
+    // Reason breakdown
+    const reasonCounts = {}
+    passed.forEach(p => { if (p.reason_missed) reasonCounts[p.reason_missed] = (reasonCounts[p.reason_missed]||0)+1 })
+    const reasonStr = Object.entries(reasonCounts).map(([r,c])=>`${r}: ${c}`).join(' | ') || 'No reasons recorded'
+
+    // Symbol breakdown
+    const symMap = {}
+    passed.forEach(p => {
+      if (!symMap[p.symbol]) symMap[p.symbol] = { count:0, pnl:0 }
+      symMap[p.symbol].count++
+      symMap[p.symbol].pnl += p.hypothetical_pnl_usd||0
+    })
+    const symStr = Object.entries(symMap).sort((a,b)=>Math.abs(b[1].pnl)-Math.abs(a[1].pnl))
+      .slice(0,6).map(([s,v])=>`${s}: ${v.count}t $${Math.round(v.pnl)}`).join(' | ')
+
+    // Confidence breakdown
+    const confMap = {}
+    passed.forEach(p => { if (p.confidence_level) { confMap[p.confidence_level] = confMap[p.confidence_level]||{count:0,pnl:0}; confMap[p.confidence_level].count++; confMap[p.confidence_level].pnl+=p.hypothetical_pnl_usd||0 }})
+    const confStr = Object.entries(confMap).sort((a,b)=>a[0]-b[0])
+      .map(([c,v])=>`Confidence ${c}: ${v.count}t $${Math.round(v.pnl)}`).join(' | ') || 'No confidence data'
+
+    // Notes sample (first 3 with notes)
+    const notesSample = passed.filter(p=>p.notes).slice(0,3).map(p=>`[${p.symbol} ${p.direction}]: "${p.notes.slice(0,120)}"`).join('\n') || 'No notes'
+
+    // Actual trade stats for comparison
+    const actualWr  = actual?.length ? (actual.filter(t=>t.pnl>0).length/actual.length*100).toFixed(1) : null
+    const actualPnl = actual?.reduce((s,t)=>s+t.pnl,0) || 0
+
+    userPrompt = `PASSED TRADES ANALYSIS:
+Total passed: ${passed.length} trades | Hypothetical P&L: $${Math.round(totalPassedPnl)} | Pass win rate: ${passedWr}% | Avg P&L if taken: $${Math.round(avgPassedPnl)}
+Passes that would have won: ${passedWins.length} | Passes that would have lost: ${passedLosses.length}
+Symbols: ${symStr}
+Reasons for passing: ${reasonStr}
+Confidence levels: ${confStr}
+
+ACTUAL TRADES (same period): ${actual?.length||0} trades | P&L: $${Math.round(actualPnl)} | Win rate: ${actualWr||'unknown'}%
+
+NET OPPORTUNITY COST: $${Math.round(totalPassedPnl)} (what passing cost or saved vs taking everything)
+
+Sample notes from passed trades:
+${notesSample}
+
+Analyse whether this trader's pass decisions are adding or destroying value. Is their hesitation disciplined or fearful? Are they passing on good setups or avoiding bad ones? Reference specific numbers and patterns.`
+
+  } else if (mode === 'passed_entry') {
+    const { passed: m, actual_wr } = req.body
+    if (!m) return res.status(400).json({ error: 'passed trade required' })
+
+    systemPrompt = `You are a quantitative trading coach. Analyse a single passed (skipped) trade decision and return ONLY valid JSON with no markdown. Use exactly this structure:
+{"score":0,"verdict":"","insights":[{"type":"strength","tag":"TAG","title":"","body":"","action":""}],"coaching_tip":""}
+score: 0-100 quality of the pass decision (100 = correct to pass, 0 = terrible mistake to pass). verdict: one sentence — was this a good or bad decision to pass? insights: 2-4 insights, type must be: critical, bias, opportunity, or strength. coaching_tip: one actionable lesson.`
+
+    const pnlStr  = m.hypothetical_pnl_usd != null ? `$${Math.round(m.hypothetical_pnl_usd)} (${m.hypothetical_pct?.toFixed(2)}%)` : 'unknown'
+    const outcome = m.hypothetical_pnl_usd != null ? (m.hypothetical_pnl_usd > 0 ? 'WOULD HAVE WON' : 'WOULD HAVE LOST') : 'outcome unknown'
+
+    userPrompt = `PASSED TRADE:
+Symbol: ${m.symbol} | Direction: ${m.direction} | ${outcome}
+Hypothetical P&L if taken: ${pnlStr}
+Entry: ${m.entry_price||'not recorded'} | Exit: ${m.exit_price||'not recorded'} | Size: ${m.position_size_usd?'$'+Math.round(m.position_size_usd).toLocaleString():'not recorded'}
+Reason for passing: ${m.reason_missed||'not stated'}
+Confidence at the time: ${m.confidence_level?m.confidence_level+'/5':'not stated'}
+Notes: ${m.notes||'none'}
+Trader actual win rate: ${actual_wr?(actual_wr*100).toFixed(1)+'%':'unknown'}
+Was this a good decision to pass? Was the reason valid? What does this tell us about the trader's decision-making?`
+
   } else {
     // Single trade mode
     if (!trade) return res.status(400).json({ error: 'trade required' })

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { simulatePnLPath } from '../lib/tradeUtils'
 import { PnlPathChart } from './Charts'
+import ImageGallery from './ImageGallery'
 
 const fU   = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fPct = (n,d=3) => (n>=0?'+':'')+n.toFixed(d)+'%'
@@ -75,7 +76,12 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
 
   const priceMove = trade.exit_price && trade.entry_price ? trade.exit_price - trade.entry_price : null
   const pts       = priceMove != null ? (trade.direction==='Long' ? priceMove : -priceMove) : null
-  const pct       = trade.pct_gain != null ? fPct(trade.pct_gain) : '—'
+  const pctVal = (trade.entry_price && trade.exit_price && trade.entry_price > 0)
+    ? (trade.direction === 'Long'
+        ? (trade.exit_price / trade.entry_price - 1) * 100
+        : (trade.entry_price / trade.exit_price - 1) * 100)
+    : trade.pct_gain
+  const pct = pctVal != null ? fPct(pctVal) : '—'
   const dur       = trade.duration_mins ? (trade.duration_mins/60).toFixed(1)+'h' : '—'
   const not       = trade.notional_usd ? '$'+Math.round(trade.notional_usd).toLocaleString() : '—'
 
@@ -155,6 +161,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     { id:'chart',  label:'📈 Chart' },
     { id:'pnl',    label:'📊 P&L Path' },
     { id:'notes',  label:'📝 Notes' },
+    { id:'images', label:'🖼️ Images' },
     { id:'tags',   label:'🏷 Tags' },
     { id:'ai',     label:'🧠 AI Coach' },
   ]
@@ -333,6 +340,16 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               <button className="btn btn-p" onClick={handleSave} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
                 {saving ? '💾 Saving…' : saved ? '✅ Saved!' : '💾 Save Notes & Stop Loss'}
               </button>
+            </div>
+          )}
+
+          {/* ── IMAGES SECTION ────────────────────────────────────────── */}
+          {activeSection==='images' && (
+            <div>
+              <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:14}}>
+                Attach chart screenshots to this trade. Click any thumbnail to expand fullscreen.
+              </div>
+              <ImageGallery entityType="trade" entityId={trade.id} />
             </div>
           )}
 
