@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       .from('trade_images')
       .select('*')
       .eq('entity_type', entity_type)
-      .eq('entity_id', entity_id)
+      .eq('entity_id', String(entity_id))
       .order('created_at', { ascending: true })
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ images: data || [] })
