@@ -677,7 +677,10 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [saving,       setSaving]    = useState(false)
   const [deleting,     setDeleting]  = useState(null)
   const [formImages,   setFormImages] = useState([])
-  const [expandedNotes, setExpandedNotes] = useState(new Set()) // persists across re-renders during form session
+  const [expandedNotes, setExpandedNotes] = useState(new Set())
+  const [aiReport,     setAiReport]   = useState(null)
+  const [aiLoading,    setAiLoading]  = useState(false)
+  const [aiError,      setAiError]    = useState(null) // persists across re-renders during form session
 
   const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
   const genTempId = () => 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2)
@@ -771,15 +774,37 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
     return { pct: pct*100, usd: pct*sz }
   })()
 
+  const generateAI = async () => {
+    if (!missed.length) return
+    setAiLoading(true); setAiError(null)
+    try {
+      const res  = await fetch('/api/ai-coach', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ mode:'passed_portfolio', passed: missed, actual: visibleTrades }),
+      })
+      const data = await res.json()
+      if (data.error) setAiError(data.error)
+      else setAiReport(data)
+    } catch(e) { setAiError('AI analysis failed — check your connection') }
+    setAiLoading(false)
+  }
+
+  const TYPE_CFG = {
+    critical:    { pillClass:'pr', borderColor:'var(--ls)' },
+    bias:        { pillClass:'pw', borderColor:'var(--wa)' },
+    opportunity: { pillClass:'pa', borderColor:'var(--ac)' },
+    strength:    { pillClass:'pb', borderColor:'var(--wn)' },
+  }
+
   return (
     <div className="anim">
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:8,marginBottom:14}}>
         {[
-          ['MISSED P&L',    missed.length ? fmtU(Math.round(totalMissedPnl)) : '—', totalMissedPnl>=0?'pos':'neg', 'Hypothetical', true],
+          ['PASSED P&L',    missed.length ? fmtU(Math.round(totalMissedPnl)) : '—', totalMissedPnl>=0?'pos':'neg', 'Hypothetical', true],
           ['ACTUAL P&L',    fmtU(Math.round(totalActualPnl)), totalActualPnl>=0?'pos':'neg', 'Same period', true],
           ['OPP COST',      missed.length && totalMissedPnl>0 ? fmtU(Math.round(totalMissedPnl)) : '—', 'neg', 'Left on table', true],
-          ['MISSED TRADES', String(missed.length), 'neu', missedWins + ' would-be wins', false],
-          ['MISSED WIN RATE', missedWr ? missedWr+'%' : '—', 'acc', 'vs '+(actualWr||'—')+'% actual', false],
+          ['PASSED TRADES', String(missed.length), 'neu', missedWins + ' would-be wins', false],
+          ['PASSED WIN RATE', missedWr ? missedWr+'%' : '—', 'acc', 'vs '+(actualWr||'—')+'% actual', false],
         ].map(([l,v,c,s,priv])=>(
           <div key={l} className="kpi">
             <div className="kl">{l}</div>
@@ -787,6 +812,95 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
             <div className="ks">{s}</div>
           </div>
         ))}
+      </div>
+
+      {/* ── AI ANALYSIS CARD ──────────────────────────────────────────── */}
+      <div className="card" style={{marginBottom:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:16,flexWrap:'wrap'}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>AI DECISION QUALITY ANALYSIS</div>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>Are your passes adding or destroying value?</div>
+            <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.6,marginBottom:12}}>
+              Analyses your passed trades vs actual trades to determine if your hesitation is disciplined or fearful.
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+              <button className={`btn ${aiLoading?'':'btn-p'}`} onClick={generateAI} disabled={aiLoading||!missed.length}
+                style={{padding:'8px 20px',fontSize:13}}>
+                {aiLoading
+                  ? <><span style={{width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} /> Analysing {missed.length} passed trades…</>
+                  : aiReport ? '🔄 Regenerate Analysis' : '🧠 Analyse My Pass Decisions'}
+              </button>
+              {!missed.length && <span style={{fontSize:11,color:'var(--mu)'}}>Log some passed trades first.</span>}
+            </div>
+          </div>
+          {aiReport && (
+            <div style={{textAlign:'center',padding:'12px 20px',borderLeft:'1px solid var(--bd)',flexShrink:0}}>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:48,fontWeight:700,color:'var(--ac)',lineHeight:1}}>{aiReport.score??'—'}</div>
+              <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',marginTop:2}}>DECISION QUALITY</div>
+              {aiReport.discipline_rating && (
+                <div style={{marginTop:8,padding:'3px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:11,color:'var(--ac2)',fontWeight:600}}>
+                  {aiReport.discipline_rating}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {aiReport?.verdict && (
+          <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid var(--bd)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}} className="g2">
+            <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>VERDICT</div>
+              <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.6}}>{aiReport.verdict}</div>
+            </div>
+            <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>OPPORTUNITY COST</div>
+              <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.6}}>{aiReport.opportunity_cost}</div>
+            </div>
+          </div>
+        )}
+
+        {aiReport?.coaching_tip && (
+          <div style={{marginTop:10,padding:'10px 14px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:7}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--ac2)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>💡 COACHING TIP</div>
+            <div style={{fontSize:12,color:'var(--ac2)',lineHeight:1.6}}>{aiReport.coaching_tip}</div>
+          </div>
+        )}
+
+        {aiError && (
+          <div style={{marginTop:10,background:'var(--wa-bg)',border:'1px solid var(--wa-bd)',borderRadius:7,padding:'10px 14px',fontSize:12,color:'var(--wa-tx)'}}>
+            ℹ️ {aiError}
+          </div>
+        )}
+
+        {aiLoading && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:14}} className="g2">
+            {[1,2,3,4].map(i=>(
+              <div key={i} style={{height:100,background:'var(--sf2)',borderRadius:7,padding:14,border:'1px solid var(--bd)'}}>
+                <div style={{width:'40%',height:14,background:'var(--sf3)',borderRadius:4,marginBottom:8,animation:'pulse 1.5s infinite'}} />
+                <div style={{width:'85%',height:11,background:'var(--sf3)',borderRadius:4,marginBottom:5,animation:'pulse 1.5s infinite'}} />
+                <div style={{width:'70%',height:11,background:'var(--sf3)',borderRadius:4,animation:'pulse 1.5s infinite'}} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {aiReport?.insights?.length > 0 && !aiLoading && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:14}} className="g2">
+            {aiReport.insights.map((ins,i) => {
+              const cfg = TYPE_CFG[ins.type] || TYPE_CFG.opportunity
+              return (
+                <div key={i} style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'12px 14px',borderLeft:`3px solid ${cfg.borderColor}`}}>
+                  <div style={{marginBottom:6}}><span className={`pill ${cfg.pillClass}`}>{ins.tag||ins.type?.toUpperCase()}</span></div>
+                  <div style={{fontWeight:600,fontSize:13,marginBottom:5,color:'var(--tx)'}}>{ins.title}</div>
+                  <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.65,marginBottom:8}}>{ins.body}</div>
+                  <div style={{padding:'6px 10px',background:'var(--sf)',borderRadius:5,fontSize:11,color:'var(--tx2)',lineHeight:1.6}}>
+                    <span style={{fontWeight:600,color:'var(--tx)'}}>Action: </span>{ins.action}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
