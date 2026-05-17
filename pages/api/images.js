@@ -87,7 +87,7 @@ export default async function handler(req, res) {
 
       const { data: imageRecord, error: dbError } = await supabase
         .from('trade_images')
-        .insert([{ entity_type, entity_id: parseInt(entity_id), url: publicUrl, filename: safeName }])
+        .insert([{ entity_type, entity_id: entity_id, url: publicUrl, filename: safeName }])
         .select()
         .single()
 

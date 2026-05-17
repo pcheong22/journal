@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const {
       symbol, direction, entry_time, exit_time,
       entry_price, exit_price, position_size_usd,
-      reason_missed, confidence_level, notes,
+      reason_missed, confidence_level, notes, temp_id,
     } = req.body
 
     // Auto-calculate hypothetical P&L if prices + size provided
@@ -49,6 +49,16 @@ export default async function handler(req, res) {
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
+
+    // Re-link any images uploaded under the temp_id to the real trade ID
+    if (temp_id && data?.id) {
+      await supabase
+        .from('trade_images')
+        .update({ entity_id: data.id })
+        .eq('entity_type', 'missed_trade')
+        .eq('entity_id', temp_id)
+    }
+
     return res.status(200).json({ missed_trade: data })
   }
 
