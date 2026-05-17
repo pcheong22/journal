@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
-const ChartComp  = dynamic(() => import('../components/Charts'),     { ssr: false })
-const TradeModal = dynamic(() => import('../components/TradeModal'), { ssr: false })
+const ChartComp  = dynamic(() => import('../components/Charts'),       { ssr: false })
+const TradeModal = dynamic(() => import('../components/TradeModal'),   { ssr: false })
+const ImageGallery = dynamic(() => import('../components/ImageGallery'), { ssr: false })
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fA   = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
 const fPct = (n, d=1) => (n>=0?'+':'')+n.toFixed(d)+'%'
@@ -371,7 +372,7 @@ export default function Dashboard() {
 
       <nav style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)'}}>
         <div style={{display:'flex',padding:'0 24px',gap:0}}>
-          {[['overview','📈 Overview'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log']].map(([id,label])=>(
+          {[['overview','📈 Overview'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','👁 Missed']].map(([id,label])=>(
             <div key={id} className={`nt ${tab===id?'active':''}`} onClick={()=>setTab(id)}>{label}</div>
           ))}
         </div>
@@ -607,7 +608,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {!loading && allTrades.length===0 && tab!=='coach' && (
+        {tab==='missed' && (
+          <MissedTab dateFrom={dateFrom} dateTo={dateTo} datePreset={datePreset} visibleTrades={visibleTrades} />
+        )}
+
+        {!loading && allTrades.length===0 && tab!=='coach' && tab!=='missed' && (
           <div style={{textAlign:'center',padding:'60px 20px'}}>
             <div style={{fontSize:36,marginBottom:12}}>📊</div>
             <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:'var(--tx)'}}>No trades loaded</div>
@@ -644,6 +649,297 @@ function AccountRenameModal({ account, onSave, onClose }) {
           <button className="btn btn-p" onClick={()=>onSave(account.id,label)}>Save</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+
+const REASON_OPTIONS = [
+  'Already at daily trade limit',
+  'Hesitated / missed the entry',
+  'Risk too high / position size concern',
+  "Setup wasn't quite right",
+  'Distracted / not at desk',
+  'Intentionally passed (good discipline)',
+  'Other',
+]
+
+function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
+  const [missed,       setMissed]    = useState([])
+  const [loading,      setLoading]   = useState(true)
+  const [showForm,     setShowForm]  = useState(false)
+  const [editingId,    setEditingId] = useState(null)
+  const [expandedId,   setExpandedId] = useState(null)
+  const [useDateRange, setUseDateRange] = useState(true)
+  const [customFrom,   setCustomFrom] = useState(dateFrom)
+  const [customTo,     setCustomTo]  = useState(dateTo)
+  const [saving,       setSaving]    = useState(false)
+  const [deleting,     setDeleting]  = useState(null)
+
+  const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
+  const emptyForm = { symbol:'', direction:'Long', entry_time:'', exit_time:'', entry_price:'', exit_price:'', position_size_usd:'', reason_missed:'', confidence_level:'', notes:'' }
+  const [form, setForm] = useState(emptyForm)
+
+  const activeFrom = useDateRange ? dateFrom : customFrom
+  const activeTo   = useDateRange ? dateTo   : customTo
+
+  useEffect(() => { loadMissed() }, [activeFrom, activeTo])
+
+  const loadMissed = async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (activeFrom) params.set('from', activeFrom + 'T00:00:00Z')
+      if (activeTo)   params.set('to',   activeTo   + 'T23:59:59Z')
+      const res  = await fetch('/api/missed-trades?' + params)
+      const data = await res.json()
+      setMissed(data.missed_trades || [])
+    } catch(e) { console.error(e) }
+    setLoading(false)
+  }
+
+  const openNew  = () => { setForm(emptyForm); setEditingId(null); setShowForm(true) }
+  const openEdit = (m) => {
+    setForm({
+      symbol: m.symbol||'', direction: m.direction||'Long',
+      entry_time: m.entry_time?.slice(0,16)||'', exit_time: m.exit_time?.slice(0,16)||'',
+      entry_price: m.entry_price||'', exit_price: m.exit_price||'',
+      position_size_usd: m.position_size_usd||'', reason_missed: m.reason_missed||'',
+      confidence_level: m.confidence_level||'', notes: m.notes||'',
+    })
+    setEditingId(m.id); setShowForm(true)
+  }
+
+  const handleSave = async () => {
+    if (!form.symbol || !form.direction) return
+    setSaving(true)
+    try {
+      const body = {
+        ...form,
+        entry_price:       form.entry_price       ? parseFloat(form.entry_price)       : null,
+        exit_price:        form.exit_price        ? parseFloat(form.exit_price)        : null,
+        position_size_usd: form.position_size_usd ? parseFloat(form.position_size_usd) : null,
+        confidence_level:  form.confidence_level  ? parseInt(form.confidence_level)    : null,
+        entry_time:        form.entry_time        ? new Date(form.entry_time).toISOString() : null,
+        exit_time:         form.exit_time         ? new Date(form.exit_time).toISOString()  : null,
+      }
+      if (editingId) body.id = editingId
+      const res  = await fetch('/api/missed-trades', { method: editingId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      const data = await res.json()
+      if (data.missed_trade) {
+        if (editingId) setMissed(prev => prev.map(m => m.id === editingId ? data.missed_trade : m))
+        else           setMissed(prev => [data.missed_trade, ...prev])
+      }
+      setShowForm(false); setEditingId(null); setForm(emptyForm)
+    } catch(e) { console.error(e) }
+    setSaving(false)
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this missed trade?')) return
+    setDeleting(id)
+    try {
+      await fetch('/api/missed-trades?id=' + id, { method:'DELETE' })
+      setMissed(prev => prev.filter(m => m.id !== id))
+      if (expandedId === id) setExpandedId(null)
+    } catch(e) { console.error(e) }
+    setDeleting(null)
+  }
+
+  const totalMissedPnl = missed.reduce((s,m) => s + (m.hypothetical_pnl_usd || 0), 0)
+  const totalActualPnl = visibleTrades.reduce((s,t) => s + (t.pnl || 0), 0)
+  const missedWins     = missed.filter(m => (m.hypothetical_pnl_usd||0) > 0).length
+  const missedWr       = missed.length ? (missedWins/missed.length*100).toFixed(1) : null
+  const actualWr       = visibleTrades.length ? (visibleTrades.filter(t=>t.pnl>0).length/visibleTrades.length*100).toFixed(1) : null
+
+  const previewPnl = (() => {
+    const ep = parseFloat(form.entry_price), xp = parseFloat(form.exit_price), sz = parseFloat(form.position_size_usd)
+    if (!ep || !xp || !sz || ep <= 0) return null
+    const pct = form.direction === 'Long' ? (xp/ep - 1) : (ep/xp - 1)
+    return { pct: pct*100, usd: pct*sz }
+  })()
+
+  return (
+    <div className="anim">
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:8,marginBottom:14}}>
+        {[
+          ['MISSED P&L',    missed.length ? fmtU(Math.round(totalMissedPnl)) : '—', totalMissedPnl>=0?'pos':'neg', 'Hypothetical', true],
+          ['ACTUAL P&L',    fmtU(Math.round(totalActualPnl)), totalActualPnl>=0?'pos':'neg', 'Same period', true],
+          ['OPP COST',      missed.length && totalMissedPnl>0 ? fmtU(Math.round(totalMissedPnl)) : '—', 'neg', 'Left on table', true],
+          ['MISSED TRADES', String(missed.length), 'neu', missedWins + ' would-be wins', false],
+          ['MISSED WIN RATE', missedWr ? missedWr+'%' : '—', 'acc', 'vs '+(actualWr||'—')+'% actual', false],
+        ].map(([l,v,c,s,priv])=>(
+          <div key={l} className="kpi">
+            <div className="kl">{l}</div>
+            <div className={'kv '+c+(priv?' private':'')}>{v}</div>
+            <div className="ks">{s}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+        <button className={'preset-btn '+(useDateRange?'active':'')} onClick={()=>setUseDateRange(true)}>Use main range ({datePreset||'Custom'})</button>
+        <button className={'preset-btn '+(!useDateRange?'active':'')} onClick={()=>setUseDateRange(false)}>Custom range</button>
+        {!useDateRange && (<>
+          <input type="date" className="inp date-input" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{padding:'3px 8px'}} />
+          <span style={{color:'var(--mu)',fontSize:11}}>→</span>
+          <input type="date" className="inp date-input" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{padding:'3px 8px'}} />
+          <button className="btn btn-p btn-sm" onClick={loadMissed}>Apply</button>
+        </>)}
+        <button className="btn btn-p" style={{marginLeft:'auto'}} onClick={openNew}>+ Log Missed Trade</button>
+      </div>
+
+      {showForm && (
+        <div className="card" style={{marginBottom:14}}>
+          <div className="ct">
+            <span className="ind" />{editingId ? 'Edit Missed Trade' : 'Log Missed Trade'}
+            <button className="btn btn-sm" style={{marginLeft:'auto'}} onClick={()=>{setShowForm(false);setEditingId(null)}}>✕</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}} className="g2">
+            <div>
+              <div className="notes-label">Symbol *</div>
+              <input className="inp" style={{width:'100%'}} placeholder="e.g. XAUUSD" value={form.symbol} onChange={e=>setForm(f=>({...f,symbol:e.target.value.toUpperCase()}))} />
+            </div>
+            <div>
+              <div className="notes-label">Direction *</div>
+              <select className="inp" style={{width:'100%'}} value={form.direction} onChange={e=>setForm(f=>({...f,direction:e.target.value}))}>
+                <option>Long</option><option>Short</option>
+              </select>
+            </div>
+            <div>
+              <div className="notes-label">Entry Time</div>
+              <input className="inp" style={{width:'100%'}} type="datetime-local" value={form.entry_time} onChange={e=>setForm(f=>({...f,entry_time:e.target.value}))} />
+            </div>
+            <div>
+              <div className="notes-label">Exit Time</div>
+              <input className="inp" style={{width:'100%'}} type="datetime-local" value={form.exit_time} onChange={e=>setForm(f=>({...f,exit_time:e.target.value}))} />
+            </div>
+            <div>
+              <div className="notes-label">Entry Price</div>
+              <input className="inp" style={{width:'100%',fontFamily:'var(--font-mono)'}} type="number" placeholder="0.00" value={form.entry_price} onChange={e=>setForm(f=>({...f,entry_price:e.target.value}))} />
+            </div>
+            <div>
+              <div className="notes-label">Exit Price</div>
+              <input className="inp" style={{width:'100%',fontFamily:'var(--font-mono)'}} type="number" placeholder="0.00" value={form.exit_price} onChange={e=>setForm(f=>({...f,exit_price:e.target.value}))} />
+            </div>
+            <div>
+              <div className="notes-label">Position Size USD</div>
+              <input className="inp" style={{width:'100%',fontFamily:'var(--font-mono)'}} type="number" placeholder="e.g. 50000" value={form.position_size_usd} onChange={e=>setForm(f=>({...f,position_size_usd:e.target.value}))} />
+            </div>
+            <div>
+              <div className="notes-label">Hypothetical P&L (auto)</div>
+              {previewPnl ? (
+                <div style={{padding:'8px 0'}}>
+                  <div style={{fontFamily:'var(--font-mono)',fontSize:18,fontWeight:700,color:previewPnl.usd>=0?'var(--wn)':'var(--ls)'}}>
+                    {previewPnl.usd>=0?'+':''}{fmtU(Math.round(previewPnl.usd))}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{previewPnl.pct>=0?'+':''}{previewPnl.pct.toFixed(3)}%</div>
+                </div>
+              ) : <div style={{fontSize:11,color:'var(--mu)',padding:'8px 0'}}>Enter prices + size to calculate</div>}
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}} className="g2">
+            <div>
+              <div className="notes-label">Reason Missed (optional)</div>
+              <select className="inp" style={{width:'100%'}} value={form.reason_missed} onChange={e=>setForm(f=>({...f,reason_missed:e.target.value}))}>
+                <option value="">— Select reason —</option>
+                {REASON_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="notes-label">Confidence Level (optional, 1–5)</div>
+              <select className="inp" style={{width:'100%'}} value={form.confidence_level} onChange={e=>setForm(f=>({...f,confidence_level:e.target.value}))}>
+                <option value="">— Select —</option>
+                {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} — {['Very low','Low','Medium','High','Very high'][n-1]}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{marginBottom:14}}>
+            <div className="notes-label">Notes — stream of consciousness (main content)</div>
+            <textarea className="notes-field" rows={5}
+              placeholder="What did you see? Why didn't you take it? What were you thinking? How did it play out? Lessons?"
+              value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} />
+          </div>
+          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <button className="btn" onClick={()=>{setShowForm(false);setEditingId(null)}}>Cancel</button>
+            <button className="btn btn-p" onClick={handleSave} disabled={saving||!form.symbol}>
+              {saving?'💾 Saving…':editingId?'💾 Update':'💾 Save Missed Trade'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading && <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0',textAlign:'center'}}>Loading…</div>}
+
+      {!loading && missed.length === 0 && (
+        <div style={{textAlign:'center',padding:'48px 20px',color:'var(--mu)'}}>
+          <div style={{fontSize:36,marginBottom:12}}>👁</div>
+          <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:'var(--tx)'}}>No missed trades logged</div>
+          <div style={{fontSize:12,maxWidth:360,margin:'0 auto',lineHeight:1.7}}>
+            Start logging trades you saw but didn't take. Over time you'll see your opportunity cost and whether your hesitation is costing or saving you money.
+          </div>
+          <button className="btn btn-p" style={{marginTop:16}} onClick={openNew}>+ Log your first missed trade</button>
+        </div>
+      )}
+
+      {!loading && missed.length > 0 && (
+        <div style={{display:'grid',gap:8}}>
+          {missed.map(m => {
+            const isExpanded = expandedId === m.id
+            const pnlPos     = (m.hypothetical_pnl_usd||0) >= 0
+            const hasPnl     = m.hypothetical_pnl_usd != null
+            return (
+              <div key={m.id} className="card" style={{padding:0,overflow:'hidden'}}>
+                <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExpanded?'var(--sf2)':'transparent'}}
+                  onClick={()=>setExpandedId(isExpanded?null:m.id)}>
+                  <span className={'pill '+(m.direction==='Long'?'pb':'pr')} style={{fontSize:10,flexShrink:0}}>
+                    {m.direction==='Long'?'▲':'▼'} {m.direction}
+                  </span>
+                  <span style={{fontWeight:700,fontSize:13,color:'var(--tx)'}}>{m.symbol}</span>
+                  <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{m.entry_time?.slice(0,16).replace('T',' ')}</span>
+                  {hasPnl && <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:pnlPos?'var(--wn)':'var(--ls)',marginLeft:4}}>{pnlPos?'+':''}{fmtU(Math.round(m.hypothetical_pnl_usd))}</span>}
+                  {m.reason_missed && <span style={{fontSize:10,color:'var(--mu)',background:'var(--sf3)',padding:'2px 8px',borderRadius:4,border:'1px solid var(--bd)'}}>{m.reason_missed}</span>}
+                  {m.confidence_level && <span style={{fontSize:10,color:'var(--ac)',fontFamily:'var(--font-mono)',fontWeight:600}}>★{m.confidence_level}</span>}
+                  <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+                    <button className="btn btn-sm" onClick={e=>{e.stopPropagation();openEdit(m)}}>✎</button>
+                    <button className="btn btn-sm btn-d" disabled={deleting===m.id} onClick={e=>{e.stopPropagation();handleDelete(m.id)}}>{deleting===m.id?'…':'✕'}</button>
+                    <span style={{fontSize:10,color:'var(--mu)'}}>{isExpanded?'▲':'▼'}</span>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div style={{padding:'14px 16px',borderTop:'1px solid var(--bd)'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8,marginBottom:14}}>
+                      {[
+                        ['ENTRY PX',  m.entry_price?.toLocaleString()||'—', 'var(--tx)'],
+                        ['EXIT PX',   m.exit_price?.toLocaleString()||'—',  'var(--tx)'],
+                        ['POSITION',  m.position_size_usd ? '$'+Math.round(m.position_size_usd).toLocaleString() : '—', 'var(--tx)'],
+                        ['HYPO P&L',  hasPnl ? fmtU(Math.round(m.hypothetical_pnl_usd)) : '—', pnlPos?'var(--wn)':'var(--ls)'],
+                        ['HYPO %',    m.hypothetical_pct != null ? (m.hypothetical_pct>=0?'+':'')+m.hypothetical_pct.toFixed(3)+'%' : '—', pnlPos?'var(--wn)':'var(--ls)'],
+                        ['CONFIDENCE',m.confidence_level ? '★'+m.confidence_level+'/5' : '—', 'var(--ac)'],
+                      ].map(([l,v,c])=>(
+                        <div key={l} style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:6,padding:'8px 10px'}}>
+                          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:3}}>{l}</div>
+                          <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:600,color:c}}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {m.notes && (
+                      <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'12px 14px',marginBottom:14}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>NOTES</div>
+                        <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{m.notes}</div>
+                      </div>
+                    )}
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>SCREENSHOTS</div>
+                      <ImageGallery entityType="missed_trade" entityId={m.id} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
