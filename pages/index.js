@@ -372,7 +372,7 @@ export default function Dashboard() {
 
       <nav style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)'}}>
         <div style={{display:'flex',padding:'0 24px',gap:0}}>
-          {[['overview','📈 Overview'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','👁 Missed']].map(([id,label])=>(
+          {[['overview','📈 Overview'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','⏭ Passed']].map(([id,label])=>(
             <div key={id} className={`nt ${tab===id?'active':''}`} onClick={()=>setTab(id)}>{label}</div>
           ))}
         </div>
@@ -748,7 +748,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this missed trade?')) return
+    if (!confirm('Delete this passed trade?')) return
     setDeleting(id)
     try {
       await fetch('/api/missed-trades?id=' + id, { method:'DELETE' })
@@ -798,13 +798,13 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
           <input type="date" className="inp date-input" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{padding:'3px 8px'}} />
           <button className="btn btn-p btn-sm" onClick={loadMissed}>Apply</button>
         </>)}
-        <button className="btn btn-p" style={{marginLeft:'auto'}} onClick={openNew}>+ Log Missed Trade</button>
+        <button className="btn btn-p" style={{marginLeft:'auto'}} onClick={openNew}>+ Log Passed Trade</button>
       </div>
 
       {showForm && (
         <div className="card" style={{marginBottom:14}}>
           <div className="ct">
-            <span className="ind" />{editingId ? 'Edit Missed Trade' : 'Log Missed Trade'}
+            <span className="ind" />{editingId ? 'Edit Passed Trade' : 'Log Passed Trade'}
             <button className="btn btn-sm" style={{marginLeft:'auto'}} onClick={cancelForm}>✕</button>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}} className="g2">
@@ -880,7 +880,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
           <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
             <button className="btn" onClick={cancelForm}>Cancel</button>
             <button className="btn btn-p" onClick={handleSave} disabled={saving||!form.symbol}>
-              {saving?'💾 Saving…':editingId?'💾 Update':'💾 Save Missed Trade'}
+              {saving?'💾 Saving…':editingId?'💾 Update':'💾 Save Passed Trade'}
             </button>
           </div>
         </div>
@@ -891,11 +891,11 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
       {!loading && missed.length === 0 && (
         <div style={{textAlign:'center',padding:'48px 20px',color:'var(--mu)'}}>
           <div style={{fontSize:36,marginBottom:12}}>👁</div>
-          <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:'var(--tx)'}}>No missed trades logged</div>
+          <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:'var(--tx)'}}>No passed trades logged</div>
           <div style={{fontSize:12,maxWidth:360,margin:'0 auto',lineHeight:1.7}}>
             Start logging trades you saw but didn't take. Over time you'll see your opportunity cost and whether your hesitation is costing or saving you money.
           </div>
-          <button className="btn btn-p" style={{marginTop:16}} onClick={openNew}>+ Log your first missed trade</button>
+          <button className="btn btn-p" style={{marginTop:16}} onClick={openNew}>+ Log your first passed trade</button>
         </div>
       )}
 
