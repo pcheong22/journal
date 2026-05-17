@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 
 // Reusable image gallery + uploader for both missed trades and regular trades
-// Props: entityType ('missed_trade'|'trade'), entityId (number), readOnly (bool)
-export default function ImageGallery({ entityType, entityId, readOnly = false }) {
+// Props: entityType ('missed_trade'|'trade'), entityId (number or temp string), isTempId (bool)
+export default function ImageGallery({ entityType, entityId, readOnly = false, isTempId = false }) {
   const [images,     setImages]     = useState([])
   const [loading,    setLoading]    = useState(true)
   const [uploading,  setUploading]  = useState(false)
