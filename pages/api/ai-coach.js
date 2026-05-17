@@ -143,6 +143,27 @@ ${notesSample}
 
 Analyse whether this trader's pass decisions are adding or destroying value. Is their hesitation disciplined or fearful? Are they passing on good setups or avoiding bad ones? Reference specific numbers and patterns.`
 
+  } else if (mode === 'passed_entry') {
+    const { passed: m, actual_wr } = req.body
+    if (!m) return res.status(400).json({ error: 'passed trade required' })
+
+    systemPrompt = `You are a quantitative trading coach. Analyse a single passed (skipped) trade decision and return ONLY valid JSON with no markdown. Use exactly this structure:
+{"score":0,"verdict":"","insights":[{"type":"strength","tag":"TAG","title":"","body":"","action":""}],"coaching_tip":""}
+score: 0-100 quality of the pass decision (100 = correct to pass, 0 = terrible mistake to pass). verdict: one sentence — was this a good or bad decision to pass? insights: 2-4 insights, type must be: critical, bias, opportunity, or strength. coaching_tip: one actionable lesson.`
+
+    const pnlStr  = m.hypothetical_pnl_usd != null ? `$${Math.round(m.hypothetical_pnl_usd)} (${m.hypothetical_pct?.toFixed(2)}%)` : 'unknown'
+    const outcome = m.hypothetical_pnl_usd != null ? (m.hypothetical_pnl_usd > 0 ? 'WOULD HAVE WON' : 'WOULD HAVE LOST') : 'outcome unknown'
+
+    userPrompt = `PASSED TRADE:
+Symbol: ${m.symbol} | Direction: ${m.direction} | ${outcome}
+Hypothetical P&L if taken: ${pnlStr}
+Entry: ${m.entry_price||'not recorded'} | Exit: ${m.exit_price||'not recorded'} | Size: ${m.position_size_usd?'$'+Math.round(m.position_size_usd).toLocaleString():'not recorded'}
+Reason for passing: ${m.reason_missed||'not stated'}
+Confidence at the time: ${m.confidence_level?m.confidence_level+'/5':'not stated'}
+Notes: ${m.notes||'none'}
+Trader actual win rate: ${actual_wr?(actual_wr*100).toFixed(1)+'%':'unknown'}
+Was this a good decision to pass? Was the reason valid? What does this tell us about the trader's decision-making?`
+
   } else {
     // Single trade mode
     if (!trade) return res.status(400).json({ error: 'trade required' })
