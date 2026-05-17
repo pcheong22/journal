@@ -669,6 +669,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [loading,      setLoading]   = useState(true)
   const [showForm,     setShowForm]  = useState(false)
   const [editingId,    setEditingId] = useState(null)
+  const [tempId,       setTempId]    = useState(null) // temp UUID for pre-save image uploads
   const [expandedId,   setExpandedId] = useState(null)
   const [useDateRange, setUseDateRange] = useState(true)
   const [customFrom,   setCustomFrom] = useState(dateFrom)
@@ -677,6 +678,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [deleting,     setDeleting]  = useState(null)
 
   const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
+  const genTempId = () => 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2)
   const emptyForm = { symbol:'', direction:'Long', entry_time:'', exit_time:'', entry_price:'', exit_price:'', position_size_usd:'', reason_missed:'', confidence_level:'', notes:'' }
   const [form, setForm] = useState(emptyForm)
 
@@ -698,7 +700,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
     setLoading(false)
   }
 
-  const openNew  = () => { setForm(emptyForm); setEditingId(null); setShowForm(true) }
+  const openNew  = () => { setForm(emptyForm); setEditingId(null); setTempId(genTempId()); setShowForm(true) }
   const openEdit = (m) => {
     setForm({
       symbol: m.symbol||'', direction: m.direction||'Long',
@@ -707,8 +709,9 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
       position_size_usd: m.position_size_usd||'', reason_missed: m.reason_missed||'',
       confidence_level: m.confidence_level||'', notes: m.notes||'',
     })
-    setEditingId(m.id); setShowForm(true)
+    setEditingId(m.id); setTempId(null); setShowForm(true)
   }
+  const cancelForm = () => { setShowForm(false); setEditingId(null); setTempId(null) }
 
   const handleSave = async () => {
     if (!form.symbol || !form.direction) return
@@ -722,15 +725,16 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
         confidence_level:  form.confidence_level  ? parseInt(form.confidence_level)    : null,
         entry_time:        form.entry_time        ? new Date(form.entry_time).toISOString() : null,
         exit_time:         form.exit_time         ? new Date(form.exit_time).toISOString()  : null,
+        temp_id:           tempId || null, // pass temp_id so API can re-link images
       }
       if (editingId) body.id = editingId
       const res  = await fetch('/api/missed-trades', { method: editingId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
       const data = await res.json()
       if (data.missed_trade) {
         if (editingId) setMissed(prev => prev.map(m => m.id === editingId ? data.missed_trade : m))
-        else           setMissed(prev => [data.missed_trade, ...prev])
+        else { setMissed(prev => [data.missed_trade, ...prev]); setExpandedId(data.missed_trade.id) }
       }
-      setShowForm(false); setEditingId(null); setForm(emptyForm)
+      setShowForm(false); setEditingId(null); setTempId(null); setForm(emptyForm)
     } catch(e) { console.error(e) }
     setSaving(false)
   }
@@ -793,7 +797,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
         <div className="card" style={{marginBottom:14}}>
           <div className="ct">
             <span className="ind" />{editingId ? 'Edit Missed Trade' : 'Log Missed Trade'}
-            <button className="btn btn-sm" style={{marginLeft:'auto'}} onClick={()=>{setShowForm(false);setEditingId(null)}}>✕</button>
+            <button className="btn btn-sm" style={{marginLeft:'auto'}} onClick={cancelForm}>✕</button>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}} className="g2">
             <div>
@@ -860,8 +864,13 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
               placeholder="What did you see? Why didn't you take it? What were you thinking? How did it play out? Lessons?"
               value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} />
           </div>
+          {/* Image uploader — available immediately using temp ID */}
+          <div style={{marginBottom:14}}>
+            <div className="notes-label">Screenshots (optional — attach before or after saving)</div>
+            <ImageGallery entityType="missed_trade" entityId={editingId || tempId} isTempId={!editingId} />
+          </div>
           <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-            <button className="btn" onClick={()=>{setShowForm(false);setEditingId(null)}}>Cancel</button>
+            <button className="btn" onClick={cancelForm}>Cancel</button>
             <button className="btn btn-p" onClick={handleSave} disabled={saving||!form.symbol}>
               {saving?'💾 Saving…':editingId?'💾 Update':'💾 Save Missed Trade'}
             </button>
