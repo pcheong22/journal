@@ -676,7 +676,8 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [customTo,     setCustomTo]  = useState(dateTo)
   const [saving,       setSaving]    = useState(false)
   const [deleting,     setDeleting]  = useState(null)
-  const [formImages,   setFormImages] = useState([]) // persists across re-renders during form session
+  const [formImages,   setFormImages] = useState([])
+  const [expandedNotes, setExpandedNotes] = useState(new Set()) // persists across re-renders during form session
 
   const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
   const genTempId = () => 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2)
@@ -842,7 +843,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
               {previewPnl ? (
                 <div style={{padding:'8px 0'}}>
                   <div style={{fontFamily:'var(--font-mono)',fontSize:18,fontWeight:700,color:previewPnl.usd>=0?'var(--wn)':'var(--ls)'}}>
-                    {previewPnl.usd>=0?'+':''}{fmtU(Math.round(previewPnl.usd))}
+                    {fmtU(Math.round(previewPnl.usd))}
                   </div>
                   <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{previewPnl.pct>=0?'+':''}{previewPnl.pct.toFixed(3)}%</div>
                 </div>
@@ -901,9 +902,11 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
       {!loading && missed.length > 0 && (
         <div style={{display:'grid',gap:8}}>
           {missed.map(m => {
-            const isExpanded = expandedId === m.id
-            const pnlPos     = (m.hypothetical_pnl_usd||0) >= 0
-            const hasPnl     = m.hypothetical_pnl_usd != null
+            const isExpanded   = expandedId === m.id
+            const pnlPos       = (m.hypothetical_pnl_usd||0) >= 0
+            const hasPnl       = m.hypothetical_pnl_usd != null
+            const notesLong    = m.notes && m.notes.length > 200
+            const notesOpen    = expandedNotes.has(m.id)
             return (
               <div key={m.id} className="card" style={{padding:0,overflow:'hidden'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExpanded?'var(--sf2)':'transparent'}}
@@ -913,7 +916,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                   </span>
                   <span style={{fontWeight:700,fontSize:13,color:'var(--tx)'}}>{m.symbol}</span>
                   <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{m.entry_time?.slice(0,16).replace('T',' ')}</span>
-                  {hasPnl && <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:pnlPos?'var(--wn)':'var(--ls)',marginLeft:4}}>{pnlPos?'+':''}{fmtU(Math.round(m.hypothetical_pnl_usd))}</span>}
+                  {hasPnl && <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:pnlPos?'var(--wn)':'var(--ls)',marginLeft:4}}>{fmtU(Math.round(m.hypothetical_pnl_usd))}</span>}
                   {m.reason_missed && <span style={{fontSize:10,color:'var(--mu)',background:'var(--sf3)',padding:'2px 8px',borderRadius:4,border:'1px solid var(--bd)'}}>{m.reason_missed}</span>}
                   {m.confidence_level && <span style={{fontSize:10,color:'var(--ac)',fontFamily:'var(--font-mono)',fontWeight:600}}>★{m.confidence_level}</span>}
                   <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
@@ -941,8 +944,27 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                     </div>
                     {m.notes && (
                       <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'12px 14px',marginBottom:14}}>
-                        <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>NOTES</div>
-                        <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{m.notes}</div>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>NOTES</div>
+                          {notesLong && (
+                            <button onClick={()=>setExpandedNotes(prev=>{const n=new Set(prev);notesOpen?n.delete(m.id):n.add(m.id);return n})}
+                              style={{fontSize:10,color:'var(--ac)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-mono)',padding:0}}>
+                              {notesOpen?'▲ collapse':'▼ expand'}
+                            </button>
+                          )}
+                        </div>
+                        <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.7,whiteSpace:'pre-wrap',
+                          maxHeight: notesLong && !notesOpen ? '4.8em' : 'none',
+                          overflow: notesLong && !notesOpen ? 'hidden' : 'visible',
+                          maskImage: notesLong && !notesOpen ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none',
+                          WebkitMaskImage: notesLong && !notesOpen ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none',
+                        }}>{m.notes}</div>
+                        {notesLong && !notesOpen && (
+                          <button onClick={()=>setExpandedNotes(prev=>{const n=new Set(prev);n.add(m.id);return n})}
+                            style={{fontSize:11,color:'var(--ac)',background:'none',border:'none',cursor:'pointer',padding:'4px 0 0',fontFamily:'var(--font-mono)'}}>
+                            Read more…
+                          </button>
+                        )}
                       </div>
                     )}
                     <div>
