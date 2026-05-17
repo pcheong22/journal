@@ -676,6 +676,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [customTo,     setCustomTo]  = useState(dateTo)
   const [saving,       setSaving]    = useState(false)
   const [deleting,     setDeleting]  = useState(null)
+  const [formImages,   setFormImages] = useState([]) // persists across re-renders during form session
 
   const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
   const genTempId = () => 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2)
@@ -700,7 +701,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
     setLoading(false)
   }
 
-  const openNew  = () => { setForm(emptyForm); setEditingId(null); setTempId(genTempId()); setShowForm(true) }
+  const openNew  = () => { setForm(emptyForm); setEditingId(null); setTempId(genTempId()); setFormImages([]); setShowForm(true) }
   const openEdit = (m) => {
     setForm({
       symbol: m.symbol||'', direction: m.direction||'Long',
@@ -709,9 +710,9 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
       position_size_usd: m.position_size_usd||'', reason_missed: m.reason_missed||'',
       confidence_level: m.confidence_level||'', notes: m.notes||'',
     })
-    setEditingId(m.id); setTempId(null); setShowForm(true)
+    setEditingId(m.id); setTempId(null); setFormImages([]); setShowForm(true)
   }
-  const cancelForm = () => { setShowForm(false); setEditingId(null); setTempId(null) }
+  const cancelForm = () => { setShowForm(false); setEditingId(null); setTempId(null); setFormImages([]) }
 
   const handleSave = async () => {
     if (!form.symbol || !form.direction) return
@@ -873,7 +874,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
           {/* Image uploader — available immediately using temp ID */}
           <div style={{marginBottom:14}}>
             <div className="notes-label">Screenshots (optional — attach before or after saving)</div>
-            <ImageGallery entityType="missed_trade" entityId={editingId || tempId} isTempId={!editingId} />
+            <ImageGallery entityType="missed_trade" entityId={editingId || tempId} isTempId={!editingId} externalImages={formImages} onImagesChange={setFormImages} />
           </div>
           <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
             <button className="btn" onClick={cancelForm}>Cancel</button>
