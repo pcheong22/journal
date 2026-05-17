@@ -33,7 +33,7 @@ export default function ChartComp(props) {
   if (type==='streaks')      return <StreaksView      trades={props.trades} stats={props.stats} privacy={privacy} />
   return null
 }
-// dev
+// dev2
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
 function EquityChart({ data, privacy }) {
   const canvasRef = useRef(); const handleRef = useRef(); const chartRef = useRef()
