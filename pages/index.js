@@ -725,14 +725,20 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
         confidence_level:  form.confidence_level  ? parseInt(form.confidence_level)    : null,
         entry_time:        form.entry_time        ? new Date(form.entry_time).toISOString() : null,
         exit_time:         form.exit_time         ? new Date(form.exit_time).toISOString()  : null,
-        temp_id:           tempId || null, // pass temp_id so API can re-link images
+        temp_id:           tempId || null,
       }
       if (editingId) body.id = editingId
       const res  = await fetch('/api/missed-trades', { method: editingId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
       const data = await res.json()
       if (data.missed_trade) {
-        if (editingId) setMissed(prev => prev.map(m => m.id === editingId ? data.missed_trade : m))
-        else { setMissed(prev => [data.missed_trade, ...prev]); setExpandedId(data.missed_trade.id) }
+        const saved = data.missed_trade
+        if (editingId) {
+          setMissed(prev => prev.map(m => m.id === editingId ? saved : m))
+        } else {
+          // Always add to top of list regardless of date filter
+          setMissed(prev => [saved, ...prev])
+          setExpandedId(saved.id)
+        }
       }
       setShowForm(false); setEditingId(null); setTempId(null); setForm(emptyForm)
     } catch(e) { console.error(e) }
