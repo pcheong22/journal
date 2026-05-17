@@ -680,7 +680,8 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [expandedNotes, setExpandedNotes] = useState(new Set())
   const [aiReport,     setAiReport]   = useState(null)
   const [aiLoading,    setAiLoading]  = useState(false)
-  const [aiError,      setAiError]    = useState(null) // persists across re-renders during form session
+  const [aiError,      setAiError]    = useState(null)
+  const [entryAI,      setEntryAI]    = useState({}) // { [id]: { loading, result, error } } // persists across re-renders during form session
 
   const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
   const genTempId = () => 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2)
@@ -787,6 +788,19 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
       else setAiReport(data)
     } catch(e) { setAiError('AI analysis failed — check your connection') }
     setAiLoading(false)
+  }
+
+  const generateEntryAI = async (m) => {
+    setEntryAI(prev => ({...prev, [m.id]: {loading:true, result:null, error:null}}))
+    try {
+      const res  = await fetch('/api/ai-coach', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ mode:'passed_entry', passed: m, actual_wr: visibleTrades.length ? visibleTrades.filter(t=>t.pnl>0).length/visibleTrades.length : null }),
+      })
+      const data = await res.json()
+      if (data.error) setEntryAI(prev => ({...prev, [m.id]: {loading:false, result:null, error:data.error}}))
+      else            setEntryAI(prev => ({...prev, [m.id]: {loading:false, result:data, error:null}}))
+    } catch(e) { setEntryAI(prev => ({...prev, [m.id]: {loading:false, result:null, error:e.message}})) }
   }
 
   const TYPE_CFG = {
@@ -1081,9 +1095,63 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                         )}
                       </div>
                     )}
-                    <div>
+                    <div style={{marginBottom:14}}>
                       <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>SCREENSHOTS</div>
                       <ImageGallery entityType="missed_trade" entityId={String(m.id)} />
+                    </div>
+                    {/* Per-entry AI analysis */}
+                    <div style={{borderTop:'1px solid var(--bd)',paddingTop:14}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>🧠 AI DECISION ANALYSIS</div>
+                        <button className="btn btn-sm btn-p"
+                          disabled={entryAI[m.id]?.loading}
+                          onClick={()=>generateEntryAI(m)}>
+                          {entryAI[m.id]?.loading
+                            ? <><span style={{width:10,height:10,border:'2px solid rgba(255,255,255,.4)',borderTop:'2px solid #fff',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} /> Analysing…</>
+                            : entryAI[m.id]?.result ? '🔄 Re-analyse' : '🧠 Analyse this decision'}
+                        </button>
+                      </div>
+                      {entryAI[m.id]?.error && (
+                        <div style={{fontSize:11,color:'var(--ls)',fontFamily:'var(--font-mono)',marginBottom:8}}>ℹ️ {entryAI[m.id].error}</div>
+                      )}
+                      {entryAI[m.id]?.result && (() => {
+                        const r = entryAI[m.id].result
+                        return (
+                          <div style={{display:'grid',gap:8}}>
+                            {r.verdict && (
+                              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}} className="g2">
+                                <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px'}}>
+                                  <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>VERDICT</div>
+                                  <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.6}}>{r.verdict}</div>
+                                </div>
+                                <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px'}}>
+                                  <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:4}}>DECISION QUALITY</div>
+                                  <div style={{fontFamily:'var(--font-mono)',fontSize:20,fontWeight:700,color:'var(--ac)'}}>{r.score??'—'}<span style={{fontSize:11,color:'var(--mu)'}}>/100</span></div>
+                                </div>
+                              </div>
+                            )}
+                            {r.insights?.map((ins,i) => {
+                              const cfg = TYPE_CFG[ins.type]||TYPE_CFG.opportunity
+                              return (
+                                <div key={i} style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px',borderLeft:`3px solid ${cfg.borderColor}`}}>
+                                  <div style={{marginBottom:5}}><span className={`pill ${cfg.pillClass}`}>{ins.tag||ins.type?.toUpperCase()}</span></div>
+                                  <div style={{fontWeight:600,fontSize:12,marginBottom:4,color:'var(--tx)'}}>{ins.title}</div>
+                                  <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.6,marginBottom:6}}>{ins.body}</div>
+                                  <div style={{padding:'5px 8px',background:'var(--sf)',borderRadius:4,fontSize:11,color:'var(--tx2)',borderLeft:`2px solid ${cfg.borderColor}`}}>
+                                    <span style={{fontWeight:600,color:'var(--tx)'}}>Action: </span>{ins.action}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            {r.coaching_tip && (
+                              <div style={{padding:'8px 12px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:7}}>
+                                <div style={{fontSize:9,fontWeight:700,color:'var(--ac2)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:3}}>💡 COACHING TIP</div>
+                                <div style={{fontSize:11,color:'var(--ac2)',lineHeight:1.6}}>{r.coaching_tip}</div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 )}
