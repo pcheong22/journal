@@ -916,7 +916,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                   </span>
                   <span style={{fontWeight:700,fontSize:13,color:'var(--tx)'}}>{m.symbol}</span>
                   <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{m.entry_time?.slice(0,16).replace('T',' ')}</span>
-                  {hasPnl && <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:pnlPos?'var(--wn)':'var(--ls)',marginLeft:4}}>{fmtU(Math.round(m.hypothetical_pnl_usd))}</span>}
+                  {hasPnl && <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:pnlPos?'var(--wn)':'var(--ls)',marginLeft:4}}>{pnlPos?'+':''}{Math.abs(Math.round(m.hypothetical_pnl_usd)).toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:0,maximumFractionDigits:0})}</span>}
                   {m.reason_missed && <span style={{fontSize:10,color:'var(--mu)',background:'var(--sf3)',padding:'2px 8px',borderRadius:4,border:'1px solid var(--bd)'}}>{m.reason_missed}</span>}
                   {m.confidence_level && <span style={{fontSize:10,color:'var(--ac)',fontFamily:'var(--font-mono)',fontWeight:600}}>★{m.confidence_level}</span>}
                   <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
@@ -953,7 +953,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                             </button>
                           )}
                         </div>
-                        <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.7,whiteSpace:'pre-wrap',
+                        <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.7,whiteSpace:'pre-wrap',wordBreak:'break-word',overflowWrap:'break-word',
                           maxHeight: notesLong && !notesOpen ? '4.8em' : 'none',
                           overflow: notesLong && !notesOpen ? 'hidden' : 'visible',
                           maskImage: notesLong && !notesOpen ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none',
@@ -969,7 +969,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                     )}
                     <div>
                       <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>SCREENSHOTS</div>
-                      <ImageGallery entityType="missed_trade" entityId={m.id} />
+                      <ImageGallery entityType="missed_trade" entityId={String(m.id)} />
                     </div>
                   </div>
                 )}
