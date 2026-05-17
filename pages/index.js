@@ -544,7 +544,7 @@ export default function Dashboard() {
               <div className="tw">
                 <table style={{minWidth:1020}}>
                   <thead><tr>
-                    {[['entry_time','Entry'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['pnl','P&L'],['pct_gain','% Ret'],['duration_mins','Duration'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
+                    {[['entry_time','Entry'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['duration_mins','Duration'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
                       <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
                         {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
                       </th>
@@ -552,7 +552,12 @@ export default function Dashboard() {
                   </tr></thead>
                   <tbody>
                     {paged.map((t,i)=>{
-                      const pct = t.pct_gain!=null?(t.pct_gain>=0?'+':'')+t.pct_gain.toFixed(3)+'%':'—'
+                      const pct = (t.entry_price && t.exit_price && t.entry_price > 0)
+                        ? (t.direction === 'Long'
+                            ? (t.exit_price / t.entry_price - 1) * 100
+                            : (t.entry_price / t.exit_price - 1) * 100)
+                        : null
+                      const pctStr = pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(3) + '%' : '—'
                       const dur = t.duration_mins?(t.duration_mins/60).toFixed(1)+'h':'—'
                       const acc = accountsMap[t.account_id]
                       const hasNotes = t.notes||t.note_entry_reason||t.note_lessons
@@ -564,8 +569,9 @@ export default function Dashboard() {
                           <td><span className={`pill ${t.direction==='Long'?'pb':'pr'}`}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
                           <td>{t.entry_price?.toLocaleString()||'—'}</td>
                           <td>{t.exit_price?.toLocaleString()||'—'}</td>
+                          <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? '$'+Math.round(t.notional_usd).toLocaleString() : '—'}</td>
                           <td className={`${t.pnl>=0?'pos':'neg'} private`}>{fU(t.pnl)}</td>
-                          <td className={t.pct_gain>=0?'pos':'neg'}>{pct}</td>
+                          <td className={pct!=null?(pct>=0?'pos':'neg'):''}>{pctStr}</td>
                           <td className="mu">{dur}</td>
                           <td><span className={`pill ${SESSION_CLASS[t.session]||'pn'}`}>{t.session}</span></td>
                           <td style={{textAlign:'center'}}>{hasNotes ? '📝' : <span style={{color:'var(--bd2)'}}>—</span>}</td>
