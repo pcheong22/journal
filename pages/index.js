@@ -81,7 +81,17 @@ export default function Dashboard() {
   }, [allTrades, selAccounts])
 
   useEffect(() => {
-    let f = [...visibleTrades]
+    // Enrich trades with computed price_pct for correct sorting
+    const enriched = visibleTrades.map(t => {
+      let price_pct = null
+      if (t.entry_price && t.exit_price && t.entry_price > 0) {
+        price_pct = t.direction === 'Long'
+          ? (t.exit_price / t.entry_price - 1) * 100
+          : (t.entry_price / t.exit_price - 1) * 100
+      }
+      return { ...t, price_pct }
+    })
+    let f = [...enriched]
     if (fSym)  f = f.filter(t => t.symbol    === fSym)
     if (fDir)  f = f.filter(t => t.direction === fDir)
     if (fRes === 'win')  f = f.filter(t => t.pnl > 0)
@@ -90,7 +100,16 @@ export default function Dashboard() {
     if (search) f = f.filter(t =>
       (t.symbol+t.direction+t.session+t.entry_time+(t.account_id||'')).toLowerCase().includes(search.toLowerCase())
     )
-    f.sort((a,b) => { const av=a[sortKey]??'',bv=b[sortKey]??''; return sortDir*(av>bv?1:-1) })
+    // Use price_pct when sorting by pct_gain
+    const effectiveSortKey = sortKey === 'pct_gain' ? 'price_pct' : sortKey
+    f.sort((a,b) => {
+      const av = a[effectiveSortKey] ?? null
+      const bv = b[effectiveSortKey] ?? null
+      if (av === null && bv === null) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return sortDir * (av > bv ? 1 : av < bv ? -1 : 0)
+    })
     setFiltered(f); setPage(0)
   }, [allTrades, selAccounts, fSym, fDir, fRes, fSess, search, sortKey, sortDir])
 
@@ -552,11 +571,7 @@ export default function Dashboard() {
                   </tr></thead>
                   <tbody>
                     {paged.map((t,i)=>{
-                      const pct = (t.entry_price && t.exit_price && t.entry_price > 0)
-                        ? (t.direction === 'Long'
-                            ? (t.exit_price / t.entry_price - 1) * 100
-                            : (t.entry_price / t.exit_price - 1) * 100)
-                        : null
+                      const pct = t.price_pct ?? null
                       const pctStr = pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(3) + '%' : '—'
                       const dur = t.duration_mins?(t.duration_mins/60).toFixed(1)+'h':'—'
                       const acc = accountsMap[t.account_id]
