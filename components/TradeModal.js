@@ -24,6 +24,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const [noteEmotion, setNoteEmotion] = useState('')
   const [noteFree,    setNoteFree]    = useState('')
   const [stopLoss,    setStopLoss]    = useState('')
+  const [saving,      setSaving]      = useState(false)
   const [showNotionalTip, setShowNotionalTip] = useState(false)
   const [saved,       setSaved]       = useState(false)
 
