@@ -38,7 +38,7 @@ const BROKER_LABELS  = {
   PrimeXBT:    id => `PrimeXBT ${id}`,
   IBKR:        id => `IBKR ${id}`,
   Extended:    id => `Extended 0x9507...6466`,
-  Hyperliquid: id => `Hyperliquid ${id.slice(0,4)}....${id.slice(-4)}`,
+  Hyperliquid: id => `Hyperliquid ${id.slice(0,6)}....${id.slice(-4)}`,
 }
 const BROKER_DEFAULT_COLORS = {
   IBKR:        '#D92027',
