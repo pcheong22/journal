@@ -311,6 +311,9 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               </div>
               <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:12,boxShadow:'var(--sh-sm)'}}>
                 <PnlPathChart sim={sim} trade={trade} />
+                <div style={{marginTop:6,fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',textAlign:'center',lineHeight:1.5}}>
+                  ⚠ P&L path is simulated using a random walk — real intrabar tick data is not available. MAE/MFE are estimates only.
+                </div>
               </div>
               {/* Quality bars */}
               <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:12}}>
