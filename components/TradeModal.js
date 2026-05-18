@@ -259,7 +259,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:600,color:'var(--mu)',letterSpacing:'-.01em'}}>{not}</div>
               <div style={{fontSize:9,color:'var(--mu)',marginTop:2}}>{trade.notional_method==='backsolve'?'Back-solved':trade.notional_method==='price_x_size'?'Price × size':'USD value'}</div>
               {showNotionalTip && notionalTooltip && (
-                <div style={{position:'absolute',bottom:'calc(100% + 6px)',right:0,zIndex:100,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px',boxShadow:'var(--sh-lg)',minWidth:260,maxWidth:320}}>
+                <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,zIndex:100,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px',boxShadow:'var(--sh-lg)',minWidth:260,maxWidth:320}}>
                   <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>HOW NOTIONAL WAS CALCULATED</div>
                   <div style={{fontSize:11,color:'var(--tx2)',fontFamily:'var(--font-mono)',lineHeight:1.7,whiteSpace:'pre-line'}}>{notionalTooltip}</div>
                 </div>
