@@ -17,11 +17,24 @@ export default async function handler(req, res) {
     let query = supabase
       .from('trades')
       .select('*')
-      .order('entry_time', { ascending: false })
+      .order('entry_time', { ascending: false, nullsFirst: false })
+      .order('exit_time',  { ascending: false })
 
     if (accountIds?.length) query = query.in('account_id', accountIds)
-    if (from)              query = query.gte('entry_time', from)
-    if (to)                query = query.lte('entry_time', to)
+
+    // For date filtering: use entry_time when available, fall back to exit_time
+    // Trades with null entry_time (e.g. Extended) are always included unless filtered out
+    if (from && to) {
+      query = query.or(
+        `entry_time.gte.${from},entry_time.is.null`
+      ).or(
+        `entry_time.lte.${to},entry_time.is.null`
+      )
+    } else if (from) {
+      query = query.or(`entry_time.gte.${from},entry_time.is.null`)
+    } else if (to) {
+      query = query.or(`entry_time.lte.${to},entry_time.is.null`)
+    }
 
     const { data: trades, error } = await query
     if (error) throw new Error(error.message)
