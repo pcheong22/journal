@@ -49,10 +49,10 @@ export default async function handler(req, res) {
     // Parse into rows
     let rows
     if (filename.toLowerCase().endsWith('.csv')) {
-      const text = fileBuffer.toString('utf8')
-      rows = text.split('\n').map(l =>
-        l.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-      )
+      // Use XLSX for CSV too — handles quoted fields with commas correctly
+      const wb = XLSX.read(fileBuffer, { type: 'buffer', raw: false, defval: '' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
     } else {
       const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
