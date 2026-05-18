@@ -33,7 +33,7 @@ export default function ChartComp(props) {
   if (type==='streaks')      return <StreaksView      trades={props.trades} stats={props.stats} privacy={privacy} />
   return null
 }
-// dev2
+
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
 function EquityChart({ data, privacy }) {
   const canvasRef = useRef(); const handleRef = useRef(); const chartRef = useRef()
@@ -388,7 +388,7 @@ export function PnlPathChart({ sim, trade }) {
         {label:'Exit',     data:sim.pnlPath.map((v,i)=>i===sim.pnlPath.length-1?v:null), pointRadius:sim.pnlPath.map((_,i)=>i===sim.pnlPath.length-1?6:0), pointBackgroundColor:lineC, pointBorderColor:'#fff', pointBorderWidth:2, showLine:false},
         {label:'Best Exit',data:sim.pnlPath.map(v=>Math.abs(v-sim.mfe)<Math.abs(sim.mfe)*.03&&sim.mfe>0?v:null), pointRadius:sim.pnlPath.map(v=>Math.abs(v-sim.mfe)<Math.abs(sim.mfe)*.03&&sim.mfe>0?5:0), pointBackgroundColor:'#d97706', pointStyle:'triangle', pointBorderColor:'#fff', pointBorderWidth:1.5, showLine:false},
       ]},
-      options:{responsive:true, interaction:{mode:'index',intersect:false},
+      options:{responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
         plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:10},padding:10,color:'#6b7280',filter:item=>['P&L Path','MFE','MAE','Best Exit'].includes(item.text)}},
           tooltip:{...TIP, callbacks:{label: c=>c.dataset.label+': '+fU(c.parsed.y)}}},
         scales:{y:{grid:GRID, ticks:{...TICK, callback:v=>fU(v)}}, x:{grid:{display:false}, ticks:{...TICK, maxTicksLimit:10}}}}
@@ -396,5 +396,9 @@ export function PnlPathChart({ sim, trade }) {
     return () => ch.destroy()
   }, [JSON.stringify(sim)])
 
-  return <canvas ref={ref} height={90} />
+  return (
+    <div style={{position:'relative', height:280}}>
+      <canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
+    </div>
+  )
 }
