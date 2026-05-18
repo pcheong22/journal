@@ -19,8 +19,8 @@ const privTick = (privacy) => (v) => privacy ? '***' : '$'+(v/1000).toFixed(0)+'
 export default function ChartComp(props) {
   const { type, privacy=false } = props
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} />
-  if (type==='monthly')      return <BarChart   title="MONTHLY P&L"      labels={props.data.map(d=>d.month_str)}   values={props.data.map(d=>Math.round(d.total_pnl))} height={170} privacy={privacy} />
-  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={170} privacy={privacy} />
+  if (type==='monthly')      return <BarChart   title="MONTHLY P&L"      labels={props.data.map(d=>d.month_str)}   values={props.data.map(d=>Math.round(d.total_pnl))} height={252} privacy={privacy} />
+  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={252} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
   if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
