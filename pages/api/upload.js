@@ -4,6 +4,28 @@ import * as XLSX from 'xlsx'
 import { parseTradeFile } from '../../lib/tradeUtils'
 import { computeStreaks } from '../../lib/parserUtils'
 
+// Proper RFC 4180 CSV parser — handles quoted fields containing commas and newlines
+function parseCSV(text) {
+  const rows = []
+  let row = [], field = '', inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], next = text[i+1]
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { field += '"'; i++ }
+      else if (ch === '"')            { inQuotes = false }
+      else                            { field += ch }
+    } else {
+      if      (ch === '"')  { inQuotes = true }
+      else if (ch === ',')  { row.push(field.trim()); field = '' }
+      else if (ch === '\r' && next === '\n') { row.push(field.trim()); rows.push(row); row = []; field = ''; i++ }
+      else if (ch === '\n') { row.push(field.trim()); rows.push(row); row = []; field = '' }
+      else                  { field += ch }
+    }
+  }
+  if (field || row.length) { row.push(field.trim()); rows.push(row) }
+  return rows.filter(r => r.some(c => c !== ''))
+}
+
 export const config = { api: { bodyParser: false } }
 
 const supabase = createClient(
@@ -49,10 +71,9 @@ export default async function handler(req, res) {
     // Parse into rows
     let rows
     if (filename.toLowerCase().endsWith('.csv')) {
-      // Use XLSX for CSV too — handles quoted fields with commas correctly
-      const wb = XLSX.read(fileBuffer, { type: 'buffer', raw: false, defval: '' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
+      // Parse CSV with proper quoted field support
+      const text = fileBuffer.toString('utf8').replace(/^\uFEFF/, '') // strip BOM
+      rows = parseCSV(text)
     } else {
       const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
