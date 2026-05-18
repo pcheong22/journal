@@ -84,7 +84,7 @@ function EquityChart({ data, privacy }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, values, height=170, privacy }) {
+function BarChart({ title, labels, values, height=240, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -105,7 +105,7 @@ function BarChart({ title, labels, values, height=170, privacy }) {
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
   return (
-    <div className="card">
+    <div className="card" style={{height:300,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />{title}</div>
       <div style={{position:'relative',height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
@@ -160,7 +160,7 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
   return (
-    <div className="card" style={{minHeight:290}}>
+    <div className="card" style={{height:300,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />LONG VS SHORT</div>
       <div style={{position:'relative',height:240}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
@@ -208,7 +208,7 @@ function DistChart({ trades, privacy }) {
   }, [privacy])
 
   return (
-    <div className="card" style={{minHeight:290}}>
+    <div className="card" style={{height:300,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
       <div style={{position:'relative',height:240}}><canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
@@ -269,7 +269,7 @@ export function Top5PnlChart({ trades, mode, privacy }) {
   }, [JSON.stringify(values), JSON.stringify(labels), privacy])
 
   return (
-    <div className="card" style={{minHeight:290}}>
+    <div className="card" style={{height:300,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />{title}</div>
       {entries.length === 0
         ? <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
