@@ -545,23 +545,6 @@ export default function Dashboard() {
                     <div className="kv neu private">{vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—'}</div>
                     <div className="ks">Notional traded</div>
                   </div>
-                  {[
-                    ['TOTAL P&L',    fU(Math.round(ov.total_pnl)),  ov.total_pnl>=0?'pos':'neg', 'Net realised', true],
-                    ['WIN RATE',     (ov.win_rate*100).toFixed(1)+'%','acc', `${Math.round(ov.win_rate*ov.total_trades)} W / ${Math.round((1-ov.win_rate)*ov.total_trades)} L`, false],
-                    ['RISK/REWARD',  ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—','wa', `W ${fA(ov.avg_win)} · L ${fA(ov.avg_loss)}`, false],
-                    ['LONG P&L',     fU(Math.round(ov.long_pnl)),   'pos', `${(ov.long_wr*100).toFixed(1)}% WR · ${ov.long_count}`, true],
-                    ['SHORT P&L',    fU(Math.round(ov.short_pnl)),  ov.short_pnl>=0?'pos':'neg', `${(ov.short_wr*100).toFixed(1)}% WR · ${ov.short_count}`, true],
-                    ['TOTAL TRADES', ov.total_trades.toLocaleString(),'neu','All instruments', false],
-                    ['TOTAL VOLUME', vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—', 'neu', 'Notional traded', true],
-                  ].map(([l,v,c,s,priv])=>(
-                    <div key={l} className="kpi">
-                      <div className="kl">{l}</div>
-                      <div className={`kv ${c} ${priv?'private':''}`}>{v}</div>
-                      <div className="ks">{s}</div>
-                    </div>
-                  ))}
-                  {/* Expectancy — custom card with tooltip */}
-                  <ExpectancyCard expVal={expVal} expC={expC} />
                 </div>
               )
             })()}
