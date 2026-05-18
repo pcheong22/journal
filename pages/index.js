@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
-const ChartComp  = dynamic(() => import('../components/Charts'),       { ssr: false })
+const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
+const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
 const TradeModal = dynamic(() => import('../components/TradeModal'),   { ssr: false })
 const ImageGallery = dynamic(() => import('../components/ImageGallery'), { ssr: false })
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
@@ -345,8 +346,8 @@ export default function Dashboard() {
           <button onClick={()=>setShowSettings(s=>!s)} title="Settings"
             style={{background:showSettings?'var(--ac-bg)':'var(--sf2)',border:`1px solid ${showSettings?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={showSettings?'var(--ac2)':'var(--tx2)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
           <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?'Light mode':'Dark mode'}
@@ -504,8 +505,21 @@ export default function Dashboard() {
                 ['TOTAL P&L',    fU(Math.round(ov.total_pnl)),  ov.total_pnl>=0?'pos':'neg', 'Net realised', true],
                 ['WIN RATE',     (ov.win_rate*100).toFixed(1)+'%','acc', `${Math.round(ov.win_rate*ov.total_trades)} W / ${Math.round((1-ov.win_rate)*ov.total_trades)} L`, false],
                 ['RISK/REWARD',  ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—','wa', `W ${fA(ov.avg_win)} · L ${fA(ov.avg_loss)}`, false],
-                ['BEST TRADE',   fU(Math.round(ov.best_trade)),  'pos', 'Single trade', true],
-                ['WORST TRADE',  fU(Math.round(ov.worst_trade)), 'neg', 'Single trade', true],
+                (() => {
+                  // Minervini Expectancy = (wins × avg_win) / (losses × |avg_loss|)
+                  const wins   = Math.round(ov.win_rate * ov.total_trades)
+                  const losses = ov.total_trades - wins
+                  const exp    = (losses > 0 && ov.avg_loss)
+                    ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss))
+                    : null
+                  const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
+                  const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
+                  return ['EXPECTANCY', expVal, expC, 'W×AvgW / L×AvgL', false]
+                })(),
+                (() => {
+                  const vol = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
+                  return ['TOTAL VOLUME', vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—', 'neu', 'Notional traded', true]
+                })(),
                 ['LONG P&L',     fU(Math.round(ov.long_pnl)),   'pos', `${(ov.long_wr*100).toFixed(1)}% WR · ${ov.long_count}`, true],
                 ['SHORT P&L',    fU(Math.round(ov.short_pnl)),  ov.short_pnl>=0?'pos':'neg', `${(ov.short_wr*100).toFixed(1)}% WR · ${ov.short_count}`, true],
                 ['TOTAL TRADES', ov.total_trades.toLocaleString(),'neu','All instruments', false],
@@ -555,9 +569,13 @@ export default function Dashboard() {
               <ChartComp type="monthly"  data={stats.monthly}  privacy={privacy} />
               <ChartComp type="duration" data={stats.duration} privacy={privacy} />
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
               <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
               <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
+              <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
+              <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
             </div>
           </div>
         )}
