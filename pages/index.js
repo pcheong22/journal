@@ -509,23 +509,42 @@ export default function Dashboard() {
               const vol    = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
               return (
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
-                  {[
-                    ['TOTAL P&L',    fU(Math.round(ov.total_pnl)),  ov.total_pnl>=0?'pos':'neg', 'Net realised', true],
-                    ['WIN RATE',     (ov.win_rate*100).toFixed(1)+'%','acc', `${Math.round(ov.win_rate*ov.total_trades)} W / ${Math.round((1-ov.win_rate)*ov.total_trades)} L`, false],
-                    ['TOTAL TRADES', ov.total_trades.toLocaleString(),'neu','All instruments', false],
-                    ['RISK/REWARD',  ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—','wa', `W ${fA(ov.avg_win)} · L ${fA(ov.avg_loss)}`, false],
-                    ['LONG P&L',     fU(Math.round(ov.long_pnl)),   'pos', `${(ov.long_wr*100).toFixed(1)}% WR · ${ov.long_count}`, true],
-                    ['SHORT P&L',    fU(Math.round(ov.short_pnl)),  ov.short_pnl>=0?'pos':'neg', `${(ov.short_wr*100).toFixed(1)}% WR · ${ov.short_count}`, true],
-                    ['TOTAL VOLUME', vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—', 'neu', 'Notional traded', true],
-                  ].map(([l,v,c,s,priv])=>(
-                    <div key={l} className="kpi">
-                      <div className="kl">{l}</div>
-                      <div className={`kv ${c} ${priv?'private':''}`}>{v}</div>
-                      <div className="ks">{s}</div>
-                    </div>
-                  ))}
-                  {/* Expectancy — custom card with tooltip */}
+                  <div className="kpi">
+                    <div className="kl">TOTAL P&L</div>
+                    <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
+                    <div className="ks">Net realised</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kl">WIN RATE</div>
+                    <div className="kv acc">{(ov.win_rate*100).toFixed(1)}%</div>
+                    <div className="ks">{Math.round(ov.win_rate*ov.total_trades)} W / {Math.round((1-ov.win_rate)*ov.total_trades)} L</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kl">TOTAL TRADES</div>
+                    <div className="kv neu">{ov.total_trades.toLocaleString()}</div>
+                    <div className="ks">All instruments</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kl">RISK/REWARD</div>
+                    <div className="kv wa">{ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—'}</div>
+                    <div className="ks">W {fA(ov.avg_win)} · L {fA(ov.avg_loss)}</div>
+                  </div>
                   <ExpectancyCard expVal={expVal} expC={expC} />
+                  <div className="kpi">
+                    <div className="kl">LONG P&L</div>
+                    <div className="kv pos private">{fU(Math.round(ov.long_pnl))}</div>
+                    <div className="ks">{(ov.long_wr*100).toFixed(1)}% WR · {ov.long_count}</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kl">SHORT P&L</div>
+                    <div className={`kv ${ov.short_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.short_pnl))}</div>
+                    <div className="ks">{(ov.short_wr*100).toFixed(1)}% WR · {ov.short_count}</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kl">TOTAL VOLUME</div>
+                    <div className="kv neu private">{vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—'}</div>
+                    <div className="ks">Notional traded</div>
+                  </div>
                 </div>
               )
             })()}
