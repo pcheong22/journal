@@ -4,6 +4,28 @@ import * as XLSX from 'xlsx'
 import { parseTradeFile } from '../../lib/tradeUtils'
 import { computeStreaks } from '../../lib/parserUtils'
 
+// Proper RFC 4180 CSV parser — handles quoted fields containing commas and newlines
+function parseCSV(text) {
+  const rows = []
+  let row = [], field = '', inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], next = text[i+1]
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { field += '"'; i++ }
+      else if (ch === '"')            { inQuotes = false }
+      else                            { field += ch }
+    } else {
+      if      (ch === '"')  { inQuotes = true }
+      else if (ch === ',')  { row.push(field.trim()); field = '' }
+      else if (ch === '\r' && next === '\n') { row.push(field.trim()); rows.push(row); row = []; field = ''; i++ }
+      else if (ch === '\n') { row.push(field.trim()); rows.push(row); row = []; field = '' }
+      else                  { field += ch }
+    }
+  }
+  if (field || row.length) { row.push(field.trim()); rows.push(row) }
+  return rows.filter(r => r.some(c => c !== ''))
+}
+
 export const config = { api: { bodyParser: false } }
 
 const supabase = createClient(
@@ -12,7 +34,20 @@ const supabase = createClient(
 )
 
 const BROKER_COLORS  = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#be185d','#16a34a']
-const BROKER_LABELS  = { PrimeXBT: id => `PrimeXBT ${id}` }
+const BROKER_LABELS  = {
+  PrimeXBT: id => `PrimeXBT ${id}`,
+  IBKR:     id => `IBKR ${id}`,
+  Extended: id => `Extended 0x9507...6466`,
+}
+const BROKER_DEFAULT_COLORS = {
+  IBKR:     '#D92027',
+  Extended: '#23DCA1',
+}
+
+// Per-account colour overrides based on currency
+const ACCOUNT_CURRENCY_COLORS = {
+  PrimeXBT: { USDC: '#2775C9', USDT: '#009393' },
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -49,10 +84,9 @@ export default async function handler(req, res) {
     // Parse into rows
     let rows
     if (filename.toLowerCase().endsWith('.csv')) {
-      const text = fileBuffer.toString('utf8')
-      rows = text.split('\n').map(l =>
-        l.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-      )
+      // Parse CSV with proper quoted field support
+      const text = fileBuffer.toString('utf8').replace(/^\uFEFF/, '') // strip BOM
+      rows = parseCSV(text)
     } else {
       const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
@@ -75,13 +109,16 @@ export default async function handler(req, res) {
     if (!existingAccts?.length) {
       const { count } = await supabase.from('accounts').select('*', { count: 'exact', head: true })
       const colorIdx  = (count || 0) % BROKER_COLORS.length
+      const color     = ACCOUNT_CURRENCY_COLORS[broker]?.[currency]
+                     || BROKER_DEFAULT_COLORS[broker]
+                     || BROKER_COLORS[colorIdx]
       const labelFn   = BROKER_LABELS[broker] || (id => id)
       await supabase.from('accounts').insert({
         id:       accountId,
         broker,
         label:    labelFn(accountId),
         currency,
-        color:    BROKER_COLORS[colorIdx],
+        color,
       })
     }
 
@@ -114,7 +151,11 @@ export default async function handler(req, res) {
     const combined = [
       ...(allExisting || []),
       ...newTrades.map(t => ({ position_id: t.position_id, pnl: t.pnl, entry_time: t.entry_time }))
-    ].sort((a, b) => a.entry_time.localeCompare(b.entry_time))
+    ].sort((a, b) => {
+      const ta = a.entry_time || a.exit_time || ''
+      const tb = b.entry_time || b.exit_time || ''
+      return ta.localeCompare(tb)
+    })
 
     const withStreaks   = computeStreaks(combined)
     const streakMap     = Object.fromEntries(withStreaks.map(t => [t.position_id, t.streak_id]))
