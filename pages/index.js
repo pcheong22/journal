@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
-const ChartComp  = dynamic(() => import('../components/Charts'),       { ssr: false })
+const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
+const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
 const TradeModal = dynamic(() => import('../components/TradeModal'),   { ssr: false })
 const ImageGallery = dynamic(() => import('../components/ImageGallery'), { ssr: false })
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
@@ -504,8 +505,21 @@ export default function Dashboard() {
                 ['TOTAL P&L',    fU(Math.round(ov.total_pnl)),  ov.total_pnl>=0?'pos':'neg', 'Net realised', true],
                 ['WIN RATE',     (ov.win_rate*100).toFixed(1)+'%','acc', `${Math.round(ov.win_rate*ov.total_trades)} W / ${Math.round((1-ov.win_rate)*ov.total_trades)} L`, false],
                 ['RISK/REWARD',  ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—','wa', `W ${fA(ov.avg_win)} · L ${fA(ov.avg_loss)}`, false],
-                ['BEST TRADE',   fU(Math.round(ov.best_trade)),  'pos', 'Single trade', true],
-                ['WORST TRADE',  fU(Math.round(ov.worst_trade)), 'neg', 'Single trade', true],
+                (() => {
+                  // Minervini Expectancy = (wins × avg_win) / (losses × |avg_loss|)
+                  const wins   = Math.round(ov.win_rate * ov.total_trades)
+                  const losses = ov.total_trades - wins
+                  const exp    = (losses > 0 && ov.avg_loss)
+                    ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss))
+                    : null
+                  const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
+                  const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
+                  return ['EXPECTANCY', expVal, expC, 'Minervini: W×AvgW / L×AvgL', false]
+                })(),
+                (() => {
+                  const vol = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
+                  return ['TOTAL VOLUME', vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—', 'neu', 'Notional traded', true]
+                })(),
                 ['LONG P&L',     fU(Math.round(ov.long_pnl)),   'pos', `${(ov.long_wr*100).toFixed(1)}% WR · ${ov.long_count}`, true],
                 ['SHORT P&L',    fU(Math.round(ov.short_pnl)),  ov.short_pnl>=0?'pos':'neg', `${(ov.short_wr*100).toFixed(1)}% WR · ${ov.short_count}`, true],
                 ['TOTAL TRADES', ov.total_trades.toLocaleString(),'neu','All instruments', false],
@@ -555,9 +569,13 @@ export default function Dashboard() {
               <ChartComp type="monthly"  data={stats.monthly}  privacy={privacy} />
               <ChartComp type="duration" data={stats.duration} privacy={privacy} />
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}} className="g2">
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
               <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
               <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
+              <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
+              <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
             </div>
           </div>
         )}
