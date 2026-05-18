@@ -245,7 +245,7 @@ export function Top5PnlChart({ trades, mode, privacy }) {
       data: {
         labels,
         datasets: [{
-          data: privacy ? values.map(() => 0) : values.map(v => Math.abs(v)),
+          data: values.map(v => Math.abs(v)),
           backgroundColor: color,
           borderColor: border,
           borderWidth: 1.5,
@@ -264,9 +264,6 @@ export function Top5PnlChart({ trades, mode, privacy }) {
           y: { grid: { display: false }, ticks: { ...TICK, font: { size: 11 } } }
         }
       }
-    })
-    return () => ch.destroy()
-  }, [JSON.stringify(values), JSON.stringify(labels), privacy])
 
   return (
     <div className="card" style={{height:300,boxSizing:'border-box'}}>
