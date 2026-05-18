@@ -41,6 +41,7 @@ export default function Dashboard() {
   const [loading,        setLoading]        = useState(true)
   const [upload,         setUpload]         = useState({ status:'idle', message:'', broker:'', accountId:'' })
   const [dragOver,       setDragOver]       = useState(false)
+  const [hlAccountModal, setHlAccountModal] = useState(null) // pending file awaiting account selection
   const [selected,       setSelected]       = useState(null)
   const [privacy,        setPrivacy]        = useState(false)
   const [darkMode,       setDarkMode]       = useState(true)
@@ -160,10 +161,23 @@ export default function Dashboard() {
   }
   const selectOnly = id => setSelAccounts(new Set([id]))
 
-  const handleFile = async file => {
+  const handleFile = async (file, accountIdOverride = null) => {
     if (!file) return
+
+    // Peek at file to detect Hyperliquid before uploading
+    if (!accountIdOverride) {
+      const text = await file.text()
+      const firstLine = text.split('\n')[0] || ''
+      if (firstLine.includes('time,coin,dir,px')) {
+        setHlAccountModal(file)
+        return
+      }
+    }
+
     setUpload({ status:'uploading', message:`Parsing ${file.name}…`, broker:'', accountId:'' })
-    const form = new FormData(); form.append('file', file)
+    const form = new FormData()
+    form.append('file', file)
+    if (accountIdOverride) form.append('accountId', accountIdOverride)
     try {
       const res  = await fetch('/api/upload', { method:'POST', body:form })
       const data = await res.json()
@@ -393,7 +407,7 @@ export default function Dashboard() {
           <span style={{fontSize:15}}>📂</span>
           <div>
             <div style={{fontSize:12,fontWeight:600}}>Upload trade history</div>
-            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT · IBKR · Extended · auto-detects format · duplicates skipped</div>
+            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT · IBKR · Extended · Hyperliquid · auto-detects format · duplicates skipped</div>
           </div>
           <span className="btn btn-p btn-sm" style={{pointerEvents:'none',marginLeft:'auto',flexShrink:0}}>Browse</span>
         </div>
@@ -417,6 +431,13 @@ export default function Dashboard() {
       </nav>
 
       {editingAccount && <AccountRenameModal account={editingAccount} onSave={saveAccountLabel} onClose={()=>setEditingAccount(null)} />}
+      {hlAccountModal && (
+        <HyperliquidAccountModal
+          onSelect={accountId => { setHlAccountModal(null); handleFile(hlAccountModal, accountId) }}
+          onClose={() => setHlAccountModal(null)}
+          existingAccounts={accounts.filter(a => a.broker === 'Hyperliquid')}
+        />
+      )}
 
       <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto'}}>
 
@@ -670,6 +691,54 @@ export default function Dashboard() {
         />
       )}
     </>
+  )
+}
+
+const HL_ACCOUNTS = [
+  { id:'0xffbB07326634300D7ef131E2B5826Dcb49c0C8E0', label:'Hyperliquid 0xffbB....C8E0' },
+  { id:'0x2A8F7F1682B629b16f5309182DA8920dAF72D0F9', label:'Hyperliquid 0x2A8F....D0F9' },
+]
+
+function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
+  const [custom, setCustom] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+
+  return (
+    <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:420,boxShadow:'var(--sh-lg)',margin:'auto'}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Which Hyperliquid account?</div>
+        <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:18}}>
+          Select the account this trade history belongs to
+        </div>
+        <div style={{display:'grid',gap:8,marginBottom:14}}>
+          {HL_ACCOUNTS.map(acc => (
+            <button key={acc.id} onClick={()=>onSelect(acc.id)}
+              style={{padding:'10px 14px',border:'1px solid var(--bd)',borderRadius:7,background:'var(--sf2)',cursor:'pointer',textAlign:'left',transition:'all .15s'}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'}
+              onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'}>
+              <div style={{fontWeight:600,fontSize:12,color:'var(--tx)',marginBottom:2}}>{acc.label}</div>
+              <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.id}</div>
+            </button>
+          ))}
+        </div>
+        {!showCustom ? (
+          <button className="btn btn-sm" onClick={()=>setShowCustom(true)} style={{marginBottom:14}}>
+            + Add a different account
+          </button>
+        ) : (
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>WALLET ADDRESS</div>
+            <div style={{display:'flex',gap:8}}>
+              <input className="inp" style={{flex:1,fontFamily:'var(--font-mono)',fontSize:11}} placeholder="0x..." value={custom} onChange={e=>setCustom(e.target.value)} autoFocus />
+              <button className="btn btn-p btn-sm" disabled={!custom.startsWith('0x')} onClick={()=>onSelect(custom)}>Use</button>
+            </div>
+          </div>
+        )}
+        <div style={{display:'flex',justifyContent:'flex-end'}}>
+          <button className="btn" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
