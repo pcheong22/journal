@@ -514,7 +514,7 @@ export default function Dashboard() {
                     : null
                   const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
                   const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
-                  return ['EXPECTANCY', expVal, expC, 'Minervini: W×AvgW / L×AvgL', false]
+                  return ['EXPECTANCY', expVal, expC, 'W×AvgW / L×AvgL', false]
                 })(),
                 (() => {
                   const vol = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
