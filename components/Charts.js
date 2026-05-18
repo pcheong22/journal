@@ -84,7 +84,7 @@ function EquityChart({ data, privacy }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, values, height, privacy }) {
+function BarChart({ title, labels, values, height=170, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -94,7 +94,7 @@ function BarChart({ title, labels, values, height, privacy }) {
       type:'bar',
       data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
       options:{
-        responsive:true,
+        responsive:true, maintainAspectRatio:false,
         plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{ label: ctx => privacy ? '***' : fU(ctx.parsed.y) }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
@@ -107,7 +107,7 @@ function BarChart({ title, labels, values, height, privacy }) {
   return (
     <div className="card">
       <div className="ct"><span className="ind" />{title}</div>
-      <canvas ref={ref} height={height} />
+      <div style={{position:'relative',height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
   )
 }
@@ -162,7 +162,7 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
   return (
     <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />LONG VS SHORT</div>
-      <div style={{position:'relative',height:240}}><canvas ref={ref} /></div>
+      <div style={{position:'relative',height:240}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
   )
 }
@@ -210,7 +210,71 @@ function DistChart({ trades, privacy }) {
   return (
     <div className="card" style={{minHeight:290}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:240}}><canvas ref={canvasRef} /></div>
+      <div style={{position:'relative',height:240}}><canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+    </div>
+  )
+}
+
+// ── TOP 5 INSTRUMENTS BY P&L ─────────────────────────────────────────────────
+export function Top5PnlChart({ trades, mode, privacy }) {
+  const ref = useRef()
+
+  // Aggregate by symbol
+  const symMap = {}
+  trades?.forEach(t => {
+    if (!symMap[t.symbol]) symMap[t.symbol] = 0
+    symMap[t.symbol] += t.pnl || 0
+  })
+
+  // Filter by positive or negative, sort, take top 5
+  const entries = Object.entries(symMap)
+    .filter(([,v]) => mode === 'positive' ? v > 0 : v < 0)
+    .sort((a,b) => mode === 'positive' ? b[1]-a[1] : a[1]-b[1])
+    .slice(0,5)
+
+  const labels = entries.map(([s]) => s)
+  const values = entries.map(([,v]) => Math.round(v))
+  const color  = mode === 'positive' ? 'rgba(5,150,105,.25)' : 'rgba(220,38,38,.25)'
+  const border = mode === 'positive' ? '#059669' : '#dc2626'
+  const title  = mode === 'positive' ? 'TOP 5 INSTRUMENTS — BEST P&L' : 'TOP 5 INSTRUMENTS — WORST P&L'
+
+  useEffect(() => {
+    if (!ref.current) return
+    const ch = new Chart(ref.current, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: privacy ? values.map(() => 0) : values.map(v => Math.abs(v)),
+          backgroundColor: color,
+          borderColor: border,
+          borderWidth: 1.5,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: NOLEG,
+          tooltip: { ...TIP, callbacks: { label: ctx => privacy ? '***' : fU(ctx.parsed.x * (mode==='positive'?1:-1)) } }
+        },
+        scales: {
+          x: { grid: GRID, ticks: { ...TICK, callback: v => privacy ? '***' : '$'+(v/1000).toFixed(0)+'k' } },
+          y: { grid: { display: false }, ticks: { ...TICK, font: { size: 11 } } }
+        }
+      }
+    })
+    return () => ch.destroy()
+  }, [JSON.stringify(values), JSON.stringify(labels), privacy])
+
+  return (
+    <div className="card" style={{minHeight:290}}>
+      <div className="ct"><span className="ind" />{title}</div>
+      {entries.length === 0
+        ? <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
+        : <div style={{position:'relative',height:240}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      }
     </div>
   )
 }
