@@ -62,6 +62,8 @@ export default function Dashboard() {
   const [search,         setSearch]         = useState('')
   const [timingTab,      setTimingTab]      = useState('sessions')
   const [editingAccount, setEditingAccount] = useState(null)
+  const [accountOrder,   setAccountOrder]   = useState([]) // drag-reordered account ids
+  const [dragAccId,      setDragAccId]      = useState(null)
   const [isClient,       setIsClient]       = useState(false)
   const PAGE    = 50
   const fileRef = useRef()
@@ -123,7 +125,15 @@ export default function Dashboard() {
       const res  = await fetch(`/api/trades?${params}`)
       const data = await res.json()
       if (data.trades)   setAllTrades(data.trades)
-      if (data.accounts) setAccounts(data.accounts)
+      if (data.accounts) {
+        setAccounts(data.accounts)
+        setAccountOrder(prev => {
+          // Preserve existing order, append any new accounts
+          const existing = prev.filter(id => data.accounts.find(a => a.id === id))
+          const newIds   = data.accounts.filter(a => !prev.includes(a.id)).map(a => a.id)
+          return [...existing, ...newIds]
+        })
+      }
       if (data.tags)     setTags(data.tags)
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -176,7 +186,8 @@ export default function Dashboard() {
     setEditingAccount(null)
   }
 
-  const accountsMap = Object.fromEntries(accounts.map(a => [a.id, a]))
+  const accountsMap    = Object.fromEntries(accounts.map(a => [a.id, a]))
+  const orderedAccounts = accountOrder.map(id => accountsMap[id]).filter(Boolean)
   const symbols     = [...new Set(visibleTrades.map(t => t.symbol))].sort()
   const paged       = filtered.slice(page*PAGE, (page+1)*PAGE)
   const ov          = stats?.overview
@@ -311,23 +322,39 @@ export default function Dashboard() {
               background:selAccounts.size===0?'var(--ac)':'var(--sf2)',borderColor:selAccounts.size===0?'var(--ac)':'var(--bd)',color:selAccounts.size===0?'#fff':'var(--tx2)'}}>
             ALL ({allTrades.length.toLocaleString()})
           </button>
-          {accounts.map(acc => {
+          {orderedAccounts.map(acc => {
             const isActive = selAccounts.size===0 || selAccounts.has(acc.id)
-            const count    = allTrades.filter(t => t.account_id === acc.id).length
-            const accPnl   = allTrades.filter(t => t.account_id === acc.id).reduce((s,t)=>s+t.pnl,0)
+            const isDragging = dragAccId === acc.id
             return (
-              <div key={acc.id} style={{display:'flex',alignItems:'center',gap:0,borderRadius:6,overflow:'hidden',border:`1px solid ${isActive&&selAccounts.size>0?acc.color:isActive?'var(--bd2)':'var(--bd)'}`,background:isActive&&selAccounts.size>0?acc.color+'18':'var(--sf2)',transition:'all .15s'}}>
+              <div key={acc.id}
+                draggable
+                onDragStart={()=>setDragAccId(acc.id)}
+                onDragOver={e=>{e.preventDefault()}}
+                onDrop={()=>{
+                  if (!dragAccId || dragAccId===acc.id) return
+                  setAccountOrder(prev => {
+                    const next = [...prev]
+                    const from = next.indexOf(dragAccId)
+                    const to   = next.indexOf(acc.id)
+                    next.splice(from, 1)
+                    next.splice(to, 0, dragAccId)
+                    return next
+                  })
+                  setDragAccId(null)
+                }}
+                onDragEnd={()=>setDragAccId(null)}
+                style={{display:'flex',alignItems:'center',gap:0,borderRadius:6,overflow:'hidden',
+                  border:`1px solid ${isActive&&selAccounts.size>0?acc.color:isActive?'var(--bd2)':'var(--bd)'}`,
+                  background:isActive&&selAccounts.size>0?acc.color+'18':'var(--sf2)',
+                  transition:'all .15s',opacity:isDragging?0.4:1,cursor:'grab'}}>
                 <button onClick={()=>toggleAccount(acc.id)}
                   style={{padding:'4px 10px',border:'none',background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',gap:5,fontSize:11,fontFamily:'var(--font-mono)',fontWeight:500,color:isActive?'var(--tx)':'var(--mu)'}}>
                   <span style={{width:8,height:8,borderRadius:'50%',background:acc.color,flexShrink:0,opacity:isActive?1:.4}} />
                   <span style={{fontWeight:600}}>{acc.label||acc.id}</span>
-                  <span style={{color:'var(--mu)',fontSize:10}}>{BROKER_ICONS[acc.broker]||'📊'}</span>
-                  <span style={{color:'var(--mu)',fontSize:10}}>{count}</span>
-                  <span className="private" style={{fontSize:10,color:accPnl>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(Math.round(accPnl))}</span>
                 </button>
                 <div style={{borderLeft:'1px solid var(--bd)',display:'flex'}}>
                   <button onClick={()=>selectOnly(acc.id)} title="View only" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--mu)'}}>⊙</button>
-                  <button onClick={()=>setEditingAccount(acc)} title="Rename" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--mu)'}}>✎</button>
+                  <button onClick={()=>setEditingAccount(acc)} title="Edit" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--mu)'}}>✎</button>
                   <button onClick={()=>handleClear(acc.id)} title="Delete" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--ls)'}}>✕</button>
                 </div>
               </div>
@@ -415,7 +442,7 @@ export default function Dashboard() {
             </div>
             {accounts.length > 1 && (
               <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-                {accounts.map(acc => {
+                {orderedAccounts.map(acc => {
                   const at  = visibleTrades.filter(t=>t.account_id===acc.id)
                   if (!at.length) return null
                   const ap  = at.reduce((s,t)=>s+t.pnl,0)
