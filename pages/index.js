@@ -500,37 +500,35 @@ export default function Dashboard() {
 
         {tab==='overview' && stats && (
           <div className="anim">
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
-              {[
-                ['TOTAL P&L',    fU(Math.round(ov.total_pnl)),  ov.total_pnl>=0?'pos':'neg', 'Net realised', true],
-                ['WIN RATE',     (ov.win_rate*100).toFixed(1)+'%','acc', `${Math.round(ov.win_rate*ov.total_trades)} W / ${Math.round((1-ov.win_rate)*ov.total_trades)} L`, false],
-                ['RISK/REWARD',  ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—','wa', `W ${fA(ov.avg_win)} · L ${fA(ov.avg_loss)}`, false],
-                (() => {
-                  // Minervini Expectancy = (wins × avg_win) / (losses × |avg_loss|)
-                  const wins   = Math.round(ov.win_rate * ov.total_trades)
-                  const losses = ov.total_trades - wins
-                  const exp    = (losses > 0 && ov.avg_loss)
-                    ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss))
-                    : null
-                  const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
-                  const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
-                  return ['EXPECTANCY', expVal, expC, 'W×AvgW / L×AvgL', false]
-                })(),
-                (() => {
-                  const vol = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
-                  return ['TOTAL VOLUME', vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—', 'neu', 'Notional traded', true]
-                })(),
-                ['LONG P&L',     fU(Math.round(ov.long_pnl)),   'pos', `${(ov.long_wr*100).toFixed(1)}% WR · ${ov.long_count}`, true],
-                ['SHORT P&L',    fU(Math.round(ov.short_pnl)),  ov.short_pnl>=0?'pos':'neg', `${(ov.short_wr*100).toFixed(1)}% WR · ${ov.short_count}`, true],
-                ['TOTAL TRADES', ov.total_trades.toLocaleString(),'neu','All instruments', false],
-              ].map(([l,v,c,s,priv])=>(
-                <div key={l} className="kpi">
-                  <div className="kl">{l}</div>
-                  <div className={`kv ${c} ${priv?'private':''}`}>{v}</div>
-                  <div className="ks">{s}</div>
+            {(() => {
+              const wins   = Math.round(ov.win_rate * ov.total_trades)
+              const losses = ov.total_trades - wins
+              const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
+              const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
+              const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
+              const vol    = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
+              return (
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
+                  {[
+                    ['TOTAL P&L',    fU(Math.round(ov.total_pnl)),  ov.total_pnl>=0?'pos':'neg', 'Net realised', true],
+                    ['WIN RATE',     (ov.win_rate*100).toFixed(1)+'%','acc', `${Math.round(ov.win_rate*ov.total_trades)} W / ${Math.round((1-ov.win_rate)*ov.total_trades)} L`, false],
+                    ['RISK/REWARD',  ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—','wa', `W ${fA(ov.avg_win)} · L ${fA(ov.avg_loss)}`, false],
+                    ['LONG P&L',     fU(Math.round(ov.long_pnl)),   'pos', `${(ov.long_wr*100).toFixed(1)}% WR · ${ov.long_count}`, true],
+                    ['SHORT P&L',    fU(Math.round(ov.short_pnl)),  ov.short_pnl>=0?'pos':'neg', `${(ov.short_wr*100).toFixed(1)}% WR · ${ov.short_count}`, true],
+                    ['TOTAL TRADES', ov.total_trades.toLocaleString(),'neu','All instruments', false],
+                    ['TOTAL VOLUME', vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—', 'neu', 'Notional traded', true],
+                  ].map(([l,v,c,s,priv])=>(
+                    <div key={l} className="kpi">
+                      <div className="kl">{l}</div>
+                      <div className={`kv ${c} ${priv?'private':''}`}>{v}</div>
+                      <div className="ks">{s}</div>
+                    </div>
+                  ))}
+                  {/* Expectancy — custom card with tooltip */}
+                  <ExpectancyCard expVal={expVal} expC={expC} />
                 </div>
-              ))}
-            </div>
+              )
+            })()}
             {accounts.length > 1 && (
               <div style={{marginBottom:14}}>
                 <button onClick={()=>setAcctStatsOpen(o=>!o)}
@@ -775,6 +773,49 @@ export default function Dashboard() {
         />
       )}
     </>
+  )
+}
+
+function ExpectancyCard({ expVal, expC }) {
+  const [show, setShow] = useState(false)
+  const colorMap = { pos:'var(--wn)', neg:'var(--ls)', neu:'var(--tx)', acc:'var(--ac)', wa:'var(--wa)' }
+  return (
+    <div className="kpi" style={{position:'relative'}}>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <div className="kl">EXPECTANCY</div>
+        <span
+          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
+          onClick={()=>setShow(s=>!s)}
+          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
+      </div>
+      <div className={`kv ${expC}`}>{expVal}</div>
+      <div className="ks">W×AvgW / L×AvgL</div>
+      {show && (
+        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>EXPECTANCY</div>
+          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
+            For every $1 lost on losing trades, how many dollars do you make on winners. A measure of your edge quality, independent of win rate.
+          </div>
+          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (Wins × Avg Win) ÷ (Losses × Avg Loss)</div>
+          <div style={{display:'grid',gap:5}}>
+            {[
+              ['Below 1.0×', 'Negative expectancy — losing more on losers than winning on winners.', 'var(--ls)'],
+              ['1.0× – 1.5×', 'Positive but marginal. Profitable system, room to improve.', 'var(--wa)'],
+              ['1.5× – 2.0×', 'Solid edge. Winners meaningfully outweigh losers.', 'var(--wn)'],
+              ['Above 2.0×',  'Strong edge. Hallmark of elite traders.', 'var(--ac)'],
+            ].map(([range, desc, col]) => (
+              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:70}}>{range}</span>
+                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:10,paddingTop:8,borderTop:'1px solid var(--bd)',fontSize:10,color:'var(--mu)',lineHeight:1.5,fontStyle:'italic'}}>
+            Note: A high win rate alone does not guarantee positive expectancy — losses must be kept small relative to wins.
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
