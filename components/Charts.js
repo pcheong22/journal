@@ -264,6 +264,9 @@ export function Top5PnlChart({ trades, mode, privacy }) {
           y: { grid: { display: false }, ticks: { ...TICK, font: { size: 11 } } }
         }
       }
+    })
+    return () => ch.destroy()
+  }, [JSON.stringify(values), JSON.stringify(labels), privacy])
 
   return (
     <div className="card" style={{height:300,boxSizing:'border-box'}}>
