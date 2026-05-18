@@ -84,7 +84,7 @@ function EquityChart({ data, privacy }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, values, height=240, privacy }) {
+function BarChart({ title, labels, values, height=252, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -162,7 +162,7 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
   return (
     <div className="card" style={{height:300,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />LONG VS SHORT</div>
-      <div style={{position:'relative',height:240}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      <div style={{position:'relative',height:252}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
   )
 }
@@ -192,7 +192,7 @@ function DistChart({ trades, privacy }) {
       ]},
       options:{
         responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{display:true,position:'bottom',labels:{font:{size:11},padding:12,color:'#6b7280'}}, tooltip:TIP },
+        plugins:{ legend:NOLEG, tooltip:TIP },
         scales:{ y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:TICK} },
       },
     })
@@ -210,7 +210,7 @@ function DistChart({ trades, privacy }) {
   return (
     <div className="card" style={{height:300,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:240}}><canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      <div style={{position:'relative',height:252}}><canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
   )
 }
@@ -273,7 +273,7 @@ export function Top5PnlChart({ trades, mode, privacy }) {
       <div className="ct"><span className="ind" />{title}</div>
       {entries.length === 0
         ? <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
-        : <div style={{position:'relative',height:240}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+        : <div style={{position:'relative',height:252}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
       }
     </div>
   )
