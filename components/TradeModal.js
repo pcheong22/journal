@@ -25,6 +25,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const [noteFree,    setNoteFree]    = useState('')
   const [stopLoss,    setStopLoss]    = useState('')
   const [saving,      setSaving]      = useState(false)
+  const [showNotionalTip, setShowNotionalTip] = useState(false)
   const [saved,       setSaved]       = useState(false)
 
   // Tags state
@@ -83,7 +84,21 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     : trade.pct_gain
   const pct = pctVal != null ? fPct(pctVal) : '—'
   const dur       = trade.duration_mins ? (trade.duration_mins/60).toFixed(1)+'h' : '—'
-  const not       = trade.notional_usd ? '$'+Math.round(trade.notional_usd).toLocaleString() : '—'
+  const not = trade.notional_usd ? '$'+Math.round(trade.notional_usd).toLocaleString() : '—'
+
+  // Build notional audit tooltip
+  const notionalTooltip = (() => {
+    if (!trade.notional_usd || !trade.entry_price || !trade.exit_price) return null
+    const move = trade.direction === 'Long'
+      ? (trade.exit_price / trade.entry_price - 1) * 100
+      : (trade.entry_price / trade.exit_price - 1) * 100
+    if (trade.notional_method === 'backsolve') {
+      return `Back-solved from price move\nEntry ${trade.entry_price?.toLocaleString()} → Exit ${trade.exit_price?.toLocaleString()}\nMove: ${move>=0?'+':''}${move.toFixed(3)}% · $${Math.abs(Math.round(trade.pnl)).toLocaleString()} ÷ ${Math.abs(move).toFixed(3)}% = ${not}`
+    } else if (trade.notional_method === 'price_x_size') {
+      return `Calculated as price × size\nExit ${trade.exit_price?.toLocaleString()} × ${trade.size?.toLocaleString()} contracts = ${not}`
+    }
+    return null
+  })()
 
   const capture  = sim && sim.mfe > 0 ? Math.max(0, Math.min(100, trade.pnl/sim.mfe*100)) : null
   const entryQ   = sim && sim.mfe > 0 ? Math.max(0, Math.min(100, 100*(1-Math.abs(sim.mae)/Math.max(Math.abs(sim.mae)+sim.mfe, .01)))) : 50
@@ -221,7 +236,6 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               ['EXIT',      trade.exit_price?.toLocaleString()||'—', 'var(--tx)','Price',            false],
               ['PRICE MOVE',pts!=null?(pts>=0?'+':'')+pts.toFixed(5):'—', pnlC, trade.direction,    false],
               ['SIZE',      trade.size?.toLocaleString()||'—', 'var(--tx)',       'Contracts',        false],
-              ['NOTIONAL',  not,                               'var(--mu)',        'USD value',        true],
               ['DURATION',  dur,                               'var(--tx)',        Math.round(trade.duration_mins||0)+'min', false],
               ['R-MULTIPLE',rDisplay!=null?rDisplay+'R':'Set stop →', rDisplay!=null&&parseFloat(rDisplay)>=1?'var(--wn)':'var(--ls)', 'Risk multiple', false],
             ].map(([l,v,c,s,priv])=>(
@@ -231,6 +245,27 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 <div style={{fontSize:9,color:'var(--mu)',marginTop:2}}>{s}</div>
               </div>
             ))}
+            {/* NOTIONAL — custom card with tooltip */}
+            <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px',position:'relative'}}>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+                <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>NOTIONAL</div>
+                {notionalTooltip && (
+                  <span
+                    onMouseEnter={()=>setShowNotionalTip(true)}
+                    onMouseLeave={()=>setShowNotionalTip(false)}
+                    onClick={()=>setShowNotionalTip(s=>!s)}
+                    style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none'}}>ⓘ</span>
+                )}
+              </div>
+              <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:600,color:'var(--mu)',letterSpacing:'-.01em'}}>{not}</div>
+              <div style={{fontSize:9,color:'var(--mu)',marginTop:2}}>{trade.notional_method==='backsolve'?'Back-solved':trade.notional_method==='price_x_size'?'Price × size':'USD value'}</div>
+              {showNotionalTip && notionalTooltip && (
+                <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,zIndex:100,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px',boxShadow:'var(--sh-lg)',minWidth:260,maxWidth:320}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>HOW NOTIONAL WAS CALCULATED</div>
+                  <div style={{fontSize:11,color:'var(--tx2)',fontFamily:'var(--font-mono)',lineHeight:1.7,whiteSpace:'pre-line'}}>{notionalTooltip}</div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── CHART SECTION ─────────────────────────────────────────── */}
@@ -276,6 +311,9 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               </div>
               <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:12,boxShadow:'var(--sh-sm)'}}>
                 <PnlPathChart sim={sim} trade={trade} />
+                <div style={{marginTop:6,fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',textAlign:'center',lineHeight:1.5}}>
+                  ⚠ P&L path is simulated using a random walk — real intrabar tick data is not available. MAE/MFE are estimates only.
+                </div>
               </div>
               {/* Quality bars */}
               <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:12}}>
