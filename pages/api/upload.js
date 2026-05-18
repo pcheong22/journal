@@ -37,9 +37,11 @@ const BROKER_COLORS  = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891
 const BROKER_LABELS  = {
   PrimeXBT: id => `PrimeXBT ${id}`,
   IBKR:     id => `IBKR ${id}`,
+  Extended: id => `Extended 0x9507...6466`,
 }
 const BROKER_DEFAULT_COLORS = {
-  IBKR: '#D92027',
+  IBKR:     '#D92027',
+  Extended: '#23DCA1',
 }
 
 // Per-account colour overrides based on currency
