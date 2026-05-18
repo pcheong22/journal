@@ -393,7 +393,7 @@ export default function Dashboard() {
           <span style={{fontSize:15}}>📂</span>
           <div>
             <div style={{fontSize:12,fontWeight:600}}>Upload trade history</div>
-            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT CSV · IBKR Activity Statement · auto-detects format · duplicates skipped</div>
+            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT · IBKR · Extended · auto-detects format · duplicates skipped</div>
           </div>
           <span className="btn btn-p btn-sm" style={{pointerEvents:'none',marginLeft:'auto',flexShrink:0}}>Browse</span>
         </div>
