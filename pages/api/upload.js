@@ -35,13 +35,15 @@ const supabase = createClient(
 
 const BROKER_COLORS  = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#be185d','#16a34a']
 const BROKER_LABELS  = {
-  PrimeXBT: id => `PrimeXBT ${id}`,
-  IBKR:     id => `IBKR ${id}`,
-  Extended: id => `Extended 0x9507...6466`,
+  PrimeXBT:    id => `PrimeXBT ${id}`,
+  IBKR:        id => `IBKR ${id}`,
+  Extended:    id => `Extended 0x9507...6466`,
+  Hyperliquid: id => `Hyperliquid ${id.slice(0,6)}...${id.slice(-4)}`,
 }
 const BROKER_DEFAULT_COLORS = {
-  IBKR:     '#D92027',
-  Extended: '#23DCA1',
+  IBKR:        '#D92027',
+  Extended:    '#23DCA1',
+  Hyperliquid: '#3BFFA0',
 }
 
 // Per-account colour overrides based on currency
@@ -65,8 +67,9 @@ export default async function handler(req, res) {
     // Simple multipart parser
     const boundary = '--' + boundaryMatch[1]
     const parts    = buffer.toString('binary').split(boundary)
-    let fileBuffer = null
-    let filename   = 'upload.csv'
+    let fileBuffer    = null
+    let filename      = 'upload.csv'
+    let formAccountId = null
 
     for (const part of parts) {
       if (part.includes('filename=')) {
@@ -76,6 +79,11 @@ export default async function handler(req, res) {
         if (headerEnd >= 0) {
           const body = part.slice(headerEnd + 4, part.lastIndexOf('\r\n'))
           fileBuffer = Buffer.from(body, 'binary')
+        }
+      } else if (part.includes('name="accountId"')) {
+        const headerEnd = part.indexOf('\r\n\r\n')
+        if (headerEnd >= 0) {
+          formAccountId = part.slice(headerEnd + 4, part.lastIndexOf('\r\n')).trim()
         }
       }
     }
@@ -94,7 +102,7 @@ export default async function handler(req, res) {
     }
 
     // Detect broker + parse trades
-    const accountIdOverride = req.headers['x-account-id'] || null
+    const accountIdOverride = req.headers['x-account-id'] || formAccountId || null
     const parsed = parseTradeFile(rows, filename, accountIdOverride)
     const { broker, accountId, currency, trades: incoming } = parsed
 
