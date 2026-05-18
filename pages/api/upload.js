@@ -34,7 +34,13 @@ const supabase = createClient(
 )
 
 const BROKER_COLORS  = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#be185d','#16a34a']
-const BROKER_LABELS  = { PrimeXBT: id => `PrimeXBT ${id}` }
+const BROKER_LABELS  = {
+  PrimeXBT: id => `PrimeXBT ${id}`,
+  IBKR:     id => `IBKR ${id}`,
+}
+const BROKER_DEFAULT_COLORS = {
+  IBKR: '#D92027',
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -96,13 +102,14 @@ export default async function handler(req, res) {
     if (!existingAccts?.length) {
       const { count } = await supabase.from('accounts').select('*', { count: 'exact', head: true })
       const colorIdx  = (count || 0) % BROKER_COLORS.length
+      const color     = BROKER_DEFAULT_COLORS[broker] || BROKER_COLORS[colorIdx]
       const labelFn   = BROKER_LABELS[broker] || (id => id)
       await supabase.from('accounts').insert({
         id:       accountId,
         broker,
         label:    labelFn(accountId),
         currency,
-        color:    BROKER_COLORS[colorIdx],
+        color,
       })
     }
 
