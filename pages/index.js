@@ -170,8 +170,8 @@ export default function Dashboard() {
     await loadTrades(dateFrom, dateTo)
     setUpload({ status:'idle', message:'', broker:'', accountId:'' })
   }
-  const saveAccountLabel = async (id, label) => {
-    await fetch('/api/accounts', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, label }) })
+  const saveAccountLabel = async (id, label, color) => {
+    await fetch('/api/accounts', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, label, color }) })
     await loadTrades(dateFrom, dateTo)
     setEditingAccount(null)
   }
@@ -283,8 +283,19 @@ export default function Dashboard() {
             {darkMode ? '☀️' : '🌙'}
           </button>
           <button onClick={()=>setPrivacy(p=>!p)} title={privacy?'Show values':'Hide values'}
-            style={{background:privacy?'var(--ac-bg)':'var(--sf)',border:`1px solid ${privacy?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:14,transition:'all .15s'}}>
-            {privacy ? '🙈' : '👁'}
+            style={{background:privacy?'var(--ac-bg)':'var(--sf)',border:`1px solid ${privacy?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {privacy ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ac2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="12" cy="12" rx="9" ry="5.5" stroke="var(--ac2)"/>
+                <circle cx="12" cy="12" r="3" fill="var(--ac2)" stroke="none"/>
+                <line x1="3" y1="3" x2="21" y2="21"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="12" cy="12" rx="9" ry="5.5"/>
+                <circle cx="12" cy="12" r="3" fill="var(--tx2)" stroke="none"/>
+              </svg>
+            )}
           </button>
           <span style={{display:'inline-flex',alignItems:'center',gap:5,color:'var(--mu)',fontSize:10}}>
             <span style={{width:6,height:6,borderRadius:'50%',background:'var(--wn)',display:'inline-block',animation:'pulse 2s infinite'}} />LIVE
@@ -637,16 +648,46 @@ export default function Dashboard() {
 
 function AccountRenameModal({ account, onSave, onClose }) {
   const [label, setLabel] = useState(account.label || account.id)
+  const [color, setColor] = useState(account.color || '#1a56db')
+
+  const PRESET_COLORS = [
+    '#1a56db','#059669','#d97706','#7c3aed',
+    '#dc2626','#0891b2','#be185d','#16a34a',
+    '#ea580c','#0284c7','#9333ea','#15803d',
+    '#f59e0b','#db2777','#2563eb','#65a30d',
+  ]
+
   return (
     <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:340,boxShadow:'var(--sh-lg)',margin:'auto'}}>
-        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Rename Account</div>
+      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:360,boxShadow:'var(--sh-lg)',margin:'auto'}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Edit Account</div>
         <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:16}}>{account.id} · {account.broker}</div>
-        <input className="inp" style={{width:'100%',marginBottom:14,padding:'8px 12px',fontSize:13}} value={label}
-          onChange={e=>setLabel(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave(account.id,label)} autoFocus />
+
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>LABEL</div>
+          <input className="inp" style={{width:'100%',padding:'8px 12px',fontSize:13}} value={label}
+            onChange={e=>setLabel(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave(account.id,label,color)} autoFocus />
+        </div>
+
+        <div style={{marginBottom:18}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>COLOUR</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:6,marginBottom:10}}>
+            {PRESET_COLORS.map(c => (
+              <button key={c} onClick={()=>setColor(c)}
+                style={{width:'100%',aspectRatio:'1',borderRadius:6,border:`2px solid ${color===c?'#fff':'transparent'}`,background:c,cursor:'pointer',boxShadow:color===c?'0 0 0 2px '+c:'none',transition:'all .15s'}} />
+            ))}
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <div style={{width:28,height:28,borderRadius:6,background:color,border:'1px solid var(--bd)',flexShrink:0}} />
+            <input type="color" value={color} onChange={e=>setColor(e.target.value)}
+              style={{width:40,height:28,padding:2,border:'1px solid var(--bd)',borderRadius:5,background:'var(--sf2)',cursor:'pointer'}} />
+            <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{color} · or pick custom</span>
+          </div>
+        </div>
+
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-p" onClick={()=>onSave(account.id,label)}>Save</button>
+          <button className="btn btn-p" onClick={()=>onSave(account.id,label,color)}>Save</button>
         </div>
       </div>
     </div>
