@@ -65,11 +65,50 @@ export default function Dashboard() {
   const [editingAccount, setEditingAccount] = useState(null)
   const [accountOrder,   setAccountOrder]   = useState([]) // drag-reordered account ids
   const [dragAccId,      setDragAccId]      = useState(null)
+  const [showSettings,   setShowSettings]   = useState(false)
+  const [acctStatsOpen,  setAcctStatsOpen]  = useState(false) // collapsed by default
   const [isClient,       setIsClient]       = useState(false)
+
+  // Settings persisted to localStorage
+  const [settings, setSettings] = useState({
+    defaultPrivacy:    false,
+    defaultDark:       true,
+    defaultDatePreset: 'YTD',
+    defaultTab:        'overview',
+    acctStatsDefault:  false,
+    tradeLogPageSize:  50,
+  })
+
+  const saveSetting = (key, value) => {
+    setSettings(prev => {
+      const next = { ...prev, [key]: value }
+      if (typeof window !== 'undefined') localStorage.setItem('ti_settings', JSON.stringify(next))
+      return next
+    })
+  }
+
   const PAGE    = 50
   const fileRef = useRef()
 
-  useEffect(() => { setIsClient(true) }, [])
+  useEffect(() => {
+    setIsClient(true)
+    // Load persisted settings
+    try {
+      const saved = localStorage.getItem('ti_settings')
+      if (saved) {
+        const s = JSON.parse(saved)
+        setSettings(s)
+        if (s.defaultPrivacy  !== undefined) setPrivacy(s.defaultPrivacy)
+        if (s.defaultDark     !== undefined) setDarkMode(s.defaultDark)
+        if (s.acctStatsDefault !== undefined) setAcctStatsOpen(s.acctStatsDefault)
+        if (s.defaultTab)      setTab(s.defaultTab)
+        if (s.defaultDatePreset && s.defaultDatePreset !== 'YTD') {
+          const p = DATE_PRESETS.find(p => p.label === s.defaultDatePreset)
+          if (p) { setDatePreset(s.defaultDatePreset); setDateFrom(p.from()); setDateTo(p.to()) }
+        }
+      }
+    } catch(e) {}
+  }, [])
   useEffect(() => { document.body.classList.toggle('privacy-on', privacy) }, [privacy])
   useEffect(() => { document.body.classList.toggle('dark-mode', darkMode) }, [darkMode])
 
@@ -303,6 +342,13 @@ export default function Dashboard() {
             <span style={{color:'var(--mu)'}}>P&L <span className="private" style={{color:ov.total_pnl>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(Math.round(ov.total_pnl))}</span></span>
             <span style={{color:'var(--mu)'}}>WR <span style={{color:'var(--ac)',fontWeight:600}}>{(ov.win_rate*100).toFixed(1)}%</span></span>
           </>) : <span style={{color:'var(--mu)'}}>NO DATA</span>}
+          <button onClick={()=>setShowSettings(s=>!s)} title="Settings"
+            style={{background:showSettings?'var(--ac-bg)':'var(--sf2)',border:`1px solid ${showSettings?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={showSettings?'var(--ac2)':'var(--tx2)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
           <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?'Light mode':'Dark mode'}
             style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:14,transition:'all .15s',color:'var(--tx)'}}>
             {darkMode ? '☀️' : '🌙'}
@@ -431,6 +477,16 @@ export default function Dashboard() {
       </nav>
 
       {editingAccount && <AccountRenameModal account={editingAccount} onSave={saveAccountLabel} onClose={()=>setEditingAccount(null)} />}
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          saveSetting={saveSetting}
+          privacy={privacy}           setPrivacy={setPrivacy}
+          darkMode={darkMode}         setDarkMode={setDarkMode}
+          acctStatsOpen={acctStatsOpen} setAcctStatsOpen={setAcctStatsOpen}
+          onClose={()=>setShowSettings(false)}
+        />
+      )}
       {hlAccountModal && (
         <HyperliquidAccountModal
           onSelect={accountId => { setHlAccountModal(null); handleFile(hlAccountModal, accountId) }}
@@ -462,26 +518,36 @@ export default function Dashboard() {
               ))}
             </div>
             {accounts.length > 1 && (
-              <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-                {orderedAccounts.map(acc => {
-                  const at  = visibleTrades.filter(t=>t.account_id===acc.id)
-                  if (!at.length) return null
-                  const ap  = at.reduce((s,t)=>s+t.pnl,0)
-                  const awr = at.filter(t=>t.pnl>0).length/at.length
-                  return (
-                    <div key={acc.id} style={{background:'var(--sf)',border:`1px solid ${acc.color}30`,borderRadius:8,padding:'8px 14px',display:'flex',alignItems:'center',gap:10,boxShadow:'var(--sh-sm)'}}>
-                      <div style={{width:8,height:8,borderRadius:'50%',background:acc.color}} />
-                      <div>
-                        <div style={{fontSize:11,fontWeight:600}}>{acc.label||acc.id}</div>
-                        <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
-                      </div>
-                      <div style={{borderLeft:'1px solid var(--bd)',paddingLeft:10}}>
-                        <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:600,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
-                        <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}% WR · {at.length}t</div>
-                      </div>
-                    </div>
-                  )
-                })}
+              <div style={{marginBottom:14}}>
+                <button onClick={()=>setAcctStatsOpen(o=>!o)}
+                  style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,letterSpacing:'.06em',textTransform:'uppercase',display:'flex',alignItems:'center',gap:5,padding:'0 0 8px',transition:'color .15s'}}
+                  onMouseEnter={e=>e.currentTarget.style.color='var(--tx)'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--mu)'}>
+                  {acctStatsOpen ? '▲' : '▼'} ACCOUNT BREAKDOWN {acctStatsOpen ? '(collapse)' : '(expand)'}
+                </button>
+                {acctStatsOpen && (
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {orderedAccounts.map(acc => {
+                      const at  = visibleTrades.filter(t=>t.account_id===acc.id)
+                      if (!at.length) return null
+                      const ap  = at.reduce((s,t)=>s+t.pnl,0)
+                      const awr = at.filter(t=>t.pnl>0).length/at.length
+                      return (
+                        <div key={acc.id} style={{background:'var(--sf)',border:`1px solid ${acc.color}30`,borderRadius:8,padding:'8px 14px',display:'flex',alignItems:'center',gap:10,boxShadow:'var(--sh-sm)'}}>
+                          <div style={{width:8,height:8,borderRadius:'50%',background:acc.color}} />
+                          <div>
+                            <div style={{fontSize:11,fontWeight:600}}>{acc.label||acc.id}</div>
+                            <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
+                          </div>
+                          <div style={{borderLeft:'1px solid var(--bd)',paddingLeft:10}}>
+                            <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:600,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
+                            <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}% WR · {at.length}t</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} />
@@ -736,6 +802,93 @@ function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
         )}
         <div style={{display:'flex',justifyContent:'flex-end'}}>
           <button className="btn" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
+  const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
+  const TABS         = ['overview','coach','streaks','calendar','symbols','timing','tradelog','missed']
+  const TAB_LABELS   = { overview:'Overview', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', tradelog:'Trade Log', missed:'Passed' }
+  const PAGE_SIZES   = [50, 100, 200]
+
+  const Row = ({ label, sub, children }) => (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--bd)'}}>
+      <div>
+        <div style={{fontSize:12,fontWeight:600,color:'var(--tx)'}}>{label}</div>
+        {sub && <div style={{fontSize:10,color:'var(--mu)',marginTop:2}}>{sub}</div>}
+      </div>
+      <div style={{flexShrink:0,marginLeft:16}}>{children}</div>
+    </div>
+  )
+
+  const Toggle = ({ value, onChange }) => (
+    <button onClick={()=>onChange(!value)}
+      style={{width:42,height:24,borderRadius:12,border:'none',cursor:'pointer',transition:'all .2s',
+        background:value?'var(--ac)':'var(--bd2)',position:'relative',flexShrink:0}}>
+      <span style={{position:'absolute',top:3,left:value?20:3,width:18,height:18,borderRadius:'50%',background:'#fff',transition:'left .2s',display:'block'}} />
+    </button>
+  )
+
+  const Select = ({ value, options, onChange }) => (
+    <select value={value} onChange={e=>onChange(e.target.value)} className="inp"
+      style={{padding:'4px 8px',fontSize:11,fontFamily:'var(--font-mono)',minWidth:90}}>
+      {options.map(o => <option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}
+    </select>
+  )
+
+  return (
+    <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:12,width:420,maxHeight:'85vh',overflow:'auto',boxShadow:'var(--sh-lg)',margin:'auto',position:'relative'}}>
+        <div style={{padding:'18px 24px',borderBottom:'1px solid var(--bd)',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:'var(--sf)',zIndex:10}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:15}}>Settings</div>
+            <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginTop:2}}>Preferences saved to this browser</div>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
+        </div>
+        <div style={{padding:'0 24px 24px'}}>
+
+          {/* APPEARANCE */}
+          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
+          <Row label="Dark mode" sub="Default theme on load">
+            <Toggle value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />
+          </Row>
+          <Row label="Privacy mode" sub="Hide P&L values on load">
+            <Toggle value={settings.defaultPrivacy} onChange={v=>{saveSetting('defaultPrivacy',v); setPrivacy(v)}} />
+          </Row>
+
+          {/* DASHBOARD */}
+          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>DASHBOARD</div>
+          <Row label="Default date range" sub="Range selected on load">
+            <Select value={settings.defaultDatePreset} options={DATE_PRESETS} onChange={v=>saveSetting('defaultDatePreset',v)} />
+          </Row>
+          <Row label="Default tab" sub="Tab open on load">
+            <Select value={settings.defaultTab}
+              options={TABS.map(t=>({value:t, label:TAB_LABELS[t]}))}
+              onChange={v=>saveSetting('defaultTab',v)} />
+          </Row>
+          <Row label="Account breakdown" sub="Expanded or collapsed on load">
+            <Toggle value={settings.acctStatsDefault} onChange={v=>{saveSetting('acctStatsDefault',v); setAcctStatsOpen(v)}} />
+          </Row>
+
+          {/* TRADE LOG */}
+          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
+          <Row label="Rows per page" sub="Number of trades shown per page">
+            <Select value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
+          </Row>
+
+          {/* RESET */}
+          <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid var(--bd)'}}>
+            <button className="btn" onClick={()=>{
+              localStorage.removeItem('ti_settings')
+              window.location.reload()
+            }} style={{fontSize:11,color:'var(--ls)',borderColor:'var(--ls)'}}>
+              Reset all settings to defaults
+            </button>
+          </div>
         </div>
       </div>
     </div>
