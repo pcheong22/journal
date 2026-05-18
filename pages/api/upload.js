@@ -151,7 +151,11 @@ export default async function handler(req, res) {
     const combined = [
       ...(allExisting || []),
       ...newTrades.map(t => ({ position_id: t.position_id, pnl: t.pnl, entry_time: t.entry_time }))
-    ].sort((a, b) => a.entry_time.localeCompare(b.entry_time))
+    ].sort((a, b) => {
+      const ta = a.entry_time || a.exit_time || ''
+      const tb = b.entry_time || b.exit_time || ''
+      return ta.localeCompare(tb)
+    })
 
     const withStreaks   = computeStreaks(combined)
     const streakMap     = Object.fromEntries(withStreaks.map(t => [t.position_id, t.streak_id]))
