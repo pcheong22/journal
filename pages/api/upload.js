@@ -42,6 +42,11 @@ const BROKER_DEFAULT_COLORS = {
   IBKR: '#D92027',
 }
 
+// Per-account colour overrides based on currency
+const ACCOUNT_CURRENCY_COLORS = {
+  PrimeXBT: { USDC: '#2775C9', USDT: '#009393' },
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -102,7 +107,9 @@ export default async function handler(req, res) {
     if (!existingAccts?.length) {
       const { count } = await supabase.from('accounts').select('*', { count: 'exact', head: true })
       const colorIdx  = (count || 0) % BROKER_COLORS.length
-      const color     = BROKER_DEFAULT_COLORS[broker] || BROKER_COLORS[colorIdx]
+      const color     = ACCOUNT_CURRENCY_COLORS[broker]?.[currency]
+                     || BROKER_DEFAULT_COLORS[broker]
+                     || BROKER_COLORS[colorIdx]
       const labelFn   = BROKER_LABELS[broker] || (id => id)
       await supabase.from('accounts').insert({
         id:       accountId,
