@@ -13,31 +13,38 @@ export default async function handler(req, res) {
     const { accounts: accountsParam, from, to } = req.query
     const accountIds = accountsParam ? accountsParam.split(',').filter(Boolean) : null
 
-    // Fetch trades with server-side date + account filtering
-    let query = supabase
-      .from('trades')
-      .select('*')
-      .order('entry_time', { ascending: false, nullsFirst: false })
-      .order('exit_time',  { ascending: false })
+    // Fetch all trades — Supabase default limit is 1000, so fetch in batches
+    let allTrades = []
+    let from_idx  = 0
+    const BATCH   = 1000
+    while (true) {
+      let q = supabase
+        .from('trades')
+        .select('*')
+        .order('entry_time', { ascending: false, nullsFirst: false })
+        .order('exit_time',  { ascending: false })
+        .range(from_idx, from_idx + BATCH - 1)
 
-    if (accountIds?.length) query = query.in('account_id', accountIds)
+      if (accountIds?.length) q = q.in('account_id', accountIds)
 
-    // For date filtering: use entry_time when available, fall back to exit_time
-    // Trades with null entry_time (e.g. Extended) are always included unless filtered out
-    if (from && to) {
-      query = query.or(
-        `entry_time.gte.${from},entry_time.is.null`
-      ).or(
-        `entry_time.lte.${to},entry_time.is.null`
-      )
-    } else if (from) {
-      query = query.or(`entry_time.gte.${from},entry_time.is.null`)
-    } else if (to) {
-      query = query.or(`entry_time.lte.${to},entry_time.is.null`)
+      if (from && to) {
+        q = q.or(`entry_time.gte.${from},entry_time.is.null`)
+             .or(`entry_time.lte.${to},entry_time.is.null`)
+      } else if (from) {
+        q = q.or(`entry_time.gte.${from},entry_time.is.null`)
+      } else if (to) {
+        q = q.or(`entry_time.lte.${to},entry_time.is.null`)
+      }
+
+      const { data: batch, error } = await q
+      if (error) throw new Error(error.message)
+      if (!batch?.length) break
+      allTrades = allTrades.concat(batch)
+      if (batch.length < BATCH) break
+      from_idx += BATCH
     }
 
-    const { data: trades, error } = await query
-    if (error) throw new Error(error.message)
+    const trades = allTrades
 
     // Fetch accounts
     const { data: accounts } = await supabase.from('accounts').select('*').order('created_at')
