@@ -454,7 +454,7 @@ export default function Dashboard() {
           <span style={{fontSize:15}}>📂</span>
           <div>
             <div style={{fontSize:12,fontWeight:600}}>Upload trade history</div>
-            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT · IBKR · Extended · Hyperliquid · auto-detects format · duplicates skipped</div>
+            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT · IBKR · Extended · Hyperliquid · Bybit · auto-detects format · duplicates skipped</div>
           </div>
           <span className="btn btn-p btn-sm" style={{pointerEvents:'none',marginLeft:'auto',flexShrink:0}}>Browse</span>
         </div>
@@ -506,7 +506,16 @@ export default function Dashboard() {
               const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
               const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
               const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
-              const vol    = visibleTrades.reduce((s,t) => s + (t.notional_usd || 0), 0)
+              const vol = visibleTrades.reduce((s, t) => {
+                const entryNotional = t.entry_price && t.size ? t.entry_price * t.size : 0
+                const exitNotional  = t.exit_price  && t.size ? t.exit_price  * t.size : (t.notional_usd || 0)
+                return s + entryNotional + exitNotional
+              }, 0)
+              const fmtVol = v => {
+                if (v >= 1e9) return (v/1e9).toFixed(3) + ' billion'
+                if (v >= 1e6) return (v/1e6).toFixed(3) + ' million'
+                return '$' + Math.round(v).toLocaleString()
+              }
               return (
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
                   <div className="kpi">
@@ -542,8 +551,8 @@ export default function Dashboard() {
                   </div>
                   <div className="kpi">
                     <div className="kl">TOTAL VOLUME</div>
-                    <div className="kv neu private">{vol > 0 ? '$'+Math.round(vol).toLocaleString() : '—'}</div>
-                    <div className="ks">Notional traded</div>
+                    <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
+                    <div className="ks">Entry + exit notional</div>
                   </div>
                 </div>
               )
