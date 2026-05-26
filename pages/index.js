@@ -507,9 +507,17 @@ export default function Dashboard() {
               const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
               const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
               const vol = visibleTrades.reduce((s, t) => {
-                const entryNotional = t.entry_price && t.size ? t.entry_price * t.size : 0
-                const exitNotional  = t.exit_price  && t.size ? t.exit_price  * t.size : (t.notional_usd || 0)
-                return s + entryNotional + exitNotional
+                const n = t.notional_usd
+                if (!n) return s
+                // notional_usd is already in USD (back-solved from P&L)
+                // entry notional = exit notional × price ratio (adjusted for direction)
+                if (t.entry_price && t.exit_price && t.exit_price > 0) {
+                  const ratio = t.direction === 'Short'
+                    ? t.exit_price / t.entry_price
+                    : t.entry_price / t.exit_price
+                  return s + n + (n * ratio)
+                }
+                return s + n * 2 // fallback if no prices
               }, 0)
               const fmtVol = v => {
                 if (v >= 1e9) return (v/1e9).toFixed(3) + ' billion'
