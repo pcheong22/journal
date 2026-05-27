@@ -1,7 +1,30 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
+
+// Error boundary — catches client-side crashes and shows the error on screen
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() {
+    if (this.state.error) return (
+      <div style={{ padding:24, background:'#0c1117', minHeight:'100vh', color:'#e8edf3', fontFamily:'monospace' }}>
+        <div style={{ background:'#2a0a0a', border:'1px solid #ff5258', borderRadius:8, padding:20, maxWidth:800 }}>
+          <div style={{ color:'#ff5258', fontWeight:700, fontSize:14, marginBottom:12 }}>⚠ Application Error</div>
+          <div style={{ fontSize:12, color:'#e8edf3', marginBottom:8 }}>{this.state.error.message}</div>
+          <pre style={{ fontSize:10, color:'#8899aa', whiteSpace:'pre-wrap', overflow:'auto', maxHeight:300, background:'#111', padding:12, borderRadius:4 }}>
+            {this.state.error.stack}
+          </pre>
+          <button onClick={()=>window.location.reload()} style={{ marginTop:12, padding:'8px 16px', background:'#1e2d3d', border:'1px solid #1e2d3d', color:'#e8edf3', cursor:'pointer', borderRadius:5 }}>
+            Reload page
+          </button>
+        </div>
+      </div>
+    )
+    return this.props.children
+  }
+}
 const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
 const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
 const TradeModal = dynamic(() => import('../components/TradeModal'),   { ssr: false })
@@ -33,7 +56,7 @@ const DATE_PRESETS = [
   { label: 'All', from: () => '2000-01-01',  to: today },
 ]
 
-export default function Dashboard() {
+function DashboardInner() {
   const [tab,            setTab]            = useState('overview')
   const [allTrades,      setAllTrades]      = useState([])
   const [accounts,       setAccounts]       = useState([])
@@ -842,6 +865,10 @@ export default function Dashboard() {
       )}
     </>
   )
+}
+
+export default function Dashboard() {
+  return <ErrorBoundary><DashboardInner /></ErrorBoundary>
 }
 
 function RiskRewardCard({ rr, avgWin, avgLoss }) {
