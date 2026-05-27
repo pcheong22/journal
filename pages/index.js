@@ -338,17 +338,19 @@ function DashboardInner() {
         </div>
       )}
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
-        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>(
-          <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'var(--mu)',fontFamily:'var(--font-mono)',padding:'3px 0',textTransform:'uppercase',letterSpacing:'.04em'}}>{d}</div>
+        {['M','T','W','T','F','S','S'].map((d,i)=>(
+          <div key={i} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'var(--mu)',fontFamily:'var(--font-mono)',padding:'3px 0',textTransform:'uppercase',letterSpacing:'.04em'}}>{d}</div>
         ))}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>{cells}</div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginTop:12}}>
-        {[['MONTH P&L',mDays?(mPnl>=0?'+':'-')+fA(mPnl):'No data',mPnl>=0?'var(--wn-tx)':'var(--ls-tx)'],
-          ['TRADING DAYS',mDays,'var(--tx)'],['TRADES',mTrades,'var(--tx)'],['WIN RATE',mwr,'var(--ac)']].map(([l,v,c])=>(
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginTop:12}}>
+        {[['MONTH P&L',mDays?(mPnl>=0?'+':'-')+fA(mPnl):'No data',mPnl>=0?'var(--wn-tx)':'var(--ls-tx)',true],
+          ['WIN RATE',mwr,'var(--ac)',false],
+          ['TRADING DAYS',mDays,'var(--tx)',false],
+          ['TRADES',mTrades,'var(--tx)',false]].map(([l,v,c,priv])=>(
           <div key={l} style={{background:'var(--sf2)',borderRadius:6,padding:'10px 12px',border:'1px solid var(--bd)'}}>
             <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:3}}>{l}</div>
-            <div className={l==='MONTH P&L'?'private':''} style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:600,color:c}}>{v}</div>
+            <div className={priv?'private':''} style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:600,color:c}}>{v}</div>
           </div>
         ))}
       </div>

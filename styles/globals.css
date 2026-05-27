@@ -99,7 +99,7 @@ body:not(.privacy-on) .private { transition: filter .2s; }
 .page-hdr { background: var(--sf); border-bottom: 1px solid var(--bd); box-shadow: var(--sh-sm); position: sticky; top: 0; z-index: 200; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 52px; }
 
 /* ── NAV TABS ────────────────────────────────────────────────────────── */
-.nt { display: inline-flex; align-items: center; gap: 5px; padding: 10px 16px; font-size: 12px; font-weight: 500; color: var(--mu); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all .15s; }
+.nt { display: inline-flex; align-items: center; gap: 5px; padding: 14px 16px; font-size: 12px; font-weight: 500; color: var(--mu); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all .15s; }
 .nt:hover { color: var(--tx); border-bottom-color: var(--bd2); }
 .nt.active { color: var(--ac); border-bottom-color: var(--ac); font-weight: 600; }
 
@@ -280,4 +280,12 @@ canvas { width: 100% !important; }
 
   /* Hide date range text on mobile */
   .date-range-bar .date-range-text { display: none; }
+}
+
+/* ── CALENDAR MOBILE ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .cal-cell { min-height: 38px !important; padding: 4px 3px !important; }
+  .cal-cell .private { font-size: 8px !important; }
+  .cal-cell div:last-child { display: none; } /* hide trade count on mobile */
+  .nt { padding: 16px 12px !important; font-size: 11px !important; }
 }
