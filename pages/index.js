@@ -372,34 +372,14 @@ function DashboardInner() {
       </Head>
 
       <header className="page-hdr">
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          {/* Logo icon — 1D: single thick ring, 4 long ticks, inner ring, accent dots */}
-          <div style={{width:36,height:36,background:'#0c1117',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #1a2a1a'}}>
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <circle cx="16" cy="16" r="13" stroke="#66ffa5" strokeWidth="2.2"/>
-              <circle cx="16" cy="16" r="5" stroke="#66ffa5" strokeWidth="1.5"/>
-              <line x1="16" y1="0" x2="16" y2="11" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="16" y1="21" x2="16" y2="32" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="0" y1="16" x2="11" y2="16" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="21" y1="16" x2="32" y2="16" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <circle cx="16" cy="3" r="1.5" fill="#66ffa5"/>
-              <circle cx="16" cy="29" r="1.5" fill="#66ffa5"/>
-              <circle cx="3" cy="16" r="1.5" fill="#66ffa5"/>
-              <circle cx="29" cy="16" r="1.5" fill="#66ffa5"/>
-            </svg>
-          </div>
-          {/* Name + subtitle stacked */}
-          <div style={{display:'flex',flexDirection:'column',gap:1}}>
-            <span style={{fontWeight:700,fontSize:15,letterSpacing:'.06em',textTransform:'uppercase',color:'var(--tx)'}}>TradeIntel</span>
-            <span style={{color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',letterSpacing:'.10em',textTransform:'uppercase'}}>Performance Intelligence</span>
-          </div>
-        </div>
         <div style={{display:'flex',alignItems:'center',gap:14,fontFamily:'var(--font-mono)',fontSize:11}}>
           {ov ? (<>
             <span style={{color:'var(--mu)'}}><span style={{color:'var(--tx)',fontWeight:600}}>{ov.total_trades.toLocaleString()}</span> TRADES</span>
             <span style={{color:'var(--mu)'}}>P&L <span className="private" style={{color:ov.total_pnl>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(Math.round(ov.total_pnl))}</span></span>
             <span style={{color:'var(--mu)'}}>WR <span style={{color:'var(--ac)',fontWeight:600}}>{(ov.win_rate*100).toFixed(1)}%</span></span>
           </>) : <span style={{color:'var(--mu)'}}>NO DATA</span>}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
           <button onClick={()=>setShowSettings(s=>!s)} title="Settings"
             style={{background:showSettings?'var(--ac-bg)':'var(--sf2)',border:`1px solid ${showSettings?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={showSettings?'var(--ac2)':'var(--tx2)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -498,7 +478,7 @@ function DashboardInner() {
         )}
         <span style={{marginLeft:'auto',fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
           {visibleTrades.length.toLocaleString()} trades
-          {datePreset !== 'All' && <span style={{marginLeft:6,color:'var(--bd2)'}}>· {dateFrom} → {dateTo}</span>}
+          {datePreset !== 'All' && <span className="date-range-text" style={{marginLeft:6,color:'var(--bd2)'}}>· {dateFrom} → {dateTo}</span>}
         </span>
       </div>
 
@@ -582,7 +562,7 @@ function DashboardInner() {
                 return '$' + Math.round(v).toLocaleString()
               }
               return (
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
+                <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
@@ -656,7 +636,7 @@ function DashboardInner() {
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
             {/* Row 2: Three equal supporting charts */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
+            <div className="g3" style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
               <ChartComp type="duration"     data={stats.duration} privacy={privacy} />
               <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
               <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
@@ -793,7 +773,7 @@ function DashboardInner() {
               </span>
             </div>
             <div className="card" style={{padding:0,overflow:'hidden'}}>
-              <div className="tw">
+              <div className="tw trade-tbl-wrap">
                 <table style={{minWidth:1020}}>
                   <thead><tr>
                     {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
