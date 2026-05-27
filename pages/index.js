@@ -822,7 +822,7 @@ function RiskRewardCard({ rr, avgWin, avgLoss }) {
           onClick={()=>setShow(s=>!s)}
           style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
       </div>
-      <div className={`kv ${c}`}>{rr != null ? rr.toFixed(2)+'×' : '—'}</div>
+      <div className="kv acc">{rr != null ? rr.toFixed(2)+'×' : '—'}</div>
       <div className="ks">{avgLoss ? `W ${fA(avgWin)} · L ${fA(avgLoss)}` : '—'}</div>
       {show && (
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
