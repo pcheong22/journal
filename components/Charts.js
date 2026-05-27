@@ -48,7 +48,7 @@ function EquityChart({ data, privacy }) {
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data: { labels: data.map(d=>d.date), datasets: [{ data:vals, borderColor:AC, borderWidth:2, fill:true, backgroundColor:grad, pointRadius:0, pointHoverRadius:4, pointHoverBackgroundColor:AC, tension:.3 }] },
+      data: { labels: data.map(d=>d.date), datasets: [{ data:vals, borderColor:'#66ffa5', borderWidth:2, fill:true, backgroundColor:grad, pointRadius:0, pointHoverRadius:4, pointHoverBackgroundColor:'#66ffa5', tension:.3 }] },
       options: {
         responsive:true, maintainAspectRatio:false, animation:{duration:300},
         plugins: { legend:NOLEG, tooltip:{...TIP, callbacks:{label: c => privacy ? '***' : fU(Math.round(c.parsed.y))}} },
