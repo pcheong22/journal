@@ -19,8 +19,8 @@ const privTick = (privacy) => (v) => privacy ? '***' : '$'+(v/1000).toFixed(0)+'
 export default function ChartComp(props) {
   const { type, privacy=false } = props
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} />
-  if (type==='monthly')      return <BarChart   title="MONTHLY P&L"      labels={props.data.map(d=>d.month_str)}   values={props.data.map(d=>Math.round(d.total_pnl))} height={252} privacy={privacy} />
-  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={252} privacy={privacy} />
+  if (type==='monthly')      return <BarChart   title="MONTHLY P&L"      labels={props.data.map(d=>d.month_str)}   values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
+  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
   if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
@@ -36,19 +36,19 @@ export default function ChartComp(props) {
 
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
 function EquityChart({ data, privacy }) {
-  const canvasRef = useRef(); const handleRef = useRef(); const chartRef = useRef()
+  const canvasRef = useRef(); const yAxisRef = useRef(); const chartRef = useRef()
 
   useEffect(() => {
     if (!canvasRef.current || !data?.length) return
     chartRef.current?.destroy()
     const ctx  = canvasRef.current.getContext('2d')
     const vals = data.map(d => d.cum_pnl)
-    const grad = ctx.createLinearGradient(0, 0, 0, 420)
-    grad.addColorStop(0, 'rgba(26,86,219,.12)'); grad.addColorStop(1, 'rgba(26,86,219,.01)')
+    const grad = ctx.createLinearGradient(0, 0, 0, 360)
+    grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data: { labels: data.map(d=>d.date), datasets: [{ data:vals, borderColor:'#1a56db', borderWidth:2, fill:true, backgroundColor:grad, pointRadius:2, pointBackgroundColor:'#1a56db', tension:.3 }] },
+      data: { labels: data.map(d=>d.date), datasets: [{ data:vals, borderColor:AC, borderWidth:2, fill:true, backgroundColor:grad, pointRadius:0, pointHoverRadius:4, pointHoverBackgroundColor:AC, tension:.3 }] },
       options: {
         responsive:true, maintainAspectRatio:false, animation:{duration:300},
         plugins: { legend:NOLEG, tooltip:{...TIP, callbacks:{label: c => privacy ? '***' : fU(Math.round(c.parsed.y))}} },
@@ -59,32 +59,34 @@ function EquityChart({ data, privacy }) {
       }
     })
 
+    // Y-axis drag on the axis labels themselves
     let drag=false, dY=0, dMin=0, dMax=0
-    const hdl = handleRef.current
+    const yAxis = yAxisRef.current
     const onDown = e => { drag=true; dY=e.clientY; dMin=chartRef.current.scales.y.min; dMax=chartRef.current.scales.y.max; document.body.style.cursor='ns-resize'; e.preventDefault() }
     const onMove = e => { if(!drag)return; const f=1+(dY-e.clientY)*.004, mid=(dMin+dMax)/2, hr=(dMax-dMin)/2*f; chartRef.current.options.scales.y.min=mid-hr; chartRef.current.options.scales.y.max=mid+hr; chartRef.current.update('none') }
     const onUp   = () => { if(drag){drag=false; document.body.style.cursor=''} }
-    hdl?.addEventListener('mousedown', onDown)
+    yAxis?.addEventListener('mousedown', onDown)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup',   onUp)
-    return () => { chartRef.current?.destroy(); hdl?.removeEventListener('mousedown',onDown); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp) }
+    return () => { chartRef.current?.destroy(); yAxis?.removeEventListener('mousedown',onDown); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp) }
   }, [data, privacy])
 
   return (
     <div className="card" style={{marginBottom:10}}>
-      <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400}}>Drag right edge ⇅ to rescale</span></div>
-      <div style={{position:'relative',userSelect:'none'}}>
-        <div style={{position:'relative',height:360}}>
+      <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400,color:'var(--mu)'}}>Drag y-axis ⇅ to rescale</span></div>
+      <div style={{position:'relative',userSelect:'none',display:'flex'}}>
+        {/* Y-axis overlay — draggable */}
+        <div ref={yAxisRef} style={{position:'absolute',left:0,top:0,width:52,height:'100%',zIndex:10,cursor:'ns-resize'}} title="Drag to rescale y-axis" />
+        <div style={{position:'relative',height:360,width:'100%'}}>
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} />
         </div>
-        <div ref={handleRef} className="eq-h" />
       </div>
     </div>
   )
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, values, height=252, privacy }) {
+function BarChart({ title, labels, values, height=252, cardHeight=300, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -105,7 +107,7 @@ function BarChart({ title, labels, values, height=252, privacy }) {
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
   return (
-    <div className="card" style={{height:300,boxSizing:'border-box'}}>
+    <div className="card" style={{height:cardHeight,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />{title}</div>
       <div style={{position:'relative',height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
