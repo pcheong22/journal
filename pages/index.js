@@ -281,13 +281,39 @@ export default function Dashboard() {
       )
     }
     const mwr = mTrades > 0 ? ((mWins/mTrades)*100).toFixed(1)+'%' : '—'
-    const nav = dir => { let m=calMonth+dir,y=calYear; if(m>11){m=0;y++}else if(m<0){m=11;y--}; setCalMonth(m); setCalYear(y) }
+    const nav = dir => { let m=calMonth+dir,y=calYear; if(m>11){m=0;y++}else if(m<0){m=11;y--}; setCalMonth(m); setCalYear(y); setCalPickerOpen(false) }
+    const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     return (<>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:calPickerOpen?0:14,position:'relative'}}>
         <button className="btn btn-sm" onClick={()=>nav(-1)}>←</button>
-        <div style={{flex:1,textAlign:'center',fontWeight:700,fontSize:14}}>{MONTHS[calMonth]} {calYear}</div>
+        <button onClick={()=>setCalPickerOpen(o=>!o)}
+          style={{flex:1,textAlign:'center',fontWeight:700,fontSize:14,background:'none',border:'none',cursor:'pointer',color:'var(--tx)',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+          {MONTHS[calMonth]} {calYear}
+          <span style={{fontSize:10,color:'var(--mu)'}}>{calPickerOpen?'▴':'▾'}</span>
+        </button>
         <button className="btn btn-sm" onClick={()=>nav(1)}>→</button>
       </div>
+      {calPickerOpen && (
+        <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px',marginBottom:14,boxShadow:'var(--sh-lg)'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <button className="btn btn-sm" onClick={()=>setCalYear(y=>y-1)}>◀</button>
+            <span style={{fontWeight:700,fontSize:13,fontFamily:'var(--font-mono)'}}>{calYear}</span>
+            <button className="btn btn-sm" onClick={()=>setCalYear(y=>y+1)}>▶</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
+            {MONTH_SHORT.map((m,i) => (
+              <button key={m} onClick={()=>{setCalMonth(i);setCalPickerOpen(false)}}
+                style={{padding:'6px 4px',fontSize:11,fontFamily:'var(--font-mono)',fontWeight:i===calMonth?700:400,
+                  border:`1px solid ${i===calMonth?'var(--ac)':'var(--bd)'}`,
+                  background:i===calMonth?'var(--ac-bg)':'transparent',
+                  color:i===calMonth?'var(--ac2)':'var(--tx2)',
+                  borderRadius:5,cursor:'pointer'}}>
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
         {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>(
           <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'var(--mu)',fontFamily:'var(--font-mono)',padding:'3px 0',textTransform:'uppercase',letterSpacing:'.04em'}}>{d}</div>
