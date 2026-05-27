@@ -547,6 +547,7 @@ export default function Dashboard() {
                     <div className="ks">W {fA(ov.avg_win)} · L {fA(ov.avg_loss)}</div>
                   </div>
                   <ExpectancyCard expVal={expVal} expC={expC} />
+                  <CalmarCard calmar={ov.calmar} maxDrawdown={ov.max_drawdown} />
                   <div className="kpi">
                     <div className="kl">LONG P&L</div>
                     <div className="kv pos private">{fU(Math.round(ov.long_pnl))}</div>
@@ -562,7 +563,6 @@ export default function Dashboard() {
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
                     <div className="ks">Entry + exit notional</div>
                   </div>
-                  <CalmarCard calmar={ov.calmar} maxDrawdown={ov.max_drawdown} />
                 </div>
               )
             })()}
