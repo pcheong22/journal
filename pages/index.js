@@ -1,7 +1,30 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
+
+// Error boundary — catches client-side crashes and shows the error on screen
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() {
+    if (this.state.error) return (
+      <div style={{ padding:24, background:'#0c1117', minHeight:'100vh', color:'#e8edf3', fontFamily:'monospace' }}>
+        <div style={{ background:'#2a0a0a', border:'1px solid #ff5258', borderRadius:8, padding:20, maxWidth:800 }}>
+          <div style={{ color:'#ff5258', fontWeight:700, fontSize:14, marginBottom:12 }}>⚠ Application Error</div>
+          <div style={{ fontSize:12, color:'#e8edf3', marginBottom:8 }}>{this.state.error.message}</div>
+          <pre style={{ fontSize:10, color:'#8899aa', whiteSpace:'pre-wrap', overflow:'auto', maxHeight:300, background:'#111', padding:12, borderRadius:4 }}>
+            {this.state.error.stack}
+          </pre>
+          <button onClick={()=>window.location.reload()} style={{ marginTop:12, padding:'8px 16px', background:'#1e2d3d', border:'1px solid #1e2d3d', color:'#e8edf3', cursor:'pointer', borderRadius:5 }}>
+            Reload page
+          </button>
+        </div>
+      </div>
+    )
+    return this.props.children
+  }
+}
 const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
 const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
 const TradeModal = dynamic(() => import('../components/TradeModal'),   { ssr: false })
@@ -33,7 +56,7 @@ const DATE_PRESETS = [
   { label: 'All', from: () => '2000-01-01',  to: today },
 ]
 
-export default function Dashboard() {
+function DashboardInner() {
   const [tab,            setTab]            = useState('overview')
   const [allTrades,      setAllTrades]      = useState([])
   const [accounts,       setAccounts]       = useState([])
@@ -53,6 +76,7 @@ export default function Dashboard() {
   const [showCustom,     setShowCustom]     = useState(false)
   const [calYear,        setCalYear]        = useState(new Date().getUTCFullYear())
   const [calMonth,       setCalMonth]       = useState(new Date().getUTCMonth())
+  const [calPickerOpen,  setCalPickerOpen]  = useState(false)
   const [filtered,       setFiltered]       = useState([])
   const [page,           setPage]           = useState(0)
   const [sortKey,        setSortKey]        = useState('entry_time')
@@ -118,9 +142,16 @@ export default function Dashboard() {
   useEffect(() => {
     setStats(computeStats(visibleTrades))
     if (visibleTrades.length > 0) {
-      const latest = visibleTrades.reduce((a,b) => a.entry_time > b.entry_time ? a : b)
-      const d = new Date(latest.entry_time)
-      setCalYear(d.getUTCFullYear()); setCalMonth(d.getUTCMonth())
+      const tradesWithDates = visibleTrades.filter(t => t.entry_time || t.exit_time)
+      if (tradesWithDates.length > 0) {
+        const latest = tradesWithDates.reduce((a,b) => {
+          const at = a.entry_time || a.exit_time || ''
+          const bt = b.entry_time || b.exit_time || ''
+          return at > bt ? a : b
+        })
+        const d = new Date(latest.entry_time || latest.exit_time)
+        if (!isNaN(d)) { setCalYear(d.getUTCFullYear()); setCalMonth(d.getUTCMonth()) }
+      }
     }
   }, [allTrades, selAccounts])
 
@@ -273,13 +304,39 @@ export default function Dashboard() {
       )
     }
     const mwr = mTrades > 0 ? ((mWins/mTrades)*100).toFixed(1)+'%' : '—'
-    const nav = dir => { let m=calMonth+dir,y=calYear; if(m>11){m=0;y++}else if(m<0){m=11;y--}; setCalMonth(m); setCalYear(y) }
+    const nav = dir => { let m=calMonth+dir,y=calYear; if(m>11){m=0;y++}else if(m<0){m=11;y--}; setCalMonth(m); setCalYear(y); setCalPickerOpen(false) }
+    const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     return (<>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:calPickerOpen?0:14,position:'relative'}}>
         <button className="btn btn-sm" onClick={()=>nav(-1)}>←</button>
-        <div style={{flex:1,textAlign:'center',fontWeight:700,fontSize:14}}>{MONTHS[calMonth]} {calYear}</div>
+        <button onClick={()=>setCalPickerOpen(o=>!o)}
+          style={{flex:1,textAlign:'center',fontWeight:700,fontSize:14,background:'none',border:'none',cursor:'pointer',color:'var(--tx)',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+          {MONTHS[calMonth]} {calYear}
+          <span style={{fontSize:10,color:'var(--mu)'}}>{calPickerOpen?'▴':'▾'}</span>
+        </button>
         <button className="btn btn-sm" onClick={()=>nav(1)}>→</button>
       </div>
+      {calPickerOpen && (
+        <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px',marginBottom:14,boxShadow:'var(--sh-lg)'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <button className="btn btn-sm" onClick={()=>setCalYear(y=>y-1)}>◀</button>
+            <span style={{fontWeight:700,fontSize:13,fontFamily:'var(--font-mono)'}}>{calYear}</span>
+            <button className="btn btn-sm" onClick={()=>setCalYear(y=>y+1)}>▶</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
+            {MONTH_SHORT.map((m,i) => (
+              <button key={m} onClick={()=>{setCalMonth(i);setCalPickerOpen(false)}}
+                style={{padding:'6px 4px',fontSize:11,fontFamily:'var(--font-mono)',fontWeight:i===calMonth?700:400,
+                  border:`1px solid ${i===calMonth?'var(--ac)':'var(--bd)'}`,
+                  background:i===calMonth?'var(--ac-bg)':'transparent',
+                  color:i===calMonth?'var(--ac2)':'var(--tx2)',
+                  borderRadius:5,cursor:'pointer'}}>
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
         {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>(
           <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'var(--mu)',fontFamily:'var(--font-mono)',padding:'3px 0',textTransform:'uppercase',letterSpacing:'.04em'}}>{d}</div>
@@ -315,34 +372,14 @@ export default function Dashboard() {
       </Head>
 
       <header className="page-hdr">
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          {/* Logo icon — 1D: single thick ring, 4 long ticks, inner ring, accent dots */}
-          <div style={{width:36,height:36,background:'#0c1117',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #1a2a1a'}}>
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <circle cx="16" cy="16" r="13" stroke="#66ffa5" strokeWidth="2.2"/>
-              <circle cx="16" cy="16" r="5" stroke="#66ffa5" strokeWidth="1.5"/>
-              <line x1="16" y1="0" x2="16" y2="11" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="16" y1="21" x2="16" y2="32" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="0" y1="16" x2="11" y2="16" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="21" y1="16" x2="32" y2="16" stroke="#66ffa5" strokeWidth="2.5" strokeLinecap="round"/>
-              <circle cx="16" cy="3" r="1.5" fill="#66ffa5"/>
-              <circle cx="16" cy="29" r="1.5" fill="#66ffa5"/>
-              <circle cx="3" cy="16" r="1.5" fill="#66ffa5"/>
-              <circle cx="29" cy="16" r="1.5" fill="#66ffa5"/>
-            </svg>
-          </div>
-          {/* Name + subtitle stacked */}
-          <div style={{display:'flex',flexDirection:'column',gap:1}}>
-            <span style={{fontWeight:700,fontSize:15,letterSpacing:'.06em',textTransform:'uppercase',color:'var(--tx)'}}>TradeIntel</span>
-            <span style={{color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',letterSpacing:'.10em',textTransform:'uppercase'}}>Performance Intelligence</span>
-          </div>
-        </div>
         <div style={{display:'flex',alignItems:'center',gap:14,fontFamily:'var(--font-mono)',fontSize:11}}>
           {ov ? (<>
             <span style={{color:'var(--mu)'}}><span style={{color:'var(--tx)',fontWeight:600}}>{ov.total_trades.toLocaleString()}</span> TRADES</span>
             <span style={{color:'var(--mu)'}}>P&L <span className="private" style={{color:ov.total_pnl>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(Math.round(ov.total_pnl))}</span></span>
             <span style={{color:'var(--mu)'}}>WR <span style={{color:'var(--ac)',fontWeight:600}}>{(ov.win_rate*100).toFixed(1)}%</span></span>
           </>) : <span style={{color:'var(--mu)'}}>NO DATA</span>}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
           <button onClick={()=>setShowSettings(s=>!s)} title="Settings"
             style={{background:showSettings?'var(--ac-bg)':'var(--sf2)',border:`1px solid ${showSettings?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={showSettings?'var(--ac2)':'var(--tx2)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -441,7 +478,7 @@ export default function Dashboard() {
         )}
         <span style={{marginLeft:'auto',fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
           {visibleTrades.length.toLocaleString()} trades
-          {datePreset !== 'All' && <span style={{marginLeft:6,color:'var(--bd2)'}}>· {dateFrom} → {dateTo}</span>}
+          {datePreset !== 'All' && <span className="date-range-text" style={{marginLeft:6,color:'var(--bd2)'}}>· {dateFrom} → {dateTo}</span>}
         </span>
       </div>
 
@@ -525,7 +562,7 @@ export default function Dashboard() {
                 return '$' + Math.round(v).toLocaleString()
               }
               return (
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
+                <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
@@ -541,12 +578,9 @@ export default function Dashboard() {
                     <div className="kv neu">{ov.total_trades.toLocaleString()}</div>
                     <div className="ks">All instruments</div>
                   </div>
-                  <div className="kpi">
-                    <div className="kl">RISK/REWARD</div>
-                    <div className="kv wa">{ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—'}</div>
-                    <div className="ks">W {fA(ov.avg_win)} · L {fA(ov.avg_loss)}</div>
-                  </div>
+                  <RiskRewardCard rr={ov.avg_loss ? Math.abs(ov.avg_win/ov.avg_loss) : null} avgWin={ov.avg_win} avgLoss={ov.avg_loss} />
                   <ExpectancyCard expVal={expVal} expC={expC} />
+                  <CalmarCard calmar={ov.calmar} maxDrawdown={ov.max_drawdown} />
                   <div className="kpi">
                     <div className="kl">LONG P&L</div>
                     <div className="kv pos private">{fU(Math.round(ov.long_pnl))}</div>
@@ -561,13 +595,6 @@ export default function Dashboard() {
                     <div className="kl">TOTAL VOLUME</div>
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
                     <div className="ks">Entry + exit notional</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="kl">CALMAR RATIO</div>
-                    <div className={`kv ${ov.calmar == null ? 'neu' : ov.calmar >= 3 ? 'pos' : ov.calmar >= 1 ? 'wa' : 'neg'}`}>
-                      {ov.calmar != null ? ov.calmar.toFixed(2)+'×' : '—'}
-                    </div>
-                    <div className="ks">{ov.calmar != null ? `DD $${Math.round(ov.max_drawdown).toLocaleString()}` : 'Min 20 trades'}</div>
                   </div>
                 </div>
               )
@@ -606,14 +633,15 @@ export default function Dashboard() {
               </div>
             )}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} />
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
-              <ChartComp type="monthly"  data={stats.monthly}  privacy={privacy} />
-              <ChartComp type="duration" data={stats.duration} privacy={privacy} />
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
+            {/* Row 1: Monthly P&L — full width spotlight */}
+            <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
+            {/* Row 2: Three equal supporting charts */}
+            <div className="g3" style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
+              <ChartComp type="duration"     data={stats.duration} privacy={privacy} />
               <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
               <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
             </div>
+            {/* Row 3: Top 5 instruments */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
               <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
               <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
@@ -745,7 +773,7 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="card" style={{padding:0,overflow:'hidden'}}>
-              <div className="tw">
+              <div className="tw trade-tbl-wrap">
                 <table style={{minWidth:1020}}>
                   <thead><tr>
                     {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
@@ -768,7 +796,7 @@ export default function Dashboard() {
                           <td className="mu">{dur}</td>
                           <td className="sym-c">{t.symbol}</td>
                           <td>{acc&&<span style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 6px',borderRadius:4,background:acc.color+'15',border:`1px solid ${acc.color}30`,fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600}}><span style={{width:5,height:5,borderRadius:'50%',background:acc.color}} />{acc.label||acc.id}</span>}</td>
-                          <td><span className={`pill ${t.direction==='Long'?'pb':'pr'}`}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
+                          <td><span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:t.direction==='Long'?'#00b5a3':'#ffb300',background:t.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${t.direction==='Long'?'#00b5a3':'#ffb300'}`}}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
                           <td>{t.entry_price?.toLocaleString()||'—'}</td>
                           <td>{t.exit_price?.toLocaleString()||'—'}</td>
                           <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? '$'+Math.round(t.notional_usd).toLocaleString() : '—'}</td>
@@ -816,6 +844,93 @@ export default function Dashboard() {
         />
       )}
     </>
+  )
+}
+
+export default function Dashboard() {
+  return <ErrorBoundary><DashboardInner /></ErrorBoundary>
+}
+
+function RiskRewardCard({ rr, avgWin, avgLoss }) {
+  const [show, setShow] = useState(false)
+  const fA = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
+  const c  = rr == null ? 'neu' : rr >= 2 ? 'pos' : rr >= 1 ? 'wa' : rr >= 0.5 ? 'wa' : 'neg'
+  return (
+    <div className="kpi" style={{position:'relative'}}>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <div className="kl">RISK/REWARD</div>
+        <span
+          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
+          onClick={()=>setShow(s=>!s)}
+          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
+      </div>
+      <div className="kv acc">{rr != null ? rr.toFixed(2)+'×' : '—'}</div>
+      <div className="ks">{avgLoss ? `W ${fA(avgWin)} · L ${fA(avgLoss)}` : '—'}</div>
+      {show && (
+        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>RISK / REWARD</div>
+          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
+            Average winning trade divided by average losing trade. Measures how much you make on winners relative to what you lose on losers.
+          </div>
+          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: Avg Win ÷ Avg Loss</div>
+          <div style={{display:'grid',gap:5,marginBottom:10}}>
+            {[
+              ['Below 0.5×', 'Poor. Losses are more than double your wins — requires a very high win rate to be profitable.', 'var(--ls)'],
+              ['0.5× – 1.0×', 'Marginal. Can still be profitable with a sufficiently high win rate, but edge is thin.', 'var(--wa)'],
+              ['1.0× – 2.0×', 'Good. Winners exceed losers — a sustainable foundation for a trading system.', 'var(--wn)'],
+              ['Above 2.0×',  'Strong. Each win more than doubles each loss — high-quality edge.', 'var(--wn)'],
+            ].map(([range, desc, col]) => (
+              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:70}}>{range}</span>
+                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{padding:'8px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:10,color:'var(--ac2)',lineHeight:1.6}}>
+            <span style={{fontWeight:700}}>⚠ Do not read in isolation.</span> A 0.7× R/R with a 72% win rate is highly profitable. A 2.0× R/R with a 30% win rate may not be. Always consider R/R alongside win rate and expectancy together.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CalmarCard({ calmar, maxDrawdown }) {
+  const [show, setShow] = useState(false)
+  const c = calmar == null ? 'neu' : calmar >= 3 ? 'pos' : calmar >= 1 ? 'wa' : 'neg'
+  return (
+    <div className="kpi" style={{position:'relative'}}>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <div className="kl">CALMAR RATIO</div>
+        <span
+          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
+          onClick={()=>setShow(s=>!s)}
+          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
+      </div>
+      <div className={`kv ${c}`}>{calmar != null ? calmar.toFixed(2)+'×' : '—'}</div>
+      <div className="ks">{calmar != null ? `DD $${Math.round(maxDrawdown).toLocaleString()}` : 'Min 20 trades'}</div>
+      {show && (
+        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:272,pointerEvents:'none'}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>CALMAR RATIO</div>
+          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
+            Annualised P&L divided by maximum drawdown. Measures how much return you generate per dollar of peak-to-trough loss — the higher the better.
+          </div>
+          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (P&L × 365 / days) ÷ Max Drawdown</div>
+          <div style={{display:'grid',gap:5}}>
+            {[
+              ['Below 1×', 'Return is less than your worst drawdown. Risk is not being rewarded.', 'var(--ls)'],
+              ['1× – 3×',  'Moderate edge. You are earning more than you draw down, but there is room to tighten risk.', 'var(--wa)'],
+              ['Above 3×', 'Exceptional. Annual return significantly exceeds max drawdown — the hallmark of disciplined risk management.', 'var(--wn)'],
+            ].map(([range, desc, col]) => (
+              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:60}}>{range}</span>
+                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1431,7 +1546,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
               <div key={m.id} className="card" style={{padding:0,overflow:'hidden'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExpanded?'var(--sf2)':'transparent'}}
                   onClick={()=>setExpandedId(isExpanded?null:m.id)}>
-                  <span className={'pill '+(m.direction==='Long'?'pb':'pr')} style={{fontSize:10,flexShrink:0}}>
+                  <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:m.direction==='Long'?'#00b5a3':'#ffb300',background:m.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${m.direction==='Long'?'#00b5a3':'#ffb300'}`,flexShrink:0}}>
                     {m.direction==='Long'?'▲':'▼'} {m.direction}
                   </span>
                   <span style={{fontWeight:700,fontSize:13,color:'var(--tx)'}}>{m.symbol}</span>

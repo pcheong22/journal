@@ -220,3 +220,64 @@ tr.clk { cursor: pointer; } tr.clk:hover td { background: var(--ac-bg); }
 canvas { width: 100% !important; }
 .anim { animation: fadeIn .2s ease; }
 @media (max-width: 900px) { .g2 { grid-template-columns: 1fr !important; } .main { padding: 12px; } }
+
+/* ── MOBILE RESPONSIVE (≤768px) ─────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Header — compact */
+  .page-hdr { padding: 8px 14px !important; flex-wrap: nowrap; }
+  .page-hdr span[style*="font-mono"] { font-size: 9px !important; }
+
+  /* Hide LIVE indicator and trade count on mobile */
+  .page-hdr .live-dot { display: none; }
+
+  /* Account strip — horizontal scroll */
+  .acc-strip-inner { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .acc-strip-inner::-webkit-scrollbar { display: none; }
+
+  /* Nav tabs — horizontal scroll, no wrap */
+  nav > div { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0 14px !important; }
+  nav > div::-webkit-scrollbar { display: none; }
+  .nt { flex-shrink: 0 !important; white-space: nowrap; padding: 0 14px !important; font-size: 10px !important; }
+
+  /* Upload bar */
+  .dz { min-width: 0 !important; }
+
+  /* Main padding */
+  main { padding: 10px 12px !important; }
+
+  /* KPI grid — 2 per row */
+  .kpi-grid-overview { grid-template-columns: 1fr 1fr !important; }
+
+  /* 3-col chart row → 1 col on mobile */
+  .g3 { grid-template-columns: 1fr !important; }
+
+  /* 2-col chart rows → 1 col on mobile */
+  .g2 { grid-template-columns: 1fr !important; }
+
+  /* Trade log table → card layout */
+  .trade-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .trade-tbl-wrap table { min-width: 600px; }
+
+  /* Card padding tighter */
+  .card { padding: 10px 12px !important; }
+  .ct { font-size: 9px !important; }
+
+  /* Session cards — 1 col */
+  .sc-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Modal full screen on mobile */
+  .mo > div { width: 100% !important; max-width: 100% !important; border-radius: 16px 16px 0 0 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; max-height: 90vh !important; overflow-y: auto !important; }
+  .mo { align-items: flex-end !important; }
+
+  /* Settings panel full screen */
+  .settings-panel { width: 100% !important; max-height: 85vh !important; border-radius: 16px 16px 0 0 !important; position: fixed !important; bottom: 0 !important; }
+
+  /* Date range bar — scroll */
+  .date-range-bar { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 6px 14px !important; gap: 4px !important; }
+  .date-range-bar::-webkit-scrollbar { display: none; }
+  .preset-btn { flex-shrink: 0 !important; }
+
+  /* Hide date range text on mobile */
+  .date-range-bar .date-range-text { display: none; }
+}

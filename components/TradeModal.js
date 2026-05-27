@@ -190,7 +190,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
             <div>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
-                <span className={`pill ${trade.direction==='Long'?'pb':'pr'}`} style={{fontSize:11,padding:'3px 8px'}}>
+                <span style={{fontSize:11,padding:'3px 8px',fontWeight:700,borderRadius:4,color:trade.direction==='Long'?'#00b5a3':'#ffb300',background:trade.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${trade.direction==='Long'?'#00b5a3':'#ffb300'}`}}>
                   {trade.direction==='Long'?'▲':'▼'} {trade.direction}
                 </span>
                 <span style={{fontWeight:700,fontSize:16}}>{trade.symbol}</span>
