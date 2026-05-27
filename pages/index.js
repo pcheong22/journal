@@ -630,14 +630,15 @@ export default function Dashboard() {
               </div>
             )}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} />
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
-              <ChartComp type="monthly"  data={stats.monthly}  privacy={privacy} />
-              <ChartComp type="duration" data={stats.duration} privacy={privacy} />
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
+            {/* Row 1: Monthly P&L — full width spotlight */}
+            <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
+            {/* Row 2: Three equal supporting charts */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
+              <ChartComp type="duration"     data={stats.duration} privacy={privacy} />
               <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
               <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
             </div>
+            {/* Row 3: Top 5 instruments */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
               <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
               <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
