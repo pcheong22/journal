@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [showCustom,     setShowCustom]     = useState(false)
   const [calYear,        setCalYear]        = useState(new Date().getUTCFullYear())
   const [calMonth,       setCalMonth]       = useState(new Date().getUTCMonth())
+  const [calPickerOpen,  setCalPickerOpen]  = useState(false)
   const [filtered,       setFiltered]       = useState([])
   const [page,           setPage]           = useState(0)
   const [sortKey,        setSortKey]        = useState('entry_time')
@@ -118,9 +119,16 @@ export default function Dashboard() {
   useEffect(() => {
     setStats(computeStats(visibleTrades))
     if (visibleTrades.length > 0) {
-      const latest = visibleTrades.reduce((a,b) => a.entry_time > b.entry_time ? a : b)
-      const d = new Date(latest.entry_time)
-      setCalYear(d.getUTCFullYear()); setCalMonth(d.getUTCMonth())
+      const tradesWithDates = visibleTrades.filter(t => t.entry_time || t.exit_time)
+      if (tradesWithDates.length > 0) {
+        const latest = tradesWithDates.reduce((a,b) => {
+          const at = a.entry_time || a.exit_time || ''
+          const bt = b.entry_time || b.exit_time || ''
+          return at > bt ? a : b
+        })
+        const d = new Date(latest.entry_time || latest.exit_time)
+        if (!isNaN(d)) { setCalYear(d.getUTCFullYear()); setCalMonth(d.getUTCMonth()) }
+      }
     }
   }, [allTrades, selAccounts])
 
@@ -758,7 +766,7 @@ export default function Dashboard() {
                           <td className="mu">{dur}</td>
                           <td className="sym-c">{t.symbol}</td>
                           <td>{acc&&<span style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 6px',borderRadius:4,background:acc.color+'15',border:`1px solid ${acc.color}30`,fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600}}><span style={{width:5,height:5,borderRadius:'50%',background:acc.color}} />{acc.label||acc.id}</span>}</td>
-                          <td><span className={`pill ${t.direction==='Long'?'pb':'pr'}`}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
+                          <td><span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:t.direction==='Long'?'#00b5a3':'#ffb300',background:t.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${t.direction==='Long'?'#00b5a3':'#ffb300'}`}}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
                           <td>{t.entry_price?.toLocaleString()||'—'}</td>
                           <td>{t.exit_price?.toLocaleString()||'—'}</td>
                           <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? '$'+Math.round(t.notional_usd).toLocaleString() : '—'}</td>
@@ -1504,7 +1512,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
               <div key={m.id} className="card" style={{padding:0,overflow:'hidden'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExpanded?'var(--sf2)':'transparent'}}
                   onClick={()=>setExpandedId(isExpanded?null:m.id)}>
-                  <span className={'pill '+(m.direction==='Long'?'pb':'pr')} style={{fontSize:10,flexShrink:0}}>
+                  <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:m.direction==='Long'?'#00b5a3':'#ffb300',background:m.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${m.direction==='Long'?'#00b5a3':'#ffb300'}`,flexShrink:0}}>
                     {m.direction==='Long'?'▲':'▼'} {m.direction}
                   </span>
                   <span style={{fontWeight:700,fontSize:13,color:'var(--tx)'}}>{m.symbol}</span>
