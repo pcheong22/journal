@@ -520,8 +520,8 @@ export default function Dashboard() {
                 return s + n * 2 // fallback if no prices
               }, 0)
               const fmtVol = v => {
-                if (v >= 1e9) return (v/1e9).toFixed(3) + ' billion'
-                if (v >= 1e6) return (v/1e6).toFixed(3) + ' million'
+                if (v >= 1e9) return (v/1e9).toFixed(2) + ' billion'
+                if (v >= 1e6) return (v/1e6).toFixed(2) + ' million'
                 return '$' + Math.round(v).toLocaleString()
               }
               return (
@@ -561,6 +561,13 @@ export default function Dashboard() {
                     <div className="kl">TOTAL VOLUME</div>
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
                     <div className="ks">Entry + exit notional</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kl">CALMAR RATIO</div>
+                    <div className={`kv ${ov.calmar == null ? 'neu' : ov.calmar >= 3 ? 'pos' : ov.calmar >= 1 ? 'wa' : 'neg'}`}>
+                      {ov.calmar != null ? ov.calmar.toFixed(2)+'×' : '—'}
+                    </div>
+                    <div className="ks">{ov.calmar != null ? `DD $${Math.round(ov.max_drawdown).toLocaleString()}` : 'Min 20 trades'}</div>
                   </div>
                 </div>
               )
