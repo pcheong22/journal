@@ -39,11 +39,13 @@ const BROKER_LABELS  = {
   IBKR:        id => `IBKR ${id}`,
   Extended:    id => `Extended 0x9507...6466`,
   Hyperliquid: id => `Hyperliquid ${id.slice(0,6)}....${id.slice(-4)}`,
+  Bybit:       id => id.includes('SPOT') ? 'Bybit Spot' : `Bybit ${id}`,
 }
 const BROKER_DEFAULT_COLORS = {
   IBKR:        '#D92027',
   Extended:    '#23DCA1',
   Hyperliquid: '#97FCE4',
+  Bybit:       '#F7A600',
 }
 
 // Per-account colour overrides based on currency
