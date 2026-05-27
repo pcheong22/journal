@@ -562,13 +562,7 @@ export default function Dashboard() {
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
                     <div className="ks">Entry + exit notional</div>
                   </div>
-                  <div className="kpi">
-                    <div className="kl">CALMAR RATIO</div>
-                    <div className={`kv ${ov.calmar == null ? 'neu' : ov.calmar >= 3 ? 'pos' : ov.calmar >= 1 ? 'wa' : 'neg'}`}>
-                      {ov.calmar != null ? ov.calmar.toFixed(2)+'×' : '—'}
-                    </div>
-                    <div className="ks">{ov.calmar != null ? `DD $${Math.round(ov.max_drawdown).toLocaleString()}` : 'Min 20 trades'}</div>
-                  </div>
+                  <CalmarCard calmar={ov.calmar} maxDrawdown={ov.max_drawdown} />
                 </div>
               )
             })()}
@@ -816,6 +810,45 @@ export default function Dashboard() {
         />
       )}
     </>
+  )
+}
+
+function CalmarCard({ calmar, maxDrawdown }) {
+  const [show, setShow] = useState(false)
+  const c = calmar == null ? 'neu' : calmar >= 3 ? 'pos' : calmar >= 1 ? 'wa' : 'neg'
+  return (
+    <div className="kpi" style={{position:'relative'}}>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <div className="kl">CALMAR RATIO</div>
+        <span
+          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
+          onClick={()=>setShow(s=>!s)}
+          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
+      </div>
+      <div className={`kv ${c}`}>{calmar != null ? calmar.toFixed(2)+'×' : '—'}</div>
+      <div className="ks">{calmar != null ? `DD $${Math.round(maxDrawdown).toLocaleString()}` : 'Min 20 trades'}</div>
+      {show && (
+        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:272,pointerEvents:'none'}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>CALMAR RATIO</div>
+          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
+            Annualised P&L divided by maximum drawdown. Measures how much return you generate per dollar of peak-to-trough loss — the higher the better.
+          </div>
+          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (P&L × 365 / days) ÷ Max Drawdown</div>
+          <div style={{display:'grid',gap:5}}>
+            {[
+              ['Below 1×', 'Return is less than your worst drawdown. Risk is not being rewarded.', 'var(--ls)'],
+              ['1× – 3×',  'Moderate edge. You are earning more than you draw down, but there is room to tighten risk.', 'var(--wa)'],
+              ['Above 3×', 'Exceptional. Annual return significantly exceeds max drawdown — the hallmark of disciplined risk management.', 'var(--wn)'],
+            ].map(([range, desc, col]) => (
+              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:60}}>{range}</span>
+                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
