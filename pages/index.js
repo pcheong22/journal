@@ -541,11 +541,7 @@ export default function Dashboard() {
                     <div className="kv neu">{ov.total_trades.toLocaleString()}</div>
                     <div className="ks">All instruments</div>
                   </div>
-                  <div className="kpi">
-                    <div className="kl">RISK/REWARD</div>
-                    <div className="kv wa">{ov.avg_loss?Math.abs(ov.avg_win/ov.avg_loss).toFixed(2)+'×':'—'}</div>
-                    <div className="ks">W {fA(ov.avg_win)} · L {fA(ov.avg_loss)}</div>
-                  </div>
+                  <RiskRewardCard rr={ov.avg_loss ? Math.abs(ov.avg_win/ov.avg_loss) : null} avgWin={ov.avg_win} avgLoss={ov.avg_loss} />
                   <ExpectancyCard expVal={expVal} expC={expC} />
                   <CalmarCard calmar={ov.calmar} maxDrawdown={ov.max_drawdown} />
                   <div className="kpi">
@@ -810,6 +806,50 @@ export default function Dashboard() {
         />
       )}
     </>
+  )
+}
+
+function RiskRewardCard({ rr, avgWin, avgLoss }) {
+  const [show, setShow] = useState(false)
+  const fA = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
+  const c  = rr == null ? 'neu' : rr >= 2 ? 'pos' : rr >= 1 ? 'wa' : rr >= 0.5 ? 'wa' : 'neg'
+  return (
+    <div className="kpi" style={{position:'relative'}}>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <div className="kl">RISK/REWARD</div>
+        <span
+          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
+          onClick={()=>setShow(s=>!s)}
+          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
+      </div>
+      <div className={`kv ${c}`}>{rr != null ? rr.toFixed(2)+'×' : '—'}</div>
+      <div className="ks">{avgLoss ? `W ${fA(avgWin)} · L ${fA(avgLoss)}` : '—'}</div>
+      {show && (
+        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>RISK / REWARD</div>
+          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
+            Average winning trade divided by average losing trade. Measures how much you make on winners relative to what you lose on losers.
+          </div>
+          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: Avg Win ÷ Avg Loss</div>
+          <div style={{display:'grid',gap:5,marginBottom:10}}>
+            {[
+              ['Below 0.5×', 'Poor. Losses are more than double your wins — requires a very high win rate to be profitable.', 'var(--ls)'],
+              ['0.5× – 1.0×', 'Marginal. Can still be profitable with a sufficiently high win rate, but edge is thin.', 'var(--wa)'],
+              ['1.0× – 2.0×', 'Good. Winners exceed losers — a sustainable foundation for a trading system.', 'var(--wn)'],
+              ['Above 2.0×',  'Strong. Each win more than doubles each loss — high-quality edge.', 'var(--wn)'],
+            ].map(([range, desc, col]) => (
+              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:70}}>{range}</span>
+                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{padding:'8px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:10,color:'var(--ac2)',lineHeight:1.6}}>
+            <span style={{fontWeight:700}}>⚠ Do not read in isolation.</span> A 0.7× R/R with a 72% win rate is highly profitable. A 2.0× R/R with a 30% win rate may not be. Always consider R/R alongside win rate and expectancy together.
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
