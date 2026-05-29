@@ -867,7 +867,7 @@ function RiskRewardCard({ rr, avgWin, avgLoss }) {
           style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
       </div>
       <div className="kv acc">{rr != null ? rr.toFixed(2)+'×' : '—'}</div>
-      <div className="ks">{avgLoss ? `W ${fA(avgWin)} · L ${fA(avgLoss)}` : '—'}</div>
+      <div className="ks">{avgLoss ? `AvgW ${fA(avgWin)} · AvgL ${fA(avgLoss)}` : '—'}</div>
       {show && (
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
           <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>WIN/LOSS RATIO</div>
@@ -949,14 +949,14 @@ function ExpectancyCard({ expVal, expC }) {
           style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
       </div>
       <div className={`kv ${expC}`}>{expVal}</div>
-      <div className="ks">W×AvgW / L×AvgL</div>
+      <div className="ks">%W×AvgW / %L×AvgL</div>
       {show && (
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
           <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>EXPECTANCY</div>
           <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
             For every $1 lost on losing trades, how many dollars do you make on winners. A measure of your edge quality, independent of win rate.
           </div>
-          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (Wins × Avg Win) ÷ (Losses × Avg Loss)</div>
+          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (%W × AvgW) ÷ (%L × AvgL)</div>
           <div style={{display:'grid',gap:5}}>
             {[
               ['Below 1.0×', 'Negative expectancy — losing more on losers than winning on winners.', 'var(--ls)'],
