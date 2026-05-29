@@ -559,8 +559,8 @@ function DashboardInner() {
                 return s + n * 2 // fallback if no prices
               }, 0)
               const fmtVol = v => {
-                if (v >= 1e9) return (v/1e9).toFixed(2) + ' billion'
-                if (v >= 1e6) return (v/1e6).toFixed(2) + ' million'
+                if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
+                if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' million'
                 return '$' + Math.round(v).toLocaleString()
               }
               return (
