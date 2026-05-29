@@ -1869,3 +1869,4 @@ ${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Fo
     </div>
   )
 }
+
