@@ -222,96 +222,113 @@ function DistChart({ trades, privacy }) {
     </div>
   )
 
-  const wins   = trades.filter(t => t.pnl > 0)
-  const losses = trades.filter(t => t.pnl < 0)
+  const wins    = trades.filter(t => t.pnl > 0)
+  const losses  = trades.filter(t => t.pnl < 0)
   const avgWin  = wins.length   ? wins.reduce((s,t)   => s+t.pnl, 0) / wins.length   : 0
   const avgLoss = losses.length ? losses.reduce((s,t) => s+t.pnl, 0) / losses.length : 0
 
-  // Build symmetric buckets around 0
-  const allPnl   = trades.map(t => t.pnl)
-  const maxAbs   = Math.max(...allPnl.map(Math.abs))
-  const step = maxAbs > 50000 ? 20000 : maxAbs > 20000 ? 10000 : maxAbs > 5000 ? 2000 : maxAbs > 1000 ? 500 : 200
-  const numBuckets = 6
+  // Adaptive bucket boundaries based on 10th–90th percentile of each side
+  const sortedWins   = wins.map(t=>t.pnl).sort((a,b)=>a-b)
+  const sortedLosses = losses.map(t=>t.pnl).sort((a,b)=>b-a) // most negative first
+  const pct = (arr, p) => arr[Math.floor(arr.length * p)] || 0
+  const p90Win  = pct(sortedWins,   0.9)
+  const p90Loss = Math.abs(pct(sortedLosses, 0.9))
 
-  const buckets = []
-  // Loss buckets: from most negative to just below 0
-  for (let i = numBuckets; i >= 1; i--) {
-    const lo = -i * step
-    const hi = -(i-1) * step
-    const count = trades.filter(t => t.pnl >= lo && t.pnl < hi).length
-    const midVal = (lo + hi) / 2
-    const label = Math.abs(midVal) >= 1000 ? Math.round(midVal/1000)+'k' : Math.round(midVal)
-    buckets.push({ lo, hi, count, isLoss:true, midVal, label })
+  // Round step to a clean number
+  const cleanStep = v => {
+    const mag = Math.pow(10, Math.floor(Math.log10(v||1)))
+    const n   = v / mag
+    return (n < 2 ? 1 : n < 5 ? 2 : 5) * mag
   }
-  // Win buckets: from just above 0 to most positive
-  for (let i = 1; i <= numBuckets; i++) {
-    const lo = (i-1) * step
-    const hi = i * step
-    const count = trades.filter(t => t.pnl >= lo && t.pnl < hi).length
-    const midVal = (lo + hi) / 2
-    const label = Math.abs(midVal) >= 1000 ? '+'+Math.round(midVal/1000)+'k' : '+'+Math.round(midVal)
-    buckets.push({ lo, hi, count, isLoss:false, midVal, label })
+  const winStep  = cleanStep(p90Win  / 4) || 1000
+  const lossStep = cleanStep(p90Loss / 4) || 1000
+  const step     = Math.max(winStep, lossStep) // keep symmetric
+
+  const NBUCKETS = 5
+  const buckets  = []
+
+  // Outer loss
+  buckets.push({ count: trades.filter(t=>t.pnl < -NBUCKETS*step).length, isLoss:true,
+    label:`<${-NBUCKETS*step>=−1000?Math.round(-NBUCKETS*step/1000)+'k':-NBUCKETS*step}` })
+  // Loss buckets (most neg → just below 0)
+  for (let i = NBUCKETS; i >= 1; i--) {
+    const lo = -i*step, hi = -(i-1)*step
+    const mid = (lo+hi)/2
+    const fmt = v => Math.abs(v)>=1000 ? Math.round(v/1000)+'k' : Math.round(v)
+    buckets.push({ count: trades.filter(t=>t.pnl>=lo && t.pnl<hi).length,
+      isLoss:true, midVal:mid, label:fmt(mid) })
   }
-  // Outer extreme buckets
-  const outerLossCount = trades.filter(t => t.pnl < -numBuckets*step).length
-  const outerWinCount  = trades.filter(t => t.pnl >= numBuckets*step).length
-  buckets.unshift({ count:outerLossCount, isLoss:true,  midVal:-(numBuckets+0.5)*step, label:`<-${numBuckets*step/1000}k` })
-  buckets.push({    count:outerWinCount,  isLoss:false, midVal:(numBuckets+0.5)*step,  label:`>${numBuckets*step/1000}k` })
-
-  const maxCount = Math.max(...buckets.map(b => b.count), 1)
-  const domain   = (numBuckets + 1) * step
-  const W=460, H=220, padX=14, padTop=26, padBot=42
-  const plotW = W - padX*2
-  const bw    = plotW / buckets.length
-  const xPos  = v => padX + ((v + domain) / (domain*2)) * plotW
-  const barH  = (c) => (c / maxCount) * (H - padTop - padBot)
-
-  const fmtAvg = v => {
-    const abs = Math.abs(v)
-    return (v >= 0 ? '+' : '-') + '$' + (abs >= 1000 ? (abs/1000).toFixed(1)+'k' : Math.round(abs))
+  // Win buckets (0 → most pos)
+  for (let i = 1; i <= NBUCKETS; i++) {
+    const lo = (i-1)*step, hi = i*step
+    const mid = (lo+hi)/2
+    const fmt = v => Math.abs(v)>=1000 ? '+'+Math.round(v/1000)+'k' : '+'+Math.round(v)
+    buckets.push({ count: trades.filter(t=>t.pnl>=lo && t.pnl<hi).length,
+      isLoss:false, midVal:mid, label:fmt(mid) })
   }
+  // Outer win
+  buckets.push({ count: trades.filter(t=>t.pnl >= NBUCKETS*step).length, isLoss:false,
+    label:`>${NBUCKETS*step>=1000?Math.round(NBUCKETS*step/1000)+'k':NBUCKETS*step}` })
 
-  const avgWinX  = Math.min(Math.max(xPos(avgWin),  padX + 60), W - padX - 2)
-  const avgLossX = Math.min(Math.max(xPos(avgLoss), padX + 2),  W - padX - 60)
+  const maxCount = Math.max(...buckets.map(b=>b.count), 1)
+  const domain   = (NBUCKETS+1) * step
+  const W=460, H=260, padX=14, padTop=28, padBot=44
+  const plotW    = W - padX*2
+  const bw       = plotW / buckets.length
+  const xPos     = v => padX + ((v+domain)/(domain*2)) * plotW
+  const barH     = c => (c/maxCount) * (H-padTop-padBot)
+  const fmtAvg   = v => { const a=Math.abs(v); return (v>=0?'+':'-')+'$'+(a>=1000?(a/1000).toFixed(1)+'k':Math.round(a)) }
+
+  const avgWinX  = Math.min(Math.max(xPos(avgWin),  padX+50), W-padX-2)
+  const avgLossX = Math.min(Math.max(xPos(avgLoss), padX+2),  W-padX-52)
 
   return (
-    <div className="card" style={{height:300,boxSizing:'border-box'}}>
+    <div className="card" style={{height:300,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
       <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',marginTop:4}}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',flex:1}}>
         {/* Zero line */}
         <line x1={W/2} y1={padTop} x2={W/2} y2={H-padBot} stroke="#4a5a6a" strokeWidth={1} opacity={0.5} />
 
         {/* Bars */}
         {buckets.map((b,i) => {
           const h = barH(b.count)
-          const x = padX + i * bw
+          const x = padX + i*bw
           return (
             <g key={i}>
-              <rect x={x+1.5} y={H-padBot-h} width={bw-3} height={Math.max(h,1)} fill={b.isLoss?'#ff5258':'#00c87a'} opacity={0.6} rx={2} />
-              {b.count > 0 && <text x={x+bw/2} y={H-padBot-h-4} textAnchor="middle" fontSize={8} fill="#8899aa" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
-              <text x={x+bw/2} y={H-padBot+13} textAnchor="middle" fontSize={7.5} fill="#4a5a6a" fontFamily="var(--font-mono)">{b.label}</text>
+              <rect x={x+1.5} y={H-padBot-h} width={bw-3} height={Math.max(h,b.count?1.5:0)}
+                fill={b.isLoss?'#ff5258':'#00c87a'} opacity={0.6} rx={2} />
+              {b.count > 0 && <text x={x+bw/2} y={H-padBot-h-4} textAnchor="middle"
+                fontSize={8} fill="#8899aa" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
+              <text x={x+bw/2} y={H-padBot+13} textAnchor="middle"
+                fontSize={7.5} fill="#4a5a6a" fontFamily="var(--font-mono)">{b.label}</text>
             </g>
           )
         })}
 
-        {/* Avg Loss dashed line */}
+        {/* Avg Loss dashed marker */}
         {!privacy && avgLoss !== 0 && <>
-          <line x1={avgLossX} y1={padTop+2} x2={avgLossX} y2={H-padBot} stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgLossX-41} y={padTop-2} width={40} height={14} fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
-          <text x={avgLossX-21} y={padTop+8} textAnchor="middle" fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AL {fmtAvg(avgLoss)}</text>
+          <line x1={avgLossX} y1={padTop+2} x2={avgLossX} y2={H-padBot}
+            stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
+          <rect x={avgLossX-41} y={padTop-2} width={40} height={14}
+            fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
+          <text x={avgLossX-21} y={padTop+8} textAnchor="middle"
+            fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AL {fmtAvg(avgLoss)}</text>
         </>}
 
-        {/* Avg Win dashed line */}
+        {/* Avg Win dashed marker */}
         {!privacy && avgWin !== 0 && <>
-          <line x1={avgWinX} y1={padTop+2} x2={avgWinX} y2={H-padBot} stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgWinX+1} y={padTop-2} width={40} height={14} fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
-          <text x={avgWinX+21} y={padTop+8} textAnchor="middle" fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AW {fmtAvg(avgWin)}</text>
+          <line x1={avgWinX} y1={padTop+2} x2={avgWinX} y2={H-padBot}
+            stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
+          <rect x={avgWinX+1} y={padTop-2} width={40} height={14}
+            fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
+          <text x={avgWinX+21} y={padTop+8} textAnchor="middle"
+            fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AW {fmtAvg(avgWin)}</text>
         </>}
 
         {/* Axis labels */}
-        <text x={padX} y={H-padBot+26} fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">← LOSSES</text>
-        <text x={W/2} y={H-padBot+26} textAnchor="middle" fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">$0</text>
-        <text x={W-padX} y={H-padBot+26} textAnchor="end" fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">WINS →</text>
+        <text x={padX}   y={H-padBot+26} fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">← LOSSES</text>
+        <text x={W/2}    y={H-padBot+26} textAnchor="middle" fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">$0</text>
+        <text x={W-padX} y={H-padBot+26} textAnchor="end"    fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">WINS →</text>
       </svg>
     </div>
   )
@@ -569,3 +586,4 @@ export function PnlPathChart({ sim, trade }) {
     </div>
   )
 }
+
