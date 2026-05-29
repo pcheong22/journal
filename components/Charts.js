@@ -309,9 +309,9 @@ function DistChart({ trades, privacy }) {
         {!privacy && avgLoss !== 0 && <>
           <line x1={avgLossX} y1={padTop+2} x2={avgLossX} y2={H-padBot}
             stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgLossX-46} y={padTop-2} width={44} height={14}
+          <rect x={avgLossX-56} y={padTop-2} width={54} height={14}
             fill="#1a2330" stroke="#6b7280" strokeWidth={0.5} rx={2} opacity={0.95} />
-          <text x={avgLossX-24} y={padTop+8} textAnchor="middle"
+          <text x={avgLossX-29} y={padTop+8} textAnchor="middle"
             fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">AvgL {fmtAvg(avgLoss)}</text>
         </>}
 
@@ -319,9 +319,9 @@ function DistChart({ trades, privacy }) {
         {!privacy && avgWin !== 0 && <>
           <line x1={avgWinX} y1={padTop+2} x2={avgWinX} y2={H-padBot}
             stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgWinX+1} y={padTop-2} width={44} height={14}
+          <rect x={avgWinX+1} y={padTop-2} width={54} height={14}
             fill="#1a2330" stroke="#6b7280" strokeWidth={0.5} rx={2} opacity={0.95} />
-          <text x={avgWinX+23} y={padTop+8} textAnchor="middle"
+          <text x={avgWinX+28} y={padTop+8} textAnchor="middle"
             fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">AvgW {fmtAvg(avgWin)}</text>
         </>}
 
