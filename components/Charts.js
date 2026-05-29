@@ -230,23 +230,33 @@ function DistChart({ trades, privacy }) {
   // Build symmetric buckets around 0
   const allPnl   = trades.map(t => t.pnl)
   const maxAbs   = Math.max(...allPnl.map(Math.abs))
-  // Dynamic bucket boundaries based on data spread
   const step = maxAbs > 50000 ? 20000 : maxAbs > 20000 ? 10000 : maxAbs > 5000 ? 2000 : maxAbs > 1000 ? 500 : 200
   const numBuckets = 6
+
   const buckets = []
-  for (let i = -numBuckets; i <= numBuckets; i++) {
-    if (i === 0) continue
-    const lo = i < 0 ? (i) * step : (i-1) * step
-    const hi = i < 0 ? (i+1) * step : i * step
-    const isLoss = i < 0
-    const count  = trades.filter(t => isLoss ? (t.pnl <= lo && t.pnl > hi) : (t.pnl >= lo && t.pnl < hi)).length
+  // Loss buckets: from most negative to just below 0
+  for (let i = numBuckets; i >= 1; i--) {
+    const lo = -i * step
+    const hi = -(i-1) * step
+    const count = trades.filter(t => t.pnl >= lo && t.pnl < hi).length
     const midVal = (lo + hi) / 2
-    const label  = Math.abs(midVal) >= 1000 ? (midVal>0?'+':'')+Math.round(midVal/1000)+'k' : (midVal>0?'+':'')+midVal
-    buckets.push({ lo, hi, count, isLoss, midVal, label })
+    const label = Math.abs(midVal) >= 1000 ? Math.round(midVal/1000)+'k' : Math.round(midVal)
+    buckets.push({ lo, hi, count, isLoss:true, midVal, label })
   }
-  // Add outer bucket for extreme values
-  buckets.unshift({ lo:-Infinity, hi:-numBuckets*step, count:trades.filter(t=>t.pnl<=-numBuckets*step).length, isLoss:true, midVal:-(numBuckets+0.5)*step, label:`<-${numBuckets*step/1000}k` })
-  buckets.push({ lo:numBuckets*step, hi:Infinity, count:trades.filter(t=>t.pnl>=numBuckets*step).length, isLoss:false, midVal:(numBuckets+0.5)*step, label:`>${numBuckets*step/1000}k` })
+  // Win buckets: from just above 0 to most positive
+  for (let i = 1; i <= numBuckets; i++) {
+    const lo = (i-1) * step
+    const hi = i * step
+    const count = trades.filter(t => t.pnl >= lo && t.pnl < hi).length
+    const midVal = (lo + hi) / 2
+    const label = Math.abs(midVal) >= 1000 ? '+'+Math.round(midVal/1000)+'k' : '+'+Math.round(midVal)
+    buckets.push({ lo, hi, count, isLoss:false, midVal, label })
+  }
+  // Outer extreme buckets
+  const outerLossCount = trades.filter(t => t.pnl < -numBuckets*step).length
+  const outerWinCount  = trades.filter(t => t.pnl >= numBuckets*step).length
+  buckets.unshift({ count:outerLossCount, isLoss:true,  midVal:-(numBuckets+0.5)*step, label:`<-${numBuckets*step/1000}k` })
+  buckets.push({    count:outerWinCount,  isLoss:false, midVal:(numBuckets+0.5)*step,  label:`>${numBuckets*step/1000}k` })
 
   const maxCount = Math.max(...buckets.map(b => b.count), 1)
   const domain   = (numBuckets + 1) * step
