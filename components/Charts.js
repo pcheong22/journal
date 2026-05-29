@@ -298,9 +298,9 @@ function DistChart({ trades, privacy }) {
               <rect x={x+1.5} y={H-padBot-h} width={bw-3} height={Math.max(h,b.count?1.5:0)}
                 fill={b.isLoss?'#ff5258':'#00c87a'} opacity={0.6} rx={2} />
               {b.count > 0 && <text x={x+bw/2} y={H-padBot-h-4} textAnchor="middle"
-                fontSize={8} fill="#8899aa" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
+                fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
               <text x={x+bw/2} y={H-padBot+13} textAnchor="middle"
-                fontSize={7.5} fill="#4a5a6a" fontFamily="var(--font-mono)">{b.label}</text>
+                fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">{b.label}</text>
             </g>
           )
         })}
@@ -309,26 +309,26 @@ function DistChart({ trades, privacy }) {
         {!privacy && avgLoss !== 0 && <>
           <line x1={avgLossX} y1={padTop+2} x2={avgLossX} y2={H-padBot}
             stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgLossX-41} y={padTop-2} width={40} height={14}
-            fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
-          <text x={avgLossX-21} y={padTop+8} textAnchor="middle"
-            fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AL {fmtAvg(avgLoss)}</text>
+          <rect x={avgLossX-46} y={padTop-2} width={44} height={14}
+            fill="#1a2330" stroke="#6b7280" strokeWidth={0.5} rx={2} opacity={0.95} />
+          <text x={avgLossX-24} y={padTop+8} textAnchor="middle"
+            fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">AvgL {fmtAvg(avgLoss)}</text>
         </>}
 
         {/* Avg Win dashed marker */}
         {!privacy && avgWin !== 0 && <>
           <line x1={avgWinX} y1={padTop+2} x2={avgWinX} y2={H-padBot}
             stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgWinX+1} y={padTop-2} width={40} height={14}
-            fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
-          <text x={avgWinX+21} y={padTop+8} textAnchor="middle"
-            fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AW {fmtAvg(avgWin)}</text>
+          <rect x={avgWinX+1} y={padTop-2} width={44} height={14}
+            fill="#1a2330" stroke="#6b7280" strokeWidth={0.5} rx={2} opacity={0.95} />
+          <text x={avgWinX+23} y={padTop+8} textAnchor="middle"
+            fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">AvgW {fmtAvg(avgWin)}</text>
         </>}
 
         {/* Axis labels */}
-        <text x={padX}   y={H-padBot+26} fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">← LOSSES</text>
-        <text x={W/2}    y={H-padBot+26} textAnchor="middle" fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">$0</text>
-        <text x={W-padX} y={H-padBot+26} textAnchor="end"    fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">WINS →</text>
+        <text x={padX}   y={H-padBot+26} fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">← LOSSES</text>
+        <text x={W/2}    y={H-padBot+26} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">$0</text>
+        <text x={W-padX} y={H-padBot+26} textAnchor="end"    fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">WINS →</text>
       </svg>
     </div>
   )
