@@ -20,10 +20,20 @@ export default function ChartComp(props) {
   const { type, privacy=false } = props
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} />
   if (type==='monthly') {
-    // Format '2026-02' → 'Feb 26'
-    const fmtMonth = s => { const [y,m] = s.split('-'); return new Date(+y,+m-1,1).toLocaleDateString('en-GB',{month:'short',year:'2-digit'}) }
-    const labels = props.data.map(d => fmtMonth(d.month_str))
-    return <BarChart title="MONTHLY P&L" labels={labels} rawLabels={props.data.map(d=>d.month_str)} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
+    const allMonths = props.data.map(d => d.month_str)
+    const years = [...new Set(allMonths.map(s => s.split('-')[0]))]
+    const multiYear = years.length > 1
+    const fmtMonth = (s, i) => {
+      const [y, m] = s.split('-')
+      const mon = new Date(+y, +m-1, 1).toLocaleDateString('en-GB', { month:'short' })
+      if (!multiYear) return mon
+      // Multi-year: show year only at January boundary
+      const prev = i > 0 ? allMonths[i-1].split('-') : null
+      const yearChange = prev && prev[0] !== y
+      return (+m === 1 && yearChange) ? `${mon} '${y.slice(2)}` : mon
+    }
+    const labels = props.data.map((d, i) => fmtMonth(d.month_str, i))
+    return <BarChart title="MONTHLY P&L" labels={labels} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
