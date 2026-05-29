@@ -860,7 +860,7 @@ function RiskRewardCard({ rr, avgWin, avgLoss }) {
   return (
     <div className="kpi" style={{position:'relative'}}>
       <div style={{display:'flex',alignItems:'center',gap:4}}>
-        <div className="kl">RISK/REWARD</div>
+        <div className="kl">WIN/LOSS RATIO</div>
         <span
           onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
           onClick={()=>setShow(s=>!s)}
@@ -870,7 +870,7 @@ function RiskRewardCard({ rr, avgWin, avgLoss }) {
       <div className="ks">{avgLoss ? `W ${fA(avgWin)} · L ${fA(avgLoss)}` : '—'}</div>
       {show && (
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>RISK / REWARD</div>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>WIN/LOSS RATIO</div>
           <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
             Average winning trade divided by average losing trade. Measures how much you make on winners relative to what you lose on losers.
           </div>
