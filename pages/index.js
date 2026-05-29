@@ -910,7 +910,7 @@ function CalmarCard({ calmar, maxDrawdown }) {
           style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
       </div>
       <div className={`kv ${c}`}>{calmar != null ? calmar.toFixed(2)+'×' : '—'}</div>
-      <div className="ks">{calmar != null ? `DD $${Math.round(maxDrawdown).toLocaleString()}` : 'Min 20 trades'}</div>
+      <div className="ks">{calmar != null ? `Max DD $${Math.round(maxDrawdown).toLocaleString()}` : 'Min 20 trades'}</div>
       {show && (
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:272,pointerEvents:'none'}}>
           <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>CALMAR RATIO</div>
@@ -1869,4 +1869,3 @@ ${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Fo
     </div>
   )
 }
-
