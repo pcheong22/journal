@@ -43,10 +43,15 @@ export default function ChartComp(props) {
 function EquityChart({ data, privacy }) {
   const canvasRef = useRef(); const yAxisRef = useRef(); const chartRef = useRef()
 
-  const fmtDate = d => {
-    // d is 'YYYY-MM-DD' — show 'Jan 26', 'Feb 26' etc
-    const dt = new Date(d + 'T00:00:00Z')
-    return dt.toLocaleDateString('en-GB', { month:'short', year:'2-digit', timeZone:'UTC' })
+  const fmtDate = (d, i, all) => {
+    const dt   = new Date(d + 'T00:00:00Z')
+    const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
+    const year = dt.toLocaleDateString('en-GB', { year:'2-digit', timeZone:'UTC' })
+    // Show year only at Jan or first data point of a new year
+    const isJan     = dt.getUTCMonth() === 0
+    const prevDate  = i > 0 ? new Date(all[i-1].date + 'T00:00:00Z') : null
+    const yearChange = prevDate && prevDate.getUTCFullYear() !== dt.getUTCFullYear()
+    return (isJan && (i === 0 || yearChange)) ? `${mon} '${year}` : mon
   }
 
   useEffect(() => {
@@ -58,7 +63,7 @@ function EquityChart({ data, privacy }) {
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
     // Format x-axis labels to 'Jan 26' style
-    const xLabels = data.map(d => fmtDate(d.date))
+    const xLabels = data.map((d, i) => fmtDate(d.date, i, data))
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
