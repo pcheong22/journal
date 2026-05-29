@@ -56,12 +56,14 @@ function EquityChart({ data, privacy }) {
   const fmtDate = (d, i, all) => {
     const dt   = new Date(d + 'T00:00:00Z')
     const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
-    const year = dt.toLocaleDateString('en-GB', { year:'2-digit', timeZone:'UTC' })
-    // Show year only at Jan or first data point of a new year
-    const isJan     = dt.getUTCMonth() === 0
-    const prevDate  = i > 0 ? new Date(all[i-1].date + 'T00:00:00Z') : null
-    const yearChange = prevDate && prevDate.getUTCFullYear() !== dt.getUTCFullYear()
-    return (isJan && (i === 0 || yearChange)) ? `${mon} '${year}` : mon
+    if (!all) return mon
+    const years = [...new Set(all.map(x => x.date.slice(0,4)))]
+    if (years.length <= 1) return mon
+    // Multi-year: show year only when year changes at January
+    const prev = i > 0 ? new Date(all[i-1].date + 'T00:00:00Z') : null
+    const yearChange = prev && prev.getUTCFullYear() !== dt.getUTCFullYear()
+    const yr = dt.toLocaleDateString('en-GB', { year:'2-digit', timeZone:'UTC' })
+    return (dt.getUTCMonth() === 0 && yearChange) ? `${mon} '${yr}` : mon
   }
 
   useEffect(() => {
@@ -213,51 +215,98 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
-  const canvasRef = useRef()
-  const chartRef  = useRef(null)
-  const privacyRef = useRef(privacy)
+  if (!trades?.length) return (
+    <div className="card" style={{height:300,boxSizing:'border-box'}}>
+      <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
+      <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
+    </div>
+  )
 
-  const wins   = trades?.filter(t=>t.pnl>0) || []
-  const losses = trades?.filter(t=>t.pnl<0) || []
-  const bkt    = (arr,mn,mx) => arr.filter(t=>Math.abs(t.pnl)>=mn&&(mx===Infinity||Math.abs(t.pnl)<mx)).length
-  const wv     = [bkt(wins,20000,Infinity),bkt(wins,10000,20000),bkt(wins,5000,10000),bkt(wins,1000,5000),bkt(wins,0,1000)]
-  const lv     = [bkt(losses,20000,Infinity),bkt(losses,10000,20000),bkt(losses,5000,10000),bkt(losses,1000,5000),bkt(losses,0,1000)].map(v=>-v)
+  const wins   = trades.filter(t => t.pnl > 0)
+  const losses = trades.filter(t => t.pnl < 0)
+  const avgWin  = wins.length   ? wins.reduce((s,t)   => s+t.pnl, 0) / wins.length   : 0
+  const avgLoss = losses.length ? losses.reduce((s,t) => s+t.pnl, 0) / losses.length : 0
 
-  const getLabels = (p) => p ? ['***','***','***','***','***'] : ['>$20k','$10-20k','$5-10k','$1-5k','<$1k']
+  // Build symmetric buckets around 0
+  const allPnl   = trades.map(t => t.pnl)
+  const maxAbs   = Math.max(...allPnl.map(Math.abs))
+  // Dynamic bucket boundaries based on data spread
+  const step = maxAbs > 50000 ? 20000 : maxAbs > 20000 ? 10000 : maxAbs > 5000 ? 2000 : maxAbs > 1000 ? 500 : 200
+  const numBuckets = 6
+  const buckets = []
+  for (let i = -numBuckets; i <= numBuckets; i++) {
+    if (i === 0) continue
+    const lo = i < 0 ? (i) * step : (i-1) * step
+    const hi = i < 0 ? (i+1) * step : i * step
+    const isLoss = i < 0
+    const count  = trades.filter(t => isLoss ? (t.pnl <= lo && t.pnl > hi) : (t.pnl >= lo && t.pnl < hi)).length
+    const midVal = (lo + hi) / 2
+    const label  = Math.abs(midVal) >= 1000 ? (midVal>0?'+':'')+Math.round(midVal/1000)+'k' : (midVal>0?'+':'')+midVal
+    buckets.push({ lo, hi, count, isLoss, midVal, label })
+  }
+  // Add outer bucket for extreme values
+  buckets.unshift({ lo:-Infinity, hi:-numBuckets*step, count:trades.filter(t=>t.pnl<=-numBuckets*step).length, isLoss:true, midVal:-(numBuckets+0.5)*step, label:`<-${numBuckets*step/1000}k` })
+  buckets.push({ lo:numBuckets*step, hi:Infinity, count:trades.filter(t=>t.pnl>=numBuckets*step).length, isLoss:false, midVal:(numBuckets+0.5)*step, label:`>${numBuckets*step/1000}k` })
 
-  // Create chart on mount
-  useEffect(() => {
-    if (!canvasRef.current) return
-    chartRef.current = new Chart(canvasRef.current, {
-      type:'bar',
-      data:{ labels: getLabels(privacyRef.current), datasets:[
-        { label:'Wins',   data:wv, backgroundColor:'rgba(5,150,105,.12)', borderColor:'#059669', borderWidth:1.5, borderRadius:3 },
-        { label:'Losses', data:lv, backgroundColor:'rgba(220,38,38,.12)', borderColor:'#dc2626', borderWidth:1.5, borderRadius:3 },
-      ]},
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:NOLEG, tooltip:TIP },
-        scales:{ y:{grid:GRID,ticks:TICK}, x:{grid:{display:false},ticks:TICK} },
-      },
-    })
-    return () => { chartRef.current?.destroy(); chartRef.current = null }
-  }, [])
+  const maxCount = Math.max(...buckets.map(b => b.count), 1)
+  const domain   = (numBuckets + 1) * step
+  const W=460, H=220, padX=14, padTop=26, padBot=42
+  const plotW = W - padX*2
+  const bw    = plotW / buckets.length
+  const xPos  = v => padX + ((v + domain) / (domain*2)) * plotW
+  const barH  = (c) => (c / maxCount) * (H - padTop - padBot)
 
-  // Update labels when privacy changes using ref to avoid stale closure
-  useEffect(() => {
-    privacyRef.current = privacy
-    if (!chartRef.current) return
-    chartRef.current.data.labels = getLabels(privacy)
-    chartRef.current.update()
-  }, [privacy])
+  const fmtAvg = v => {
+    const abs = Math.abs(v)
+    return (v >= 0 ? '+' : '-') + '$' + (abs >= 1000 ? (abs/1000).toFixed(1)+'k' : Math.round(abs))
+  }
+
+  const avgWinX  = Math.min(Math.max(xPos(avgWin),  padX + 60), W - padX - 2)
+  const avgLossX = Math.min(Math.max(xPos(avgLoss), padX + 2),  W - padX - 60)
 
   return (
     <div className="card" style={{height:300,boxSizing:'border-box'}}>
-      <div className="ct"><span className="ind" />WIN / LOSS DISTRIBUTION</div>
-      <div style={{position:'relative',height:252}}><canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',marginTop:4}}>
+        {/* Zero line */}
+        <line x1={W/2} y1={padTop} x2={W/2} y2={H-padBot} stroke="#4a5a6a" strokeWidth={1} opacity={0.5} />
+
+        {/* Bars */}
+        {buckets.map((b,i) => {
+          const h = barH(b.count)
+          const x = padX + i * bw
+          return (
+            <g key={i}>
+              <rect x={x+1.5} y={H-padBot-h} width={bw-3} height={Math.max(h,1)} fill={b.isLoss?'#ff5258':'#00c87a'} opacity={0.6} rx={2} />
+              {b.count > 0 && <text x={x+bw/2} y={H-padBot-h-4} textAnchor="middle" fontSize={8} fill="#8899aa" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
+              <text x={x+bw/2} y={H-padBot+13} textAnchor="middle" fontSize={7.5} fill="#4a5a6a" fontFamily="var(--font-mono)">{b.label}</text>
+            </g>
+          )
+        })}
+
+        {/* Avg Loss dashed line */}
+        {!privacy && avgLoss !== 0 && <>
+          <line x1={avgLossX} y1={padTop+2} x2={avgLossX} y2={H-padBot} stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
+          <rect x={avgLossX-41} y={padTop-2} width={40} height={14} fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
+          <text x={avgLossX-21} y={padTop+8} textAnchor="middle" fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AL {fmtAvg(avgLoss)}</text>
+        </>}
+
+        {/* Avg Win dashed line */}
+        {!privacy && avgWin !== 0 && <>
+          <line x1={avgWinX} y1={padTop+2} x2={avgWinX} y2={H-padBot} stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
+          <rect x={avgWinX+1} y={padTop-2} width={40} height={14} fill="#1a2330" stroke="#8899aa" strokeWidth={0.5} rx={2} opacity={0.92} />
+          <text x={avgWinX+21} y={padTop+8} textAnchor="middle" fontSize={7.5} fill="#e8edf3" fontFamily="var(--font-mono)">AW {fmtAvg(avgWin)}</text>
+        </>}
+
+        {/* Axis labels */}
+        <text x={padX} y={H-padBot+26} fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">← LOSSES</text>
+        <text x={W/2} y={H-padBot+26} textAnchor="middle" fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">$0</text>
+        <text x={W-padX} y={H-padBot+26} textAnchor="end" fontSize={8} fill="#4a5a6a" fontFamily="var(--font-mono)">WINS →</text>
+      </svg>
     </div>
   )
 }
+
 
 // ── TOP 5 INSTRUMENTS BY P&L ─────────────────────────────────────────────────
 export function Top5PnlChart({ trades, mode, privacy }) {
