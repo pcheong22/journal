@@ -249,7 +249,7 @@ function DistChart({ trades, privacy }) {
 
   // Outer loss
   buckets.push({ count: trades.filter(t=>t.pnl < -NBUCKETS*step).length, isLoss:true,
-    label:`<${-NBUCKETS*step>=−1000?Math.round(-NBUCKETS*step/1000)+'k':-NBUCKETS*step}` })
+    label:`<${-NBUCKETS*step >= -1000 ? Math.round(-NBUCKETS*step/1000)+'k' : -NBUCKETS*step}` })
   // Loss buckets (most neg → just below 0)
   for (let i = NBUCKETS; i >= 1; i--) {
     const lo = -i*step, hi = -(i-1)*step
@@ -586,4 +586,3 @@ export function PnlPathChart({ sim, trade }) {
     </div>
   )
 }
-
