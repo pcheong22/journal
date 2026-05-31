@@ -21,19 +21,19 @@ export default async function handler(req, res) {
       let q = supabase
         .from('trades')
         .select('*')
+        .order('exit_time',  { ascending: false, nullsFirst: false })
         .order('entry_time', { ascending: false, nullsFirst: false })
-        .order('exit_time',  { ascending: false })
         .range(from_idx, from_idx + BATCH - 1)
 
       if (accountIds?.length) q = q.in('account_id', accountIds)
 
       if (from && to) {
-        q = q.or(`entry_time.gte.${from},entry_time.is.null`)
-             .or(`entry_time.lte.${to},entry_time.is.null`)
+        q = q.gte('exit_time', from)
+             .lte('exit_time', to + 'T23:59:59Z')
       } else if (from) {
-        q = q.or(`entry_time.gte.${from},entry_time.is.null`)
+        q = q.gte('exit_time', from)
       } else if (to) {
-        q = q.or(`entry_time.lte.${to},entry_time.is.null`)
+        q = q.lte('exit_time', to + 'T23:59:59Z')
       }
 
       const { data: batch, error } = await q
