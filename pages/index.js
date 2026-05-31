@@ -500,10 +500,10 @@ function DashboardInner() {
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])} />
         {upload.status !== 'idle' && (
           <div className={`pill ${upload.status==='success'?'pb':upload.status==='error'?'pr':'pa'}`}
-            style={{fontSize:11,padding:'6px 12px',borderRadius:6,display:'flex',alignItems:'center',gap:6}}>
-            {upload.status==='uploading' && <span style={{width:10,height:10,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} />}
-            {upload.message}
-            {upload.broker && <span style={{opacity:.7}}>· {upload.broker}</span>}
+            style={{fontSize:11,padding:'6px 12px',borderRadius:6,display:'flex',alignItems:'center',gap:6,maxWidth:'100%',wordBreak:'break-word',flexWrap:'wrap'}}>
+            {upload.status==='uploading' && <span style={{width:10,height:10,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite',flexShrink:0}} />}
+            <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{upload.message}</span>
+            {upload.broker && <span style={{opacity:.7,flexShrink:0}}>· {upload.broker}</span>}
           </div>
         )}
       </div>
