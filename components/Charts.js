@@ -53,6 +53,7 @@ export default function ChartComp(props) {
 function EquityChart({ data, privacy }) {
   const canvasRef = useRef(); const yAxisRef = useRef(); const chartRef = useRef()
 
+  // Format x-axis tick label (short, for axis display)
   const fmtDate = (d, i, all) => {
     const dt   = new Date(d + 'T00:00:00Z')
     const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
@@ -66,6 +67,19 @@ function EquityChart({ data, privacy }) {
     return (dt.getUTCMonth() === 0 && yearChange) ? `${mon} '${yr}` : mon
   }
 
+  // Format tooltip date: "May 20" or "May 20 '24" for multi-year datasets
+  const fmtTooltipDate = (d, all) => {
+    const dt  = new Date(d + 'T00:00:00Z')
+    const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+    const day = dt.getUTCDate()
+    const years = all ? [...new Set(all.map(x => x.date.slice(0,4)))] : []
+    if (years.length > 1) {
+      const yr = String(dt.getUTCFullYear()).slice(2)
+      return `${mon} ${day} '${yr}`
+    }
+    return `${mon} ${day}`
+  }
+
   useEffect(() => {
     if (!canvasRef.current || !data?.length) return
     chartRef.current?.destroy()
@@ -74,44 +88,117 @@ function EquityChart({ data, privacy }) {
     const grad = ctx.createLinearGradient(0, 0, 0, 360)
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
-    // Format x-axis labels to 'Jan 26' style
+    // X-axis tick labels (short month, year on boundary)
     const xLabels = data.map((d, i) => fmtDate(d.date, i, data))
+    // Keep full date strings for tooltip lookup
+    const rawDates = data.map(d => d.date)
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data: { labels: xLabels, datasets: [{ data:vals, borderColor:'#66ffa5', borderWidth:2, fill:true, backgroundColor:grad, pointRadius:0, pointHoverRadius:5, pointHoverBackgroundColor:'#66ffa5', pointHoverBorderColor:'#fff', pointHoverBorderWidth:1.5, tension:.3 }] },
+      data: {
+        labels: xLabels,
+        datasets: [{
+          data: vals,
+          borderColor: '#66ffa5',
+          borderWidth: 2,
+          fill: true,
+          backgroundColor: grad,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#66ffa5',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 1.5,
+          tension: 0  // straight lines between real data points — no simulation
+        }]
+      },
       options: {
-        responsive:true, maintainAspectRatio:false, animation:{duration:300},
-        interaction:{ mode:'index', intersect:false },
+        responsive: true, maintainAspectRatio: false, animation: { duration:300 },
+        interaction: { mode:'index', intersect:false },
         plugins: {
-          legend:NOLEG,
-          tooltip:{ ...TIP, callbacks:{
-            title: items => items[0]?.label || '',
-            label: c => privacy ? '  ***' : '  ' + fU(Math.round(c.parsed.y))
-          }}
+          legend: NOLEG,
+          tooltip: {
+            ...TIP,
+            callbacks: {
+              title: items => {
+                const idx = items[0]?.dataIndex
+                return (idx != null && rawDates[idx])
+                  ? fmtTooltipDate(rawDates[idx], data)
+                  : items[0]?.label || ''
+              },
+              label: c => privacy ? '  ***' : '  ' + fU(Math.round(c.parsed.y))
+            }
+          }
         },
         scales: {
-          y: { min:Math.min(0,...vals)*1.12, max:Math.max(...vals)*1.12, grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k'} },
-          x: { grid:{display:false}, ticks:{...TICK, maxTicksLimit:10, maxRotation:0} },
+          y: {
+            min: Math.min(0, ...vals) * 1.12,
+            max: Math.max(...vals) * 1.12,
+            grid: GRID,
+            ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
+          },
+          x: { grid: { display:false }, ticks: { ...TICK, maxTicksLimit:10, maxRotation:0 } },
         }
       }
     })
 
-    // Y-axis drag — detect mousedown in left 52px of canvas so hover/tooltip still works everywhere
+    // Y-axis drag — left 52px of canvas, supports both mouse (desktop) and touch (mobile)
     let drag=false, dY=0, dMin=0, dMax=0
     const cvs = canvasRef.current
-    const onDown = e => {
+
+    const startDrag = (clientX, clientY) => {
       const rect = cvs.getBoundingClientRect()
-      if ((e.clientX - rect.left) > 52) return
-      drag=true; dY=e.clientY; dMin=chartRef.current.scales.y.min; dMax=chartRef.current.scales.y.max
-      document.body.style.cursor='ns-resize'; e.preventDefault()
+      if ((clientX - rect.left) > 52) return false
+      drag=true; dY=clientY
+      dMin=chartRef.current.scales.y.min; dMax=chartRef.current.scales.y.max
+      return true
     }
-    const onMove = e => { if(!drag)return; const f=1+(dY-e.clientY)*.004, mid=(dMin+dMax)/2, hr=(dMax-dMin)/2*f; chartRef.current.options.scales.y.min=mid-hr; chartRef.current.options.scales.y.max=mid+hr; chartRef.current.update('none') }
-    const onUp   = () => { if(drag){drag=false; document.body.style.cursor=''} }
-    cvs?.addEventListener('mousedown', onDown)
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup',   onUp)
-    return () => { chartRef.current?.destroy(); cvs?.removeEventListener('mousedown',onDown); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp) }
+    const moveDrag = clientY => {
+      if (!drag) return
+      const f = 1 + (dY - clientY) * .004
+      const mid = (dMin + dMax) / 2
+      const hr  = (dMax - dMin) / 2 * f
+      chartRef.current.options.scales.y.min = mid - hr
+      chartRef.current.options.scales.y.max = mid + hr
+      chartRef.current.update('none')
+    }
+    const endDrag = () => { drag=false; document.body.style.cursor='' }
+
+    // Mouse events
+    const onDown = e => {
+      if (startDrag(e.clientX, e.clientY)) {
+        document.body.style.cursor = 'ns-resize'
+        e.preventDefault()
+      }
+    }
+    const onMove = e => moveDrag(e.clientY)
+    const onUp   = () => endDrag()
+
+    // Touch events (passive:false so we can preventDefault to block scroll while dragging)
+    const onTouchStart = e => {
+      const t = e.touches[0]
+      if (startDrag(t.clientX, t.clientY)) e.preventDefault()
+    }
+    const onTouchMove = e => {
+      if (drag) { moveDrag(e.touches[0].clientY); e.preventDefault() }
+    }
+    const onTouchEnd = () => endDrag()
+
+    cvs?.addEventListener('mousedown',  onDown)
+    cvs?.addEventListener('touchstart', onTouchStart, { passive:false })
+    document.addEventListener('mousemove',  onMove)
+    document.addEventListener('mouseup',    onUp)
+    document.addEventListener('touchmove',  onTouchMove, { passive:false })
+    document.addEventListener('touchend',   onTouchEnd)
+
+    return () => {
+      chartRef.current?.destroy()
+      cvs?.removeEventListener('mousedown',  onDown)
+      cvs?.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('mousemove',  onMove)
+      document.removeEventListener('mouseup',    onUp)
+      document.removeEventListener('touchmove',  onTouchMove)
+      document.removeEventListener('touchend',   onTouchEnd)
+    }
   }, [data, privacy])
 
   return (
