@@ -101,6 +101,7 @@ function DashboardInner() {
     defaultTab:        'overview',
     acctStatsDefault:  false,
     tradeLogPageSize:  50,
+    hlTimezone:        'Asia/Dubai',
   })
 
   const saveSetting = (key, value) => {
@@ -241,6 +242,7 @@ function DashboardInner() {
     const form = new FormData()
     form.append('file', file)
     if (accountIdOverride) form.append('accountId', accountIdOverride)
+    form.append('timezone', settings.hlTimezone || 'Asia/Dubai')
     try {
       const res  = await fetch('/api/upload', { method:'POST', body:form })
       const data = await res.json()
@@ -1079,6 +1081,21 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           </Row>
           <Row label="Account breakdown" sub="Expanded or collapsed on load">
             <Toggle value={settings.acctStatsDefault} onChange={v=>{saveSetting('acctStatsDefault',v); setAcctStatsOpen(v)}} />
+          </Row>
+          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>HYPERLIQUID</div>
+          <Row label="CSV timezone" sub="Your local timezone when exporting from Hyperliquid">
+            <Select value={settings.hlTimezone || 'Asia/Dubai'}
+              options={[
+                {value:'Asia/Dubai',       label:'Abu Dhabi / Dubai (UTC+4)'},
+                {value:'Australia/Sydney', label:'Sydney (AEST/AEDT)'},
+                {value:'UTC',              label:'UTC'},
+                {value:'Europe/London',    label:'London (GMT/BST)'},
+                {value:'America/New_York', label:'New York (ET)'},
+                {value:'Asia/Singapore',   label:'Singapore (UTC+8)'},
+                {value:'Asia/Tokyo',       label:'Tokyo (UTC+9)'},
+                {value:'Europe/Paris',     label:'Paris / CET'},
+              ]}
+              onChange={v => saveSetting('hlTimezone', v)} />
           </Row>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
           <Row label="Rows per page" sub="Number of trades shown per page">
