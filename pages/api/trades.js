@@ -1,4 +1,3 @@
-// pages/api/trades.js
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -27,14 +26,12 @@ export default async function handler(req, res) {
 
       if (accountIds?.length) q = q.in('account_id', accountIds)
 
-      if (from && to) {
-        q = q.gte('exit_time', from)
-             .lte('exit_time', to + 'T23:59:59Z')
-      } else if (from) {
-        q = q.gte('exit_time', from)
-      } else if (to) {
-        q = q.lte('exit_time', to + 'T23:59:59Z')
-      }
+      // index.js already sends fully-formed ISO strings:
+      //   from = "2026-01-01T00:00:00Z"
+      //   to   = "2026-06-01T23:59:59Z"
+      // Use them directly — do NOT append time suffixes here.
+      if (from) q = q.gte('exit_time', from)
+      if (to)   q = q.lte('exit_time', to)
 
       const { data: batch, error } = await q
       if (error) throw new Error(error.message)

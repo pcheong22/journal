@@ -18,7 +18,7 @@ const privTick = (privacy) => (v) => privacy ? '***' : '$'+(v/1000).toFixed(0)+'
 
 export default function ChartComp(props) {
   const { type, privacy=false } = props
-  if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} />
+  if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} dateFrom={props.dateFrom} />
   if (type==='monthly') {
     const allMonths = props.data.map(d => d.month_str)
     const years = [...new Set(allMonths.map(s => s.split('-')[0]))]
@@ -50,78 +50,285 @@ export default function ChartComp(props) {
 }
 
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
-function EquityChart({ data, privacy }) {
-  const canvasRef = useRef(); const yAxisRef = useRef(); const chartRef = useRef()
-
-  const fmtDate = (d, i, all) => {
-    const dt   = new Date(d + 'T00:00:00Z')
-    const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
-    if (!all) return mon
-    const years = [...new Set(all.map(x => x.date.slice(0,4)))]
-    if (years.length <= 1) return mon
-    // Multi-year: show year only when year changes at January
-    const prev = i > 0 ? new Date(all[i-1].date + 'T00:00:00Z') : null
-    const yearChange = prev && prev.getUTCFullYear() !== dt.getUTCFullYear()
-    const yr = dt.toLocaleDateString('en-GB', { year:'2-digit', timeZone:'UTC' })
-    return (dt.getUTCMonth() === 0 && yearChange) ? `${mon} '${yr}` : mon
-  }
+function EquityChart({ data, privacy, dateFrom }) {
+  const canvasRef = useRef(); const chartRef = useRef()
+  const wrapRef   = useRef() // outer div for measuring width for year SVG
+  const [yearBands, setYearBands] = useState([]) // [{year, leftPct, widthPct}]
 
   useEffect(() => {
     if (!canvasRef.current || !data?.length) return
     chartRef.current?.destroy()
     const ctx  = canvasRef.current.getContext('2d')
-    const vals = data.map(d => d.cum_pnl)
     const grad = ctx.createLinearGradient(0, 0, 0, 360)
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
-    // Format x-axis labels to 'Jan 26' style
-    const xLabels = data.map((d, i) => fmtDate(d.date, i, data))
+    const firstTradeDate = new Date(data[0].date + 'T00:00:00Z')
+    const lastDate       = new Date(data[data.length - 1].date + 'T00:00:00Z')
+
+    // spineStart: start of the first trade's month (never before first trade for "All")
+    // For ranged presets (YTD, 1Y etc) use dateFrom but only if it's reasonably close
+    // (within ~2 years) to avoid a huge flat line for "All" which uses 2000-01-01.
+    let spineStart = new Date(Date.UTC(firstTradeDate.getUTCFullYear(), firstTradeDate.getUTCMonth(), 1))
+    if (dateFrom) {
+      const rs = new Date(dateFrom + 'T00:00:00Z')
+      const daysDiff = (firstTradeDate - rs) / (1000 * 60 * 60 * 24)
+      // Only use rangeStart padding if it's within 400 days of first trade
+      if (daysDiff > 0 && daysDiff <= 400) spineStart = rs
+    }
+
+    // Build date → cum_pnl lookup
+    const pnlByDate = {}
+    data.forEach(d => { pnlByDate[d.date] = d.cum_pnl })
+
+    // Detect multi-year span
+    const spanYears = []
+    for (let y = spineStart.getUTCFullYear(); y <= lastDate.getUTCFullYear(); y++) spanYears.push(y)
+    const multiYear = spanYears.length > 1
+
+    // Cap month label density for mobile
+    const screenW  = typeof window !== 'undefined' ? window.innerWidth : 800
+    const maxMonthLabels = screenW < 500 ? 6 : screenW < 900 ? 8 : 13
+
+    // Count total months in spine to decide stride
+    const totalMonths = (lastDate.getUTCFullYear() - spineStart.getUTCFullYear()) * 12
+      + (lastDate.getUTCMonth() - spineStart.getUTCMonth()) + 1
+    const stride = Math.max(1, Math.ceil(totalMonths / maxMonthLabels))
+
+    // Build daily spine: each calendar day = one equally-spaced index
+    const spineLabels = []
+    const spineVals   = []
+    const spineDates  = []
+    const seenMonths  = new Set()
+    // Track year boundaries for the SVG year row: {year, startIdx, endIdx}
+    const yearBoundaries = {}
+
+    let lastPnl = 0
+    let idx = 0
+    for (let d = new Date(spineStart); d <= lastDate; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10)
+      if (pnlByDate[iso] !== undefined) lastPnl = pnlByDate[iso]
+      spineVals.push(lastPnl)
+      spineDates.push(iso)
+
+      const yr = d.getUTCFullYear()
+      if (!yearBoundaries[yr]) yearBoundaries[yr] = { start: idx, end: idx }
+      yearBoundaries[yr].end = idx
+
+      // Month label on last day of each month, subsampled by stride
+      const nextDay = new Date(d); nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+      const isLastOfMonth = nextDay.getUTCMonth() !== d.getUTCMonth()
+      const moKey = `${yr}-${d.getUTCMonth()}`
+      if (isLastOfMonth && !seenMonths.has(moKey)) {
+        seenMonths.add(moKey)
+        const moNum = seenMonths.size - 1 // 0-based month count
+        if (moNum % stride === 0) {
+          const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+          spineLabels.push(mon) // just month name, no year — year row handled by SVG
+        } else {
+          spineLabels.push('')
+        }
+      } else {
+        spineLabels.push('')
+      }
+      idx++
+    }
+
+    const totalDays = spineVals.length
+
+    // Compute year band positions as percentages of total days (for SVG overlay)
+    if (multiYear) {
+      const bands = Object.entries(yearBoundaries).map(([yr, { start, end }]) => ({
+        year: +yr,
+        leftPct:  (start / totalDays) * 100,
+        widthPct: ((end - start + 1) / totalDays) * 100,
+      }))
+      setYearBands(bands)
+    } else {
+      setYearBands([])
+    }
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data: { labels: xLabels, datasets: [{ data:vals, borderColor:'#66ffa5', borderWidth:2, fill:true, backgroundColor:grad, pointRadius:0, pointHoverRadius:5, pointHoverBackgroundColor:'#66ffa5', pointHoverBorderColor:'#fff', pointHoverBorderWidth:1.5, tension:.3 }] },
+      data: {
+        labels: spineLabels,
+        datasets: [{
+          data: spineVals,
+          borderColor: '#66ffa5',
+          borderWidth: 2,
+          fill: true,
+          backgroundColor: grad,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#66ffa5',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 1.5,
+          tension: 0,
+        }]
+      },
       options: {
-        responsive:true, maintainAspectRatio:false, animation:{duration:300},
-        interaction:{ mode:'index', intersect:false },
+        responsive: true, maintainAspectRatio: false, animation: { duration:300 },
+        interaction: { mode:'index', intersect:false },
+        layout: { padding: { bottom: multiYear ? 22 : 0 } },
         plugins: {
-          legend:NOLEG,
-          tooltip:{ ...TIP, callbacks:{
-            title: items => items[0]?.label || '',
-            label: c => privacy ? '  ***' : '  ' + fU(Math.round(c.parsed.y))
-          }}
+          legend: NOLEG,
+          tooltip: {
+            ...TIP,
+            callbacks: {
+              title: items => {
+                const i = items[0]?.dataIndex
+                const iso = spineDates[i]
+                if (!iso) return ''
+                const dt  = new Date(iso + 'T00:00:00Z')
+                return `${dt.getUTCDate()} ${dt.toLocaleDateString('en-US',{month:'short',timeZone:'UTC'})} ${dt.getUTCFullYear()}`
+              },
+              label: c => privacy ? '  ***' : '  ' + fU(Math.round(c.parsed.y))
+            }
+          }
         },
         scales: {
-          y: { min:Math.min(0,...vals)*1.12, max:Math.max(...vals)*1.12, grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k'} },
-          x: { grid:{display:false}, ticks:{...TICK, maxTicksLimit:10, maxRotation:0} },
+          y: {
+            min: Math.min(0, ...spineVals) * 1.12,
+            max: Math.max(...spineVals) * 1.12,
+            grid: GRID,
+            ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              ...TICK,
+              maxRotation: 0,
+              autoSkip: false,
+              callback: (val, i) => spineLabels[i] || null,
+            },
+          },
         }
       }
     })
 
-    // Y-axis drag — detect mousedown in left 52px of canvas so hover/tooltip still works everywhere
+    // Y-axis drag — left 52px of canvas, supports both mouse (desktop) and touch (mobile)
     let drag=false, dY=0, dMin=0, dMax=0
     const cvs = canvasRef.current
-    const onDown = e => {
+
+    const startDrag = (clientX, clientY) => {
       const rect = cvs.getBoundingClientRect()
-      if ((e.clientX - rect.left) > 52) return
-      drag=true; dY=e.clientY; dMin=chartRef.current.scales.y.min; dMax=chartRef.current.scales.y.max
-      document.body.style.cursor='ns-resize'; e.preventDefault()
+      if ((clientX - rect.left) > 52) return false
+      drag=true; dY=clientY
+      dMin=chartRef.current.scales.y.min; dMax=chartRef.current.scales.y.max
+      return true
     }
-    const onMove = e => { if(!drag)return; const f=1+(dY-e.clientY)*.004, mid=(dMin+dMax)/2, hr=(dMax-dMin)/2*f; chartRef.current.options.scales.y.min=mid-hr; chartRef.current.options.scales.y.max=mid+hr; chartRef.current.update('none') }
-    const onUp   = () => { if(drag){drag=false; document.body.style.cursor=''} }
-    cvs?.addEventListener('mousedown', onDown)
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup',   onUp)
-    return () => { chartRef.current?.destroy(); cvs?.removeEventListener('mousedown',onDown); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp) }
+    const moveDrag = clientY => {
+      if (!drag) return
+      const f = 1 + (dY - clientY) * .004
+      const mid = (dMin + dMax) / 2
+      const hr  = (dMax - dMin) / 2 * f
+      chartRef.current.options.scales.y.min = mid - hr
+      chartRef.current.options.scales.y.max = mid + hr
+      chartRef.current.update('none')
+    }
+    const endDrag = () => { drag=false; document.body.style.cursor='' }
+
+    // Mouse events
+    const onDown = e => {
+      if (startDrag(e.clientX, e.clientY)) {
+        document.body.style.cursor = 'ns-resize'
+        e.preventDefault()
+      }
+    }
+    const onMove = e => moveDrag(e.clientY)
+    const onUp   = () => endDrag()
+
+    // Touch events (passive:false so we can preventDefault to block scroll while dragging)
+    const onTouchStart = e => {
+      const t = e.touches[0]
+      if (startDrag(t.clientX, t.clientY)) e.preventDefault()
+    }
+    const onTouchMove = e => {
+      if (drag) { moveDrag(e.touches[0].clientY); e.preventDefault() }
+    }
+    const onTouchEnd = () => endDrag()
+
+    cvs?.addEventListener('mousedown',  onDown)
+    cvs?.addEventListener('touchstart', onTouchStart, { passive:false })
+    document.addEventListener('mousemove',  onMove)
+    document.addEventListener('mouseup',    onUp)
+    document.addEventListener('touchmove',  onTouchMove, { passive:false })
+    document.addEventListener('touchend',   onTouchEnd)
+
+    return () => {
+      chartRef.current?.destroy()
+      cvs?.removeEventListener('mousedown',  onDown)
+      cvs?.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('mousemove',  onMove)
+      document.removeEventListener('mouseup',    onUp)
+      document.removeEventListener('touchmove',  onTouchMove)
+      document.removeEventListener('touchend',   onTouchEnd)
+    }
   }, [data, privacy])
 
   return (
     <div className="card" style={{marginBottom:10}}>
       <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400,color:'var(--mu)'}}>Drag y-axis ⇅ to rescale</span></div>
-      <div style={{position:'relative',userSelect:'none'}}>
+      <div ref={wrapRef} style={{position:'relative',userSelect:'none'}}>
         <div style={{position:'relative',height:360,width:'100%'}}>
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',cursor:'crosshair'}} />
         </div>
+        {/* Year row: SVG strip below chart, aligned to chart's actual plot area */}
+        {yearBands.length > 0 && (
+          <YearRow yearBands={yearBands} chartRef={chartRef} canvasRef={canvasRef} />
+        )}
       </div>
+    </div>
+  )
+}
+
+// ── YEAR ROW (aligned to Chart.js chartArea) ────────────────────────────────
+function YearRow({ yearBands, chartRef, canvasRef }) {
+  const [bands, setBands] = useState([])
+
+  useEffect(() => {
+    // Read Chart.js chartArea after it renders to get exact pixel alignment
+    const compute = () => {
+      const chart  = chartRef.current
+      const canvas = canvasRef.current
+      if (!chart?.chartArea || !canvas) return
+      const { left, right } = chart.chartArea
+      const totalW = canvas.offsetWidth
+      const plotW  = right - left
+
+      setBands(yearBands.map(({ year, leftPct, widthPct }) => {
+        // Convert from % of total days → pixel position within plot area → % of canvas width
+        const pxLeft  = left + (leftPct / 100) * plotW
+        const pxWidth = (widthPct / 100) * plotW
+        return { year, pxLeft, pxWidth, totalW }
+      }))
+    }
+
+    // Chart may not have rendered yet — try immediately and after a short delay
+    compute()
+    const t = setTimeout(compute, 350)
+    return () => clearTimeout(t)
+  }, [yearBands])
+
+  if (!bands.length) return null
+
+  return (
+    <div style={{position:'relative', height:20, marginTop:2}}>
+      <svg width="100%" height="20" style={{display:'block', fontFamily:'var(--font-mono)', overflow:'visible'}}>
+        {bands.map(({ year, pxLeft, pxWidth, totalW }, i) => {
+          const x    = pxLeft
+          const midX = pxLeft + pxWidth / 2
+          return (
+            <g key={year}>
+              {i > 0 && (
+                <line x1={x} y1="0" x2={x} y2="14"
+                  stroke="#4a5a6a" strokeWidth={1} />
+              )}
+              <text x={midX} y="12" textAnchor="middle"
+                fontSize={10} fill="#6b7280">{year}</text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
