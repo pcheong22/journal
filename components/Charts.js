@@ -272,27 +272,63 @@ function EquityChart({ data, privacy, dateFrom }) {
         <div style={{position:'relative',height:360,width:'100%'}}>
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',cursor:'crosshair'}} />
         </div>
-        {/* Year row: rendered as SVG under the chart for multi-year ranges */}
+        {/* Year row: SVG strip below chart, aligned to chart's actual plot area */}
         {yearBands.length > 0 && (
-          <div style={{position:'relative',height:20,marginTop:2,overflow:'hidden'}}>
-            <svg width="100%" height="20" style={{display:'block',fontFamily:'var(--font-mono)'}}>
-              {yearBands.map(({ year, leftPct, widthPct }, i) => {
-                const x = leftPct + '%'
-                const w = widthPct + '%'
-                const midX = (leftPct + widthPct / 2) + '%'
-                return (
-                  <g key={year}>
-                    {/* Vertical separator line at start of each year except the first */}
-                    {i > 0 && <line x1={x} y1="0" x2={x} y2="14" stroke="#4a5a6a" strokeWidth={1} />}
-                    {/* Year label centred in the band */}
-                    <text x={midX} y="12" textAnchor="middle" fontSize={10} fill="#6b7280">{year}</text>
-                  </g>
-                )
-              })}
-            </svg>
-          </div>
+          <YearRow yearBands={yearBands} chartRef={chartRef} canvasRef={canvasRef} />
         )}
       </div>
+    </div>
+  )
+}
+
+// ── YEAR ROW (aligned to Chart.js chartArea) ────────────────────────────────
+function YearRow({ yearBands, chartRef, canvasRef }) {
+  const [bands, setBands] = useState([])
+
+  useEffect(() => {
+    // Read Chart.js chartArea after it renders to get exact pixel alignment
+    const compute = () => {
+      const chart  = chartRef.current
+      const canvas = canvasRef.current
+      if (!chart?.chartArea || !canvas) return
+      const { left, right } = chart.chartArea
+      const totalW = canvas.offsetWidth
+      const plotW  = right - left
+
+      setBands(yearBands.map(({ year, leftPct, widthPct }) => {
+        // Convert from % of total days → pixel position within plot area → % of canvas width
+        const pxLeft  = left + (leftPct / 100) * plotW
+        const pxWidth = (widthPct / 100) * plotW
+        return { year, pxLeft, pxWidth, totalW }
+      }))
+    }
+
+    // Chart may not have rendered yet — try immediately and after a short delay
+    compute()
+    const t = setTimeout(compute, 350)
+    return () => clearTimeout(t)
+  }, [yearBands])
+
+  if (!bands.length) return null
+
+  return (
+    <div style={{position:'relative', height:20, marginTop:2}}>
+      <svg width="100%" height="20" style={{display:'block', fontFamily:'var(--font-mono)', overflow:'visible'}}>
+        {bands.map(({ year, pxLeft, pxWidth, totalW }, i) => {
+          const x    = pxLeft
+          const midX = pxLeft + pxWidth / 2
+          return (
+            <g key={year}>
+              {i > 0 && (
+                <line x1={x} y1="0" x2={x} y2="14"
+                  stroke="#4a5a6a" strokeWidth={1} />
+              )}
+              <text x={midX} y="12" textAnchor="middle"
+                fontSize={10} fill="#6b7280">{year}</text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
