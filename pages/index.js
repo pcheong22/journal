@@ -634,7 +634,7 @@ function DashboardInner() {
                 )}
               </div>
             )}
-            <ChartComp type="equity" data={stats.cumulative} privacy={privacy} />
+            <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
             {/* Row 2: Three equal supporting charts */}
