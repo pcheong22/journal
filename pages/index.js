@@ -65,7 +65,7 @@ function DashboardInner() {
   const [loading,        setLoading]        = useState(true)
   const [upload,         setUpload]         = useState({ status:'idle', message:'', broker:'', accountId:'' })
   const [dragOver,       setDragOver]       = useState(false)
-  const [hlAccountModal, setHlAccountModal] = useState(null) // pending file awaiting account selection
+  const [hlAccountModal, setHlAccountModal] = useState(null)
   const [selected,       setSelected]       = useState(null)
   const [privacy,        setPrivacy]        = useState(false)
   const [darkMode,       setDarkMode]       = useState(true)
@@ -88,13 +88,12 @@ function DashboardInner() {
   const [search,         setSearch]         = useState('')
   const [timingTab,      setTimingTab]      = useState('sessions')
   const [editingAccount, setEditingAccount] = useState(null)
-  const [accountOrder,   setAccountOrder]   = useState([]) // drag-reordered account ids
+  const [accountOrder,   setAccountOrder]   = useState([])
   const [dragAccId,      setDragAccId]      = useState(null)
   const [showSettings,   setShowSettings]   = useState(false)
-  const [acctStatsOpen,  setAcctStatsOpen]  = useState(false) // collapsed by default
+  const [acctStatsOpen,  setAcctStatsOpen]  = useState(false)
   const [isClient,       setIsClient]       = useState(false)
 
-  // Settings persisted to localStorage
   const [settings, setSettings] = useState({
     defaultPrivacy:    false,
     defaultDark:       true,
@@ -117,7 +116,6 @@ function DashboardInner() {
 
   useEffect(() => {
     setIsClient(true)
-    // Load persisted settings
     try {
       const saved = localStorage.getItem('ti_settings')
       if (saved) {
@@ -156,7 +154,6 @@ function DashboardInner() {
   }, [allTrades, selAccounts])
 
   useEffect(() => {
-    // Enrich trades with computed price_pct for correct sorting
     const enriched = visibleTrades.map(t => {
       let price_pct = null
       if (t.entry_price && t.exit_price && t.entry_price > 0) {
@@ -175,7 +172,6 @@ function DashboardInner() {
     if (search) f = f.filter(t =>
       (t.symbol+t.direction+t.session+t.entry_time+(t.account_id||'')).toLowerCase().includes(search.toLowerCase())
     )
-    // Use price_pct when sorting by pct_gain
     const effectiveSortKey = sortKey === 'pct_gain' ? 'price_pct' : sortKey
     f.sort((a,b) => {
       const av = a[effectiveSortKey] ?? null
@@ -200,7 +196,6 @@ function DashboardInner() {
       if (data.accounts) {
         setAccounts(data.accounts)
         setAccountOrder(prev => {
-          // Preserve existing order, append any new accounts
           const existing = prev.filter(id => data.accounts.find(a => a.id === id))
           const newIds   = data.accounts.filter(a => !prev.includes(a.id)).map(a => a.id)
           return [...existing, ...newIds]
@@ -234,8 +229,6 @@ function DashboardInner() {
 
   const handleFile = async (file, accountIdOverride = null) => {
     if (!file) return
-
-    // Peek at file to detect Hyperliquid before uploading
     if (!accountIdOverride) {
       const text = await file.text()
       const firstLine = text.split('\n')[0] || ''
@@ -244,7 +237,6 @@ function DashboardInner() {
         return
       }
     }
-
     setUpload({ status:'uploading', message:`Parsing ${file.name}…`, broker:'', accountId:'' })
     const form = new FormData()
     form.append('file', file)
@@ -548,15 +540,13 @@ function DashboardInner() {
               const vol = visibleTrades.reduce((s, t) => {
                 const n = t.notional_usd
                 if (!n) return s
-                // notional_usd is already in USD (back-solved from P&L)
-                // entry notional = exit notional × price ratio (adjusted for direction)
                 if (t.entry_price && t.exit_price && t.exit_price > 0) {
                   const ratio = t.direction === 'Short'
                     ? t.exit_price / t.entry_price
                     : t.entry_price / t.exit_price
                   return s + n + (n * ratio)
                 }
-                return s + n * 2 // fallback if no prices
+                return s + n * 2
               }, 0)
               const fmtVol = v => {
                 if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
@@ -634,6 +624,7 @@ function DashboardInner() {
                 )}
               </div>
             )}
+            {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
@@ -982,6 +973,7 @@ function ExpectancyCard({ expVal, expC }) {
 const HL_ACCOUNTS = [
   { id:'0xffbB07326634300D7ef131E2B5826Dcb49c0C8E0', label:'Hyperliquid 0xffbB....C8E0' },
   { id:'0x2A8F7F1682B629b16f5309182DA8920dAF72D0F9', label:'Hyperliquid 0x2A8F....D0F9' },
+  { id:'0x950793403DFaA533c7ef84E81272bf94f5b46466', label:'Hyperliquid 0x9507....6466' },
 ]
 
 function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
@@ -1069,8 +1061,6 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
         </div>
         <div style={{padding:'0 24px 24px'}}>
-
-          {/* APPEARANCE */}
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
           <Row label="Dark mode" sub="Default theme on load">
             <Toggle value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />
@@ -1078,8 +1068,6 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           <Row label="Privacy mode" sub="Hide P&L values on load">
             <Toggle value={settings.defaultPrivacy} onChange={v=>{saveSetting('defaultPrivacy',v); setPrivacy(v)}} />
           </Row>
-
-          {/* DASHBOARD */}
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>DASHBOARD</div>
           <Row label="Default date range" sub="Range selected on load">
             <Select value={settings.defaultDatePreset} options={DATE_PRESETS} onChange={v=>saveSetting('defaultDatePreset',v)} />
@@ -1092,14 +1080,10 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           <Row label="Account breakdown" sub="Expanded or collapsed on load">
             <Toggle value={settings.acctStatsDefault} onChange={v=>{saveSetting('acctStatsDefault',v); setAcctStatsOpen(v)}} />
           </Row>
-
-          {/* TRADE LOG */}
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
           <Row label="Rows per page" sub="Number of trades shown per page">
             <Select value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
           </Row>
-
-          {/* RESET */}
           <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid var(--bd)'}}>
             <button className="btn" onClick={()=>{
               localStorage.removeItem('ti_settings')
@@ -1130,13 +1114,11 @@ function AccountRenameModal({ account, onSave, onClose }) {
       <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:360,boxShadow:'var(--sh-lg)',margin:'auto'}}>
         <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Edit Account</div>
         <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:16}}>{account.id} · {account.broker}</div>
-
         <div style={{marginBottom:14}}>
           <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>LABEL</div>
           <input className="inp" style={{width:'100%',padding:'8px 12px',fontSize:13}} value={label}
             onChange={e=>setLabel(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave(account.id,label,color)} autoFocus />
         </div>
-
         <div style={{marginBottom:18}}>
           <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>COLOUR</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:6,marginBottom:10}}>
@@ -1152,7 +1134,6 @@ function AccountRenameModal({ account, onSave, onClose }) {
             <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{color} · or pick custom</span>
           </div>
         </div>
-
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-p" onClick={()=>onSave(account.id,label,color)}>Save</button>
@@ -1178,7 +1159,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [loading,      setLoading]   = useState(true)
   const [showForm,     setShowForm]  = useState(false)
   const [editingId,    setEditingId] = useState(null)
-  const [tempId,       setTempId]    = useState(null) // temp UUID for pre-save image uploads
+  const [tempId,       setTempId]    = useState(null)
   const [expandedId,   setExpandedId] = useState(null)
   const [useDateRange, setUseDateRange] = useState(true)
   const [customFrom,   setCustomFrom] = useState(dateFrom)
@@ -1190,7 +1171,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const [aiReport,     setAiReport]   = useState(null)
   const [aiLoading,    setAiLoading]  = useState(false)
   const [aiError,      setAiError]    = useState(null)
-  const [entryAI,      setEntryAI]    = useState({}) // { [id]: { loading, result, error } } // persists across re-renders during form session
+  const [entryAI,      setEntryAI]    = useState({})
 
   const fmtU = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
   const genTempId = () => 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2)
@@ -1250,7 +1231,6 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
         if (editingId) {
           setMissed(prev => prev.map(m => m.id === editingId ? saved : m))
         } else {
-          // Always add to top of list regardless of date filter
           setMissed(prev => [saved, ...prev])
           setExpandedId(saved.id)
         }
@@ -1337,7 +1317,6 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
         ))}
       </div>
 
-      {/* ── AI ANALYSIS CARD ──────────────────────────────────────────── */}
       <div className="card" style={{marginBottom:14}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:16,flexWrap:'wrap'}}>
           <div style={{flex:1}}>
@@ -1509,7 +1488,6 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
               placeholder="What did you see? Why didn't you take it? What were you thinking? How did it play out? Lessons?"
               value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} />
           </div>
-          {/* Image uploader — available immediately using temp ID */}
           <div style={{marginBottom:14}}>
             <div className="notes-label">Screenshots (optional — attach before or after saving)</div>
             <ImageGallery entityType="missed_trade" entityId={editingId || tempId} isTempId={!editingId} externalImages={formImages} onImagesChange={setFormImages} />
@@ -1608,7 +1586,6 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
                       <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>SCREENSHOTS</div>
                       <ImageGallery entityType="missed_trade" entityId={String(m.id)} />
                     </div>
-                    {/* Per-entry AI analysis */}
                     <div style={{borderTop:'1px solid var(--bd)',paddingTop:14}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
                         <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>🧠 AI DECISION ANALYSIS</div>
