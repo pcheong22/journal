@@ -91,25 +91,44 @@ function EquityChart({ data, privacy }) {
     // Keep full date strings for tooltip lookup
     const rawDates = data.map(d => d.date)
 
-    // Build x-axis labels: show month label only on the FIRST data point of each month,
-    // blank for all subsequent points in the same month (prevents "May May May" repetition)
-    const seenMonths = new Set()
-    const xLabels = data.map((d, i) => {
-      const dt      = new Date(d.date + 'T00:00:00Z')
-      const yr      = dt.getUTCFullYear()
-      const mo      = dt.getUTCMonth()
-      const key     = `${yr}-${mo}`
-      if (seenMonths.has(key)) return ''
-      seenMonths.add(key)
-      const mon = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
-      // Add year suffix on year boundary (multi-year datasets)
-      const years = [...new Set(data.map(x => x.date.slice(0,4)))]
-      if (years.length > 1) {
-        const prev = i > 0 ? new Date(data[i-1].date + 'T00:00:00Z') : null
+    // How many month labels can fit without overlapping?
+    // Each label needs ~36px. Use canvas width to cap the count.
+    const canvasW    = canvasRef.current.getBoundingClientRect().width || 360
+    const maxLabels  = Math.max(3, Math.floor(canvasW / 42))
+
+    // Collect unique months in order
+    const months = [] // [{ key, firstIdx, label }]
+    const years  = [...new Set(data.map(x => x.date.slice(0, 4)))]
+    data.forEach((d, i) => {
+      const dt  = new Date(d.date + 'T00:00:00Z')
+      const yr  = dt.getUTCFullYear()
+      const mo  = dt.getUTCMonth()
+      const key = `${yr}-${mo}`
+      if (!months.find(m => m.key === key)) {
+        const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
+        const prev = months.length > 0 ? new Date(data[months[months.length-1].firstIdx].date + 'T00:00:00Z') : null
         const yearChange = prev && prev.getUTCFullYear() !== yr
-        if (mo === 0 && yearChange) return `${mon} '${String(yr).slice(2)}`
+        const label = (years.length > 1 && mo === 0 && yearChange)
+          ? `${mon} '${String(yr).slice(2)}`
+          : mon
+        months.push({ key, firstIdx: i, label })
       }
-      return mon
+    })
+
+    // Evenly subsample months if too many to fit
+    const stride = months.length <= maxLabels ? 1 : Math.ceil(months.length / maxLabels)
+    const visibleMonthKeys = new Set(
+      months.filter((_, i) => i % stride === 0).map(m => m.key)
+    )
+
+    // Build per-datapoint labels: label only on first point of visible months
+    const seenMonths = new Set()
+    const xLabels = data.map((d) => {
+      const dt  = new Date(d.date + 'T00:00:00Z')
+      const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}`
+      if (!visibleMonthKeys.has(key) || seenMonths.has(key)) return ''
+      seenMonths.add(key)
+      return months.find(m => m.key === key)?.label || ''
     })
 
     chartRef.current = new Chart(ctx, {
@@ -159,7 +178,7 @@ function EquityChart({ data, privacy }) {
             grid: GRID,
             ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
           },
-          x: { grid: { display:false }, ticks: { ...TICK, maxRotation:0, autoSkip:false } },
+          x: { grid: { display:false }, ticks: { ...TICK, maxRotation:0, autoSkip:true } },
         }
       }
     })
