@@ -87,69 +87,83 @@ function EquityChart({ data, privacy, dateFrom }) {
     const grad = ctx.createLinearGradient(0, 0, 0, 360)
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
-    // Pad from dateFrom (the selected range start) to the first real trade with
-    // flat $0 entries so the x-axis is proportionally spaced across the full period.
-    // Falls back to the 1st of the first data month if dateFrom not provided.
-    const firstDate  = new Date(data[0].date + 'T00:00:00Z')
-    const rangeStart = dateFrom
-      ? new Date(dateFrom + 'T00:00:00Z')
-      : new Date(Date.UTC(firstDate.getUTCFullYear(), firstDate.getUTCMonth(), 1))
-    const padded = []
-    for (let d = new Date(rangeStart); d < firstDate; d.setUTCDate(d.getUTCDate() + 1)) {
-      padded.push({ date: d.toISOString().slice(0, 10), cum_pnl: 0 })
+    // Use Chart.js time scale for true calendar-proportional spacing.
+    // Each data point is { x: Date, y: cumPnl }.
+    // We also add a synthetic $0 point at the range start so the axis begins
+    // at Jan 1 / Jun 1 etc even if the first trade is mid-month.
+    const rangeStart = dateFrom ? new Date(dateFrom + 'T00:00:00Z') : null
+    const firstTradeDate = new Date(data[0].date + 'T00:00:00Z')
+
+    const points = data.map(d => ({ x: new Date(d.date + 'T00:00:00Z'), y: d.cum_pnl }))
+    // Prepend range-start $0 point only if it's before the first trade
+    if (rangeStart && rangeStart < firstTradeDate) {
+      points.unshift({ x: rangeStart, y: 0 })
     }
-    const paddedData = [...padded, ...data]
 
-    const vals     = paddedData.map(d => d.cum_pnl)
+    const vals = points.map(p => p.y)
 
-    // Keep full date strings for tooltip lookup
-    const rawDates = paddedData.map(d => d.date)
+    // Detect multi-year range
+    const years = [...new Set(points.map(p => p.x.getUTCFullYear()))]
+    const multiYear = years.length > 1
 
-    // Cap month labels based on screen width to avoid crowding on mobile
-    const screenW  = (typeof window !== 'undefined' ? window.innerWidth : 800)
-    const maxLabels = screenW < 500 ? 6 : screenW < 900 ? 9 : 13
+    // x-axis tick callback: label at end of each month (last day).
+    // Show "Jan '26" for January when multi-year, else just "Jan".
+    // Chart.js time scale calls this with the tick value (a timestamp).
+    const xTickCallback = (val) => {
+      const dt = new Date(val)
+      // Only label on the last day of a month (time scale generates ticks at month boundaries)
+      const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+      const yr  = String(dt.getUTCFullYear()).slice(2)
+      return multiYear ? `${mon} '${yr}` : mon
+    }
 
-    // Collect unique months in order
-    const months = [] // [{ key, firstIdx, label }]
-    const years  = [...new Set(paddedData.map(x => x.date.slice(0, 4)))]
-    paddedData.forEach((d, i) => {
-      const dt  = new Date(d.date + 'T00:00:00Z')
-      const yr  = dt.getUTCFullYear()
-      const mo  = dt.getUTCMonth()
-      const key = `${yr}-${mo}`
-      if (!months.find(m => m.key === key)) {
-        const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
-        const prev = months.length > 0 ? new Date(paddedData[months[months.length-1].firstIdx].date + 'T00:00:00Z') : null
-        const yearChange = prev && prev.getUTCFullYear() !== yr
-        const label = (years.length > 1 && mo === 0 && yearChange)
-          ? `${mon} '${String(yr).slice(2)}`
-          : mon
-        months.push({ key, firstIdx: i, label })
+    // Build a daily spine from rangeStart to last data date.
+    // Every calendar day gets one index → true proportional spacing.
+    // Only trade days have real cum_pnl values; gap days carry forward the last value.
+    const spineStart = rangeStart || new Date(Date.UTC(firstTradeDate.getUTCFullYear(), firstTradeDate.getUTCMonth(), 1))
+    const lastDate   = new Date(data[data.length - 1].date + 'T00:00:00Z')
+
+    // Build a lookup of date string → cum_pnl
+    const pnlByDate = {}
+    data.forEach(d => { pnlByDate[d.date] = d.cum_pnl })
+
+    // Walk every calendar day, carrying forward last known cum_pnl
+    const spineLabels = []  // display label (month name or '')
+    const spineVals   = []  // cum_pnl values
+    const spineDates  = []  // ISO date strings for tooltip
+    const seenMonths  = new Set()
+
+    let lastPnl = 0
+    for (let d = new Date(spineStart); d <= lastDate; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10)
+      if (pnlByDate[iso] !== undefined) lastPnl = pnlByDate[iso]
+      spineVals.push(lastPnl)
+      spineDates.push(iso)
+
+      // Label: show month name on the LAST day of each month
+      const nextDay = new Date(d); nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+      const isLastOfMonth = nextDay.getUTCMonth() !== d.getUTCMonth()
+      if (isLastOfMonth) {
+        const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+        const yr  = String(d.getUTCFullYear()).slice(2)
+        const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
+        if (!seenMonths.has(key)) {
+          seenMonths.add(key)
+          spineLabels.push(multiYear ? `${mon} '${yr}` : mon)
+        } else {
+          spineLabels.push('')
+        }
+      } else {
+        spineLabels.push('')
       }
-    })
-
-    // Evenly subsample months if too many to fit
-    const stride = months.length <= maxLabels ? 1 : Math.ceil(months.length / maxLabels)
-    const visibleMonthKeys = new Set(
-      months.filter((_, i) => i % stride === 0).map(m => m.key)
-    )
-
-    // Build per-datapoint labels: label only on first point of visible months
-    const seenMonths = new Set()
-    const xLabels = paddedData.map((d) => {
-      const dt  = new Date(d.date + 'T00:00:00Z')
-      const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}`
-      if (!visibleMonthKeys.has(key) || seenMonths.has(key)) return ''
-      seenMonths.add(key)
-      return months.find(m => m.key === key)?.label || ''
-    })
+    }
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: xLabels,
+        labels: spineLabels,
         datasets: [{
-          data: vals,
+          data: spineVals,
           borderColor: '#66ffa5',
           borderWidth: 2,
           fill: true,
@@ -159,7 +173,7 @@ function EquityChart({ data, privacy, dateFrom }) {
           pointHoverBackgroundColor: '#66ffa5',
           pointHoverBorderColor: '#fff',
           pointHoverBorderWidth: 1.5,
-          tension: 0  // straight lines between real data points — no simulation
+          tension: 0,
         }]
       },
       options: {
@@ -172,9 +186,9 @@ function EquityChart({ data, privacy, dateFrom }) {
             callbacks: {
               title: items => {
                 const idx = items[0]?.dataIndex
-                if (idx == null || !rawDates[idx]) return items[0]?.label || ''
-                // Format: "14 May 2026"
-                const dt  = new Date(rawDates[idx] + 'T00:00:00Z')
+                const iso = spineDates[idx]
+                if (!iso) return ''
+                const dt  = new Date(iso + 'T00:00:00Z')
                 const day = dt.getUTCDate()
                 const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
                 const yr  = dt.getUTCFullYear()
@@ -186,12 +200,25 @@ function EquityChart({ data, privacy, dateFrom }) {
         },
         scales: {
           y: {
-            min: Math.min(0, ...vals) * 1.12,
-            max: Math.max(...vals) * 1.12,
+            min: Math.min(0, ...spineVals) * 1.12,
+            max: Math.max(...spineVals) * 1.12,
             grid: GRID,
             ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
           },
-          x: { grid: { display:false }, ticks: { ...TICK, maxRotation:0, autoSkip:false } },
+          x: {
+            grid: { display: false },
+            // autoSkip:false so our end-of-month labels are never dropped,
+            // but Chart.js still needs to know only to render non-empty labels.
+            // We cap visible ticks so on mobile labels don't crowd.
+            ticks: {
+              ...TICK,
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: typeof window !== 'undefined' && window.innerWidth < 500 ? 7 : 14,
+              // Only show ticks that have a non-empty label
+              callback: (val, idx, ticks) => spineLabels[idx] || null,
+            },
+          },
         }
       }
     })
