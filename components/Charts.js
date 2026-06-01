@@ -92,9 +92,9 @@ function EquityChart({ data, privacy }) {
     const rawDates = data.map(d => d.date)
 
     // How many month labels can fit without overlapping?
-    // Each label needs ~36px. Use canvas width to cap the count.
-    const canvasW    = canvasRef.current.getBoundingClientRect().width || 360
-    const maxLabels  = Math.max(3, Math.floor(canvasW / 42))
+    // Use offsetWidth on the parent (reliable before Chart.js renders).
+    const canvasW   = canvasRef.current.parentElement?.offsetWidth || window.innerWidth || 360
+    const maxLabels = Math.max(4, Math.floor(canvasW / 52))
 
     // Collect unique months in order
     const months = [] // [{ key, firstIdx, label }]
