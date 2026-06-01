@@ -18,7 +18,7 @@ const privTick = (privacy) => (v) => privacy ? '***' : '$'+(v/1000).toFixed(0)+'
 
 export default function ChartComp(props) {
   const { type, privacy=false } = props
-  if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} />
+  if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} dateFrom={props.dateFrom} />
   if (type==='monthly') {
     const allMonths = props.data.map(d => d.month_str)
     const years = [...new Set(allMonths.map(s => s.split('-')[0]))]
@@ -50,7 +50,7 @@ export default function ChartComp(props) {
 }
 
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
-function EquityChart({ data, privacy }) {
+function EquityChart({ data, privacy, dateFrom }) {
   const canvasRef = useRef(); const yAxisRef = useRef(); const chartRef = useRef()
 
   // Format x-axis tick label (short, for axis display)
@@ -84,29 +84,42 @@ function EquityChart({ data, privacy }) {
     if (!canvasRef.current || !data?.length) return
     chartRef.current?.destroy()
     const ctx  = canvasRef.current.getContext('2d')
-    const vals = data.map(d => d.cum_pnl)
     const grad = ctx.createLinearGradient(0, 0, 0, 360)
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
-    // Keep full date strings for tooltip lookup
-    const rawDates = data.map(d => d.date)
+    // Pad from dateFrom (the selected range start) to the first real trade with
+    // flat $0 entries so the x-axis is proportionally spaced across the full period.
+    // Falls back to the 1st of the first data month if dateFrom not provided.
+    const firstDate  = new Date(data[0].date + 'T00:00:00Z')
+    const rangeStart = dateFrom
+      ? new Date(dateFrom + 'T00:00:00Z')
+      : new Date(Date.UTC(firstDate.getUTCFullYear(), firstDate.getUTCMonth(), 1))
+    const padded = []
+    for (let d = new Date(rangeStart); d < firstDate; d.setUTCDate(d.getUTCDate() + 1)) {
+      padded.push({ date: d.toISOString().slice(0, 10), cum_pnl: 0 })
+    }
+    const paddedData = [...padded, ...data]
 
-    // How many month labels can fit without overlapping?
-    // Use offsetWidth on the parent (reliable before Chart.js renders).
-    const canvasW   = canvasRef.current.parentElement?.offsetWidth || window.innerWidth || 360
-    const maxLabels = Math.max(4, Math.floor(canvasW / 52))
+    const vals     = paddedData.map(d => d.cum_pnl)
+
+    // Keep full date strings for tooltip lookup
+    const rawDates = paddedData.map(d => d.date)
+
+    // Cap month labels based on screen width to avoid crowding on mobile
+    const screenW  = (typeof window !== 'undefined' ? window.innerWidth : 800)
+    const maxLabels = screenW < 500 ? 6 : screenW < 900 ? 9 : 13
 
     // Collect unique months in order
     const months = [] // [{ key, firstIdx, label }]
-    const years  = [...new Set(data.map(x => x.date.slice(0, 4)))]
-    data.forEach((d, i) => {
+    const years  = [...new Set(paddedData.map(x => x.date.slice(0, 4)))]
+    paddedData.forEach((d, i) => {
       const dt  = new Date(d.date + 'T00:00:00Z')
       const yr  = dt.getUTCFullYear()
       const mo  = dt.getUTCMonth()
       const key = `${yr}-${mo}`
       if (!months.find(m => m.key === key)) {
         const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
-        const prev = months.length > 0 ? new Date(data[months[months.length-1].firstIdx].date + 'T00:00:00Z') : null
+        const prev = months.length > 0 ? new Date(paddedData[months[months.length-1].firstIdx].date + 'T00:00:00Z') : null
         const yearChange = prev && prev.getUTCFullYear() !== yr
         const label = (years.length > 1 && mo === 0 && yearChange)
           ? `${mon} '${String(yr).slice(2)}`
@@ -123,7 +136,7 @@ function EquityChart({ data, privacy }) {
 
     // Build per-datapoint labels: label only on first point of visible months
     const seenMonths = new Set()
-    const xLabels = data.map((d) => {
+    const xLabels = paddedData.map((d) => {
       const dt  = new Date(d.date + 'T00:00:00Z')
       const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}`
       if (!visibleMonthKeys.has(key) || seenMonths.has(key)) return ''
