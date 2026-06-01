@@ -110,20 +110,22 @@ function EquityChart({ data, privacy, dateFrom }) {
       spineVals.push(lastPnl)
       spineDates.push(iso)
 
-      const yr = d.getUTCFullYear()
+      const yr  = d.getUTCFullYear()
+      const dom = d.getUTCDate()
+
+      // Year boundaries align to Jan 1 / Dec 31 so the SVG divider sits at Jan 1
       if (!yearBoundaries[yr]) yearBoundaries[yr] = { start: idx, end: idx }
       yearBoundaries[yr].end = idx
 
-      // Month label on last day of each month, subsampled by stride
-      const nextDay = new Date(d); nextDay.setUTCDate(nextDay.getUTCDate() + 1)
-      const isLastOfMonth = nextDay.getUTCMonth() !== d.getUTCMonth()
+      // Month label on the 1st of each month, subsampled by stride
+      const isFirstOfMonth = dom === 1
       const moKey = `${yr}-${d.getUTCMonth()}`
-      if (isLastOfMonth && !seenMonths.has(moKey)) {
+      if (isFirstOfMonth && !seenMonths.has(moKey)) {
         seenMonths.add(moKey)
         const moNum = seenMonths.size - 1 // 0-based month count
         if (moNum % stride === 0) {
           const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-          spineLabels.push(mon) // just month name, no year — year row handled by SVG
+          spineLabels.push(mon)
         } else {
           spineLabels.push('')
         }
