@@ -88,10 +88,29 @@ function EquityChart({ data, privacy }) {
     const grad = ctx.createLinearGradient(0, 0, 0, 360)
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
-    // X-axis tick labels (short month, year on boundary)
-    const xLabels = data.map((d, i) => fmtDate(d.date, i, data))
     // Keep full date strings for tooltip lookup
     const rawDates = data.map(d => d.date)
+
+    // Build x-axis labels: show month label only on the FIRST data point of each month,
+    // blank for all subsequent points in the same month (prevents "May May May" repetition)
+    const seenMonths = new Set()
+    const xLabels = data.map((d, i) => {
+      const dt      = new Date(d.date + 'T00:00:00Z')
+      const yr      = dt.getUTCFullYear()
+      const mo      = dt.getUTCMonth()
+      const key     = `${yr}-${mo}`
+      if (seenMonths.has(key)) return ''
+      seenMonths.add(key)
+      const mon = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
+      // Add year suffix on year boundary (multi-year datasets)
+      const years = [...new Set(data.map(x => x.date.slice(0,4)))]
+      if (years.length > 1) {
+        const prev = i > 0 ? new Date(data[i-1].date + 'T00:00:00Z') : null
+        const yearChange = prev && prev.getUTCFullYear() !== yr
+        if (mo === 0 && yearChange) return `${mon} '${String(yr).slice(2)}`
+      }
+      return mon
+    })
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
@@ -121,9 +140,13 @@ function EquityChart({ data, privacy }) {
             callbacks: {
               title: items => {
                 const idx = items[0]?.dataIndex
-                return (idx != null && rawDates[idx])
-                  ? fmtTooltipDate(rawDates[idx], data)
-                  : items[0]?.label || ''
+                if (idx == null || !rawDates[idx]) return items[0]?.label || ''
+                // Format: "14 May 2026"
+                const dt  = new Date(rawDates[idx] + 'T00:00:00Z')
+                const day = dt.getUTCDate()
+                const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+                const yr  = dt.getUTCFullYear()
+                return `${day} ${mon} ${yr}`
               },
               label: c => privacy ? '  ***' : '  ' + fU(Math.round(c.parsed.y))
             }
@@ -136,7 +159,7 @@ function EquityChart({ data, privacy }) {
             grid: GRID,
             ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
           },
-          x: { grid: { display:false }, ticks: { ...TICK, maxTicksLimit:10, maxRotation:0 } },
+          x: { grid: { display:false }, ticks: { ...TICK, maxRotation:0, autoSkip:false } },
         }
       }
     })
