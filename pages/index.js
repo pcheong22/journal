@@ -65,7 +65,8 @@ function DashboardInner() {
   const [loading,        setLoading]        = useState(true)
   const [upload,         setUpload]         = useState({ status:'idle', message:'', broker:'', accountId:'' })
   const [dragOver,       setDragOver]       = useState(false)
-  const [hlAccountModal, setHlAccountModal] = useState(null)
+  const [hlAccountModal,  setHlAccountModal]  = useState(null) // pending HL native file
+  const [hsAccountModal,  setHsAccountModal]  = useState(null) // pending Hypurrscan file
   const [selected,       setSelected]       = useState(null)
   const [privacy,        setPrivacy]        = useState(false)
   const [darkMode,       setDarkMode]       = useState(true)
