@@ -237,6 +237,11 @@ function DashboardInner() {
         setHlAccountModal(file)
         return
       }
+      // Hypurrscan format: class,hash,time,time_iso,token,...
+      if (firstLine.startsWith('class,hash,') || firstLine.includes('time_iso')) {
+        setHsAccountModal(file)
+        return
+      }
     }
     setUpload({ status:'uploading', message:`Parsing ${file.name}…`, broker:'', accountId:'' })
     const form = new FormData()
@@ -526,6 +531,12 @@ function DashboardInner() {
           onSelect={accountId => { setHlAccountModal(null); handleFile(hlAccountModal, accountId) }}
           onClose={() => setHlAccountModal(null)}
           existingAccounts={accounts.filter(a => a.broker === 'Hyperliquid')}
+        />
+      )}
+      {hsAccountModal && (
+        <HypurrscanAccountModal
+          onSelect={accountId => { setHsAccountModal(null); handleFile(hsAccountModal, accountId) }}
+          onClose={() => setHsAccountModal(null)}
         />
       )}
 
@@ -977,6 +988,49 @@ const HL_ACCOUNTS = [
   { id:'0x2A8F7F1682B629b16f5309182DA8920dAF72D0F9', label:'Hyperliquid 0x2A8F....D0F9' },
   { id:'0x950793403DFaA533c7ef84E81272bf94f5b46466', label:'Hyperliquid 0x9507....6466' },
 ]
+
+function HypurrscanAccountModal({ onSelect, onClose }) {
+  const [custom, setCustom] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+
+  return (
+    <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:420,boxShadow:'var(--sh-lg)',margin:'auto'}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Which Hyperliquid account? (Hypurrscan)</div>
+        <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:18}}>
+          Select the account this Hypurrscan export belongs to
+        </div>
+        <div style={{display:'grid',gap:8,marginBottom:14}}>
+          {HL_ACCOUNTS.map(acc => (
+            <button key={acc.id} onClick={()=>onSelect(acc.id)}
+              style={{padding:'10px 14px',border:'1px solid var(--bd)',borderRadius:7,background:'var(--sf2)',cursor:'pointer',textAlign:'left',transition:'all .15s'}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'}
+              onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'}>
+              <div style={{fontWeight:600,fontSize:12,color:'var(--tx)',marginBottom:2}}>{acc.label}</div>
+              <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.id}</div>
+            </button>
+          ))}
+        </div>
+        {!showCustom ? (
+          <button className="btn btn-sm" onClick={()=>setShowCustom(true)} style={{marginBottom:14}}>
+            + Add a different account
+          </button>
+        ) : (
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:6}}>WALLET ADDRESS</div>
+            <div style={{display:'flex',gap:8}}>
+              <input className="inp" style={{flex:1,fontFamily:'var(--font-mono)',fontSize:11}} placeholder="0x..." value={custom} onChange={e=>setCustom(e.target.value)} autoFocus />
+              <button className="btn btn-p btn-sm" disabled={!custom.startsWith('0x')} onClick={()=>onSelect(custom)}>Use</button>
+            </div>
+          </div>
+        )}
+        <div style={{display:'flex',justifyContent:'flex-end'}}>
+          <button className="btn" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
   const [custom, setCustom] = useState('')
