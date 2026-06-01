@@ -51,34 +51,9 @@ export default function ChartComp(props) {
 
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
 function EquityChart({ data, privacy, dateFrom }) {
-  const canvasRef = useRef(); const yAxisRef = useRef(); const chartRef = useRef()
-
-  // Format x-axis tick label (short, for axis display)
-  const fmtDate = (d, i, all) => {
-    const dt   = new Date(d + 'T00:00:00Z')
-    const mon  = dt.toLocaleDateString('en-GB', { month:'short', timeZone:'UTC' })
-    if (!all) return mon
-    const years = [...new Set(all.map(x => x.date.slice(0,4)))]
-    if (years.length <= 1) return mon
-    // Multi-year: show year only when year changes at January
-    const prev = i > 0 ? new Date(all[i-1].date + 'T00:00:00Z') : null
-    const yearChange = prev && prev.getUTCFullYear() !== dt.getUTCFullYear()
-    const yr = dt.toLocaleDateString('en-GB', { year:'2-digit', timeZone:'UTC' })
-    return (dt.getUTCMonth() === 0 && yearChange) ? `${mon} '${yr}` : mon
-  }
-
-  // Format tooltip date: "May 20" or "May 20 '24" for multi-year datasets
-  const fmtTooltipDate = (d, all) => {
-    const dt  = new Date(d + 'T00:00:00Z')
-    const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-    const day = dt.getUTCDate()
-    const years = all ? [...new Set(all.map(x => x.date.slice(0,4)))] : []
-    if (years.length > 1) {
-      const yr = String(dt.getUTCFullYear()).slice(2)
-      return `${mon} ${day} '${yr}`
-    }
-    return `${mon} ${day}`
-  }
+  const canvasRef = useRef(); const chartRef = useRef()
+  const wrapRef   = useRef() // outer div for measuring width for year SVG
+  const [yearBands, setYearBands] = useState([]) // [{year, leftPct, widthPct}]
 
   useEffect(() => {
     if (!canvasRef.current || !data?.length) return
@@ -87,75 +62,89 @@ function EquityChart({ data, privacy, dateFrom }) {
     const grad = ctx.createLinearGradient(0, 0, 0, 360)
     grad.addColorStop(0, 'rgba(102,255,165,.14)'); grad.addColorStop(1, 'rgba(102,255,165,.01)')
 
-    // Use Chart.js time scale for true calendar-proportional spacing.
-    // Each data point is { x: Date, y: cumPnl }.
-    // We also add a synthetic $0 point at the range start so the axis begins
-    // at Jan 1 / Jun 1 etc even if the first trade is mid-month.
-    const rangeStart = dateFrom ? new Date(dateFrom + 'T00:00:00Z') : null
     const firstTradeDate = new Date(data[0].date + 'T00:00:00Z')
+    const lastDate       = new Date(data[data.length - 1].date + 'T00:00:00Z')
 
-    const points = data.map(d => ({ x: new Date(d.date + 'T00:00:00Z'), y: d.cum_pnl }))
-    // Prepend range-start $0 point only if it's before the first trade
-    if (rangeStart && rangeStart < firstTradeDate) {
-      points.unshift({ x: rangeStart, y: 0 })
+    // spineStart: start of the first trade's month (never before first trade for "All")
+    // For ranged presets (YTD, 1Y etc) use dateFrom but only if it's reasonably close
+    // (within ~2 years) to avoid a huge flat line for "All" which uses 2000-01-01.
+    let spineStart = new Date(Date.UTC(firstTradeDate.getUTCFullYear(), firstTradeDate.getUTCMonth(), 1))
+    if (dateFrom) {
+      const rs = new Date(dateFrom + 'T00:00:00Z')
+      const daysDiff = (firstTradeDate - rs) / (1000 * 60 * 60 * 24)
+      // Only use rangeStart padding if it's within 400 days of first trade
+      if (daysDiff > 0 && daysDiff <= 400) spineStart = rs
     }
 
-    const vals = points.map(p => p.y)
-
-    // Detect multi-year range
-    const years = [...new Set(points.map(p => p.x.getUTCFullYear()))]
-    const multiYear = years.length > 1
-
-    // x-axis tick callback: label at end of each month (last day).
-    // Show "Jan '26" for January when multi-year, else just "Jan".
-    // Chart.js time scale calls this with the tick value (a timestamp).
-    const xTickCallback = (val) => {
-      const dt = new Date(val)
-      // Only label on the last day of a month (time scale generates ticks at month boundaries)
-      const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-      const yr  = String(dt.getUTCFullYear()).slice(2)
-      return multiYear ? `${mon} '${yr}` : mon
-    }
-
-    // Build a daily spine from rangeStart to last data date.
-    // Every calendar day gets one index → true proportional spacing.
-    // Only trade days have real cum_pnl values; gap days carry forward the last value.
-    const spineStart = rangeStart || new Date(Date.UTC(firstTradeDate.getUTCFullYear(), firstTradeDate.getUTCMonth(), 1))
-    const lastDate   = new Date(data[data.length - 1].date + 'T00:00:00Z')
-
-    // Build a lookup of date string → cum_pnl
+    // Build date → cum_pnl lookup
     const pnlByDate = {}
     data.forEach(d => { pnlByDate[d.date] = d.cum_pnl })
 
-    // Walk every calendar day, carrying forward last known cum_pnl
-    const spineLabels = []  // display label (month name or '')
-    const spineVals   = []  // cum_pnl values
-    const spineDates  = []  // ISO date strings for tooltip
+    // Detect multi-year span
+    const spanYears = []
+    for (let y = spineStart.getUTCFullYear(); y <= lastDate.getUTCFullYear(); y++) spanYears.push(y)
+    const multiYear = spanYears.length > 1
+
+    // Cap month label density for mobile
+    const screenW  = typeof window !== 'undefined' ? window.innerWidth : 800
+    const maxMonthLabels = screenW < 500 ? 6 : screenW < 900 ? 8 : 13
+
+    // Count total months in spine to decide stride
+    const totalMonths = (lastDate.getUTCFullYear() - spineStart.getUTCFullYear()) * 12
+      + (lastDate.getUTCMonth() - spineStart.getUTCMonth()) + 1
+    const stride = Math.max(1, Math.ceil(totalMonths / maxMonthLabels))
+
+    // Build daily spine: each calendar day = one equally-spaced index
+    const spineLabels = []
+    const spineVals   = []
+    const spineDates  = []
     const seenMonths  = new Set()
+    // Track year boundaries for the SVG year row: {year, startIdx, endIdx}
+    const yearBoundaries = {}
 
     let lastPnl = 0
+    let idx = 0
     for (let d = new Date(spineStart); d <= lastDate; d.setUTCDate(d.getUTCDate() + 1)) {
       const iso = d.toISOString().slice(0, 10)
       if (pnlByDate[iso] !== undefined) lastPnl = pnlByDate[iso]
       spineVals.push(lastPnl)
       spineDates.push(iso)
 
-      // Label: show month name on the LAST day of each month
+      const yr = d.getUTCFullYear()
+      if (!yearBoundaries[yr]) yearBoundaries[yr] = { start: idx, end: idx }
+      yearBoundaries[yr].end = idx
+
+      // Month label on last day of each month, subsampled by stride
       const nextDay = new Date(d); nextDay.setUTCDate(nextDay.getUTCDate() + 1)
       const isLastOfMonth = nextDay.getUTCMonth() !== d.getUTCMonth()
-      if (isLastOfMonth) {
-        const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-        const yr  = String(d.getUTCFullYear()).slice(2)
-        const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
-        if (!seenMonths.has(key)) {
-          seenMonths.add(key)
-          spineLabels.push(multiYear ? `${mon} '${yr}` : mon)
+      const moKey = `${yr}-${d.getUTCMonth()}`
+      if (isLastOfMonth && !seenMonths.has(moKey)) {
+        seenMonths.add(moKey)
+        const moNum = seenMonths.size - 1 // 0-based month count
+        if (moNum % stride === 0) {
+          const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+          spineLabels.push(mon) // just month name, no year — year row handled by SVG
         } else {
           spineLabels.push('')
         }
       } else {
         spineLabels.push('')
       }
+      idx++
+    }
+
+    const totalDays = spineVals.length
+
+    // Compute year band positions as percentages of total days (for SVG overlay)
+    if (multiYear) {
+      const bands = Object.entries(yearBoundaries).map(([yr, { start, end }]) => ({
+        year: +yr,
+        leftPct:  (start / totalDays) * 100,
+        widthPct: ((end - start + 1) / totalDays) * 100,
+      }))
+      setYearBands(bands)
+    } else {
+      setYearBands([])
     }
 
     chartRef.current = new Chart(ctx, {
@@ -179,20 +168,18 @@ function EquityChart({ data, privacy, dateFrom }) {
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration:300 },
         interaction: { mode:'index', intersect:false },
+        layout: { padding: { bottom: multiYear ? 22 : 0 } },
         plugins: {
           legend: NOLEG,
           tooltip: {
             ...TIP,
             callbacks: {
               title: items => {
-                const idx = items[0]?.dataIndex
-                const iso = spineDates[idx]
+                const i = items[0]?.dataIndex
+                const iso = spineDates[i]
                 if (!iso) return ''
                 const dt  = new Date(iso + 'T00:00:00Z')
-                const day = dt.getUTCDate()
-                const mon = dt.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-                const yr  = dt.getUTCFullYear()
-                return `${day} ${mon} ${yr}`
+                return `${dt.getUTCDate()} ${dt.toLocaleDateString('en-US',{month:'short',timeZone:'UTC'})} ${dt.getUTCFullYear()}`
               },
               label: c => privacy ? '  ***' : '  ' + fU(Math.round(c.parsed.y))
             }
@@ -207,16 +194,11 @@ function EquityChart({ data, privacy, dateFrom }) {
           },
           x: {
             grid: { display: false },
-            // autoSkip:false so our end-of-month labels are never dropped,
-            // but Chart.js still needs to know only to render non-empty labels.
-            // We cap visible ticks so on mobile labels don't crowd.
             ticks: {
               ...TICK,
               maxRotation: 0,
-              autoSkip: true,
-              maxTicksLimit: typeof window !== 'undefined' && window.innerWidth < 500 ? 7 : 14,
-              // Only show ticks that have a non-empty label
-              callback: (val, idx, ticks) => spineLabels[idx] || null,
+              autoSkip: false,
+              callback: (val, i) => spineLabels[i] || null,
             },
           },
         }
@@ -286,10 +268,30 @@ function EquityChart({ data, privacy, dateFrom }) {
   return (
     <div className="card" style={{marginBottom:10}}>
       <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400,color:'var(--mu)'}}>Drag y-axis ⇅ to rescale</span></div>
-      <div style={{position:'relative',userSelect:'none'}}>
+      <div ref={wrapRef} style={{position:'relative',userSelect:'none'}}>
         <div style={{position:'relative',height:360,width:'100%'}}>
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',cursor:'crosshair'}} />
         </div>
+        {/* Year row: rendered as SVG under the chart for multi-year ranges */}
+        {yearBands.length > 0 && (
+          <div style={{position:'relative',height:20,marginTop:2,overflow:'hidden'}}>
+            <svg width="100%" height="20" style={{display:'block',fontFamily:'var(--font-mono)'}}>
+              {yearBands.map(({ year, leftPct, widthPct }, i) => {
+                const x = leftPct + '%'
+                const w = widthPct + '%'
+                const midX = (leftPct + widthPct / 2) + '%'
+                return (
+                  <g key={year}>
+                    {/* Vertical separator line at start of each year except the first */}
+                    {i > 0 && <line x1={x} y1="0" x2={x} y2="14" stroke="#4a5a6a" strokeWidth={1} />}
+                    {/* Year label centred in the band */}
+                    <text x={midX} y="12" textAnchor="middle" fontSize={10} fill="#6b7280">{year}</text>
+                  </g>
+                )
+              })}
+            </svg>
+          </div>
+        )}
       </div>
     </div>
   )
