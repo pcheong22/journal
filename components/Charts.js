@@ -178,7 +178,7 @@ function EquityChart({ data, privacy }) {
             grid: GRID,
             ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
           },
-          x: { grid: { display:false }, ticks: { ...TICK, maxRotation:0, autoSkip:true } },
+          x: { grid: { display:false }, ticks: { ...TICK, maxRotation:0, autoSkip:false } },
         }
       }
     })
