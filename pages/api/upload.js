@@ -161,11 +161,14 @@ export default async function handler(req, res) {
     const streakMap     = Object.fromEntries(withStreaks.map(t => [t.position_id, t.streak_id]))
     const tradesToInsert = newTrades.map(t => ({ ...t, streak_id: streakMap[t.position_id] || null }))
 
-    // Insert in batches of 500
+    // Upsert in batches of 500 — ignoreDuplicates so chunked uploads and
+    // re-uploads never throw on existing position_ids
     let inserted = 0
     for (let i = 0; i < tradesToInsert.length; i += 500) {
       const batch     = tradesToInsert.slice(i, i + 500)
-      const { error } = await supabase.from('trades').insert(batch)
+      const { error } = await supabase
+        .from('trades')
+        .upsert(batch, { onConflict: 'account_id,position_id', ignoreDuplicates: true })
       if (error) throw new Error(`DB insert error: ${error.message}`)
       inserted += batch.length
     }
