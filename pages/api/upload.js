@@ -27,7 +27,9 @@ function parseCSV(text) {
   return rows.filter(r => r.some(c => c !== ''))
 }
 
-export const config = { api: { bodyParser: false } }
+export const config = { api: { bodyParser: false, responseLimit: '20mb' } }
+// Note: bodyParser:false with manual multipart parsing bypasses the 4MB default.
+// responseLimit raised to handle large CSV uploads (Bybit spot ~7MB).
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
