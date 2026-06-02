@@ -1,5 +1,4 @@
-impo
-                          <th style={{minWidth:110,cursor:'default'}}>STRATEGY</th>rt { useState, useEffect, useRef, useCallback, Component } from 'react'
+import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
