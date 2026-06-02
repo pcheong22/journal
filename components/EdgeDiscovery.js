@@ -384,12 +384,26 @@ function SymbolDurationHeatmap({ trades }) {
             <tr>
               <th style={{...TH,textAlign:'left',minWidth:120}}>Symbol</th>
               {BUCKETS.map(b => <th key={b} style={{...TH,textAlign:'center'}}>{b}</th>)}
-              <th style={{...TH,textAlign:'right'}}>Total</th>
+              <th style={{...TH,textAlign:'right'}}>
+                {metric==='winrate' ? 'Win Rate' : metric==='expectancy' ? 'Expectancy' : 'Total P&L'}
+              </th>
             </tr>
           </thead>
           <tbody>
             {symbols.map(sym => {
-              const total = trades.filter(t=>t.symbol===sym).reduce((s,t)=>s+t.pnl,0)
+              const symTrades = trades.filter(t=>t.symbol===sym)
+              const totalPnl  = symTrades.reduce((s,t)=>s+t.pnl,0)
+              const totalWr   = symTrades.length ? symTrades.filter(t=>t.pnl>0).length/symTrades.length*100 : null
+              const totalExp  = symTrades.length ? expectancy(symTrades) : null
+              const aggVal    = metric==='winrate' ? totalWr : metric==='expectancy' ? totalExp : totalPnl
+              const aggFmt    = metric==='winrate'
+                ? (v => v!=null ? v.toFixed(1)+'%' : '—')
+                : metric==='expectancy'
+                ? (v => v!=null ? fU(v) : '—')
+                : (v => fU(v))
+              const aggColor  = aggVal==null ? 'var(--mu)'
+                : metric==='total' ? (aggVal>=0?'#66ffa5':'#ff5258')
+                : heatTextColor(metric==='winrate' ? aggVal-50 : aggVal)
               return (
                 <tr key={sym}
                   onMouseEnter={e=>e.currentTarget.style.outline='1px solid var(--bd)'}
@@ -399,7 +413,7 @@ function SymbolDurationHeatmap({ trades }) {
                     const {val, count} = getVal(sym, b)
                     return <HeatmapCell key={b} val={val} count={count} fmt={fmt} />
                   })}
-                  <td style={{...TD,textAlign:'right',fontWeight:600,color:total>=0?'#66ffa5':'#ff5258'}}>{fU(total)}</td>
+                  <td style={{...TD,textAlign:'right',fontWeight:700,color:aggColor}}>{aggFmt(aggVal)}</td>
                 </tr>
               )
             })}
@@ -813,17 +827,17 @@ function PerformanceSimulator({ trades }) {
         </div>
 
         {/* Big number */}
-        <div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:20,padding:'16px 0',borderBottom:'1px solid var(--bd)'}}>
-          <div>
+        <div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:20,padding:'16px 0',borderBottom:'1px solid var(--bd)',flexWrap:'wrap'}}>
+          <div style={{minWidth:0,flex:1}}>
             <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-mono)',marginBottom:4}}>P&L CHANGE</div>
-            <div style={{fontSize:28,fontWeight:700,color:diff>=0?'#66ffa5':'#ff5258',fontFamily:'var(--font-mono)'}}>
-              {diff>=0?'+':''}{fU(diff)}
+            <div style={{fontSize:'clamp(18px,5vw,28px)',fontWeight:700,color:diff>=0?'#66ffa5':'#ff5258',fontFamily:'var(--font-mono)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+              {fU(diff)}
             </div>
           </div>
-          <div style={{height:40,width:1,background:'var(--bd)'}} />
-          <div>
-            <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-mono)',marginBottom:4}}>vs BASELINE</div>
-            <div style={{fontSize:28,fontWeight:700,color:pctImprovement>=0?'#66ffa5':'#ff5258',fontFamily:'var(--font-mono)'}}>
+          <div style={{height:40,width:1,background:'var(--bd)',flexShrink:0}} />
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-mono)',marginBottom:4}}>VS BASELINE</div>
+            <div style={{fontSize:'clamp(18px,5vw,28px)',fontWeight:700,color:pctImprovement>=0?'#66ffa5':'#ff5258',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>
               {pctImprovement>=0?'+':''}{pctImprovement.toFixed(1)}%
             </div>
           </div>
