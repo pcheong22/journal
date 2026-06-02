@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, Component } from 'react'
+impo
+                          <th style={{minWidth:110,cursor:'default'}}>STRATEGY</th>rt { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
@@ -27,7 +28,8 @@ class ErrorBoundary extends Component {
 }
 const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
 const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
-const TradeModal = dynamic(() => import('../components/TradeModal'),   { ssr: false })
+const TradeModal      = dynamic(() => import('../components/TradeModal'),   { ssr: false })
+const EdgeDiscovery   = dynamic(() => import('../components/EdgeDiscovery'),  { ssr: false })
 const ImageGallery = dynamic(() => import('../components/ImageGallery'), { ssr: false })
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fA   = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
@@ -59,7 +61,10 @@ const DATE_PRESETS = [
 function DashboardInner() {
   const [tab,            setTab]            = useState('overview')
   const [allTrades,      setAllTrades]      = useState([])
-  const [accounts,       setAccounts]       = useState([])
+  const [accounts,         setAccounts]         = useState([])
+  const [strategies,       setStrategies]       = useState([])
+  const [strategyModal,    setStrategyModal]    = useState(null) // trade being tagged
+  const [strategyMgrOpen,  setStrategyMgrOpen]  = useState(false)
   const [tags,           setTags]           = useState([])
   const [stats,          setStats]          = useState(null)
   const [loading,        setLoading]        = useState(true)
@@ -197,6 +202,8 @@ function DashboardInner() {
       if (data.trades)   setAllTrades(data.trades)
       if (data.accounts) {
         setAccounts(data.accounts)
+        // Also refresh strategies
+        fetch('/api/strategies').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setStrategies(d) })
         setAccountOrder(prev => {
           const existing = prev.filter(id => data.accounts.find(a => a.id === id))
           const newIds   = data.accounts.filter(a => !prev.includes(a.id)).map(a => a.id)
@@ -510,7 +517,7 @@ function DashboardInner() {
 
       <nav style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)'}}>
         <div style={{display:'flex',padding:'0 24px',gap:0}}>
-          {[['overview','📈 Overview'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','⏭ Passed']].map(([id,label])=>(
+          {[['overview','📈 Overview'],['edge','🔬 Edge'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','⏭ Passed']].map(([id,label])=>(
             <div key={id} className={`nt ${tab===id?'active':''}`} onClick={()=>setTab(id)}>{label}</div>
           ))}
         </div>
@@ -538,6 +545,60 @@ function DashboardInner() {
         <HypurrscanAccountModal
           onSelect={accountId => { setHsAccountModal(null); handleFile(hsAccountModal, accountId) }}
           onClose={() => setHsAccountModal(null)}
+        />
+      )}
+      {strategyModal && (
+        <StrategyTagModal
+          trade={strategyModal}
+          strategies={strategies}
+          onClose={() => setStrategyModal(null)}
+          onTagged={async (tradeId, strategyId, newStrategy) => {
+            // If new strategy created, refresh strategies list
+            if (newStrategy) {
+              const r = await fetch('/api/strategies', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ name: newStrategy.name, type: newStrategy.type, trade_ids: [tradeId] })
+              })
+              const d = await r.json()
+              setStrategies(prev => [...prev, d.strategy])
+            } else {
+              await fetch(`/api/strategies?id=${strategyId}`, {
+                method:'PATCH', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ add_trade_ids: [tradeId] })
+              })
+            }
+            // Update trade locally
+            setTrades(prev => prev.map(t => t.id === tradeId
+              ? { ...t, strategy_id: newStrategy ? 'pending' : strategyId }
+              : t))
+            setStrategyModal(null)
+          }}
+          onUntagged={async (tradeId) => {
+            await fetch(`/api/strategies?id=untag`, {
+              method:'PATCH', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ remove_trade_ids: [tradeId] })
+            })
+            setTrades(prev => prev.map(t => t.id === tradeId ? { ...t, strategy_id: null } : t))
+            setStrategyModal(null)
+          }}
+        />
+      )}
+      {strategyMgrOpen && (
+        <StrategyManagerModal
+          strategies={strategies}
+          onClose={() => setStrategyMgrOpen(false)}
+          onDeleted={async (id) => {
+            await fetch(`/api/strategies?id=${id}`, { method:'DELETE' })
+            setStrategies(prev => prev.filter(s => s.id !== id))
+          }}
+          onCreated={async (name, type) => {
+            const r = await fetch('/api/strategies', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ name, type })
+            })
+            const d = await r.json()
+            setStrategies(prev => [...prev, d.strategy])
+          }}
         />
       )}
 
@@ -655,6 +716,8 @@ function DashboardInner() {
             </div>
           </div>
         )}
+
+        {tab==='edge' && <EdgeDiscovery trades={visibleTrades} />}
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
@@ -811,6 +874,13 @@ function DashboardInner() {
                           <td className={pct!=null?(pct>=0?'pos':'neg'):''}>{pctStr}</td>
                           <td><span className={`pill ${SESSION_CLASS[t.session]||'pn'}`}>{t.session}</span></td>
                           <td style={{textAlign:'center'}}>{hasNotes ? '📝' : <span style={{color:'var(--bd2)'}}>—</span>}</td>
+                          <td onClick={e=>{e.stopPropagation();setStrategyModal(t)}} style={{cursor:'pointer'}}>
+                            {t.strategy_id
+                              ? <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:4,background:'rgba(102,255,165,.1)',border:'1px solid rgba(102,255,165,.3)',color:'#66ffa5',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>
+                                  {strategies.find(s=>s.id===t.strategy_id)?.name?.slice(0,18)||'Tagged'}
+                                </span>
+                              : <span style={{color:'var(--bd2)',fontSize:10}}>—</span>}
+                          </td>
                           <td><span className={`pill ${t.pnl>=0?'pb':'pr'}`}>{t.pnl>=0?'WIN':'LOSS'}</span></td>
                         </tr>
                       )
@@ -1033,6 +1103,204 @@ function HypurrscanAccountModal({ onSelect, onClose }) {
   )
 }
 
+
+// ── STRATEGY TAG MODAL ────────────────────────────────────────────────────────
+// Shown when clicking the Strategy cell on a trade row
+// Lets user assign trade to existing strategy or create a new one
+function StrategyTagModal({ trade, strategies, onClose, onTagged, onUntagged }) {
+  const [mode, setMode]   = useState('pick') // 'pick' | 'new'
+  const [name, setName]   = useState('')
+  const [type, setType]   = useState('delta_neutral')
+  const [busy, setBusy]   = useState(false)
+
+  const handle = async (strategyId) => {
+    setBusy(true)
+    await onTagged(trade.id, strategyId, null)
+    setBusy(false)
+  }
+
+  const handleNew = async () => {
+    if (!name.trim()) return
+    setBusy(true)
+    await onTagged(trade.id, null, { name: name.trim(), type })
+    setBusy(false)
+  }
+
+  const handleUntag = async () => {
+    setBusy(true)
+    await onUntagged(trade.id)
+    setBusy(false)
+  }
+
+  const TYPES = ['delta_neutral','carry','arb','basket','other']
+
+  return (
+    <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:400,boxShadow:'var(--sh-lg)',margin:'auto'}}>
+        <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>Tag Strategy</div>
+        <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:16}}>
+          {trade.symbol} · {trade.direction} · {trade.exit_time?.slice(0,10)}
+        </div>
+
+        {trade.strategy_id && (
+          <div style={{marginBottom:14,padding:'8px 12px',background:'rgba(102,255,165,.06)',border:'1px solid rgba(102,255,165,.2)',borderRadius:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:11,color:'#66ffa5'}}>
+              Currently: {strategies.find(s=>s.id===trade.strategy_id)?.name||'Tagged'}
+            </span>
+            <button onClick={handleUntag} disabled={busy}
+              style={{fontSize:10,background:'none',border:'1px solid var(--bd)',borderRadius:4,color:'var(--mu)',cursor:'pointer',padding:'2px 8px'}}>
+              Remove tag
+            </button>
+          </div>
+        )}
+
+        {mode === 'pick' && (
+          <>
+            {strategies.length > 0 ? (
+              <div style={{display:'grid',gap:6,marginBottom:14,maxHeight:200,overflowY:'auto'}}>
+                {strategies.map(s => (
+                  <button key={s.id} onClick={()=>handle(s.id)} disabled={busy}
+                    style={{padding:'8px 12px',border:'1px solid var(--bd)',borderRadius:6,background:trade.strategy_id===s.id?'rgba(102,255,165,.1)':'var(--sf2)',cursor:'pointer',textAlign:'left',transition:'all .15s'}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor='#66ffa5'}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'}>
+                    <div style={{fontWeight:600,fontSize:11,color:'var(--tx)'}}>{s.name}</div>
+                    <div style={{fontSize:10,color:'var(--mu)',marginTop:2}}>
+                      {s.type} · {s.trade_count} trades · {s.combined_pnl>=0?'+':''}{Math.round(s.combined_pnl).toLocaleString()} USD
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{fontSize:11,color:'var(--mu)',marginBottom:14}}>No strategies yet — create one below.</div>
+            )}
+            <button onClick={()=>setMode('new')} className="btn btn-p btn-sm">+ New strategy</button>
+          </>
+        )}
+
+        {mode === 'new' && (
+          <div style={{display:'grid',gap:10}}>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:5}}>NAME</div>
+              <input className="inp" placeholder="e.g. LINK Delta Neutral Nov 2024"
+                value={name} onChange={e=>setName(e.target.value)} autoFocus />
+            </div>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:5}}>TYPE</div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {TYPES.map(t => (
+                  <button key={t} onClick={()=>setType(t)}
+                    style={{fontSize:10,padding:'3px 9px',borderRadius:4,border:`1px solid ${type===t?'#66ffa5':'var(--bd)'}`,background:type===t?'rgba(102,255,165,.1)':'var(--sf2)',color:type===t?'#66ffa5':'var(--mu)',cursor:'pointer'}}>
+                    {t.replace('_',' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,marginTop:4}}>
+              <button onClick={()=>setMode('pick')} className="btn btn-sm">Back</button>
+              <button onClick={handleNew} disabled={!name.trim()||busy} className="btn btn-p btn-sm">
+                {busy ? 'Saving…' : 'Create & tag'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'pick' && (
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
+            <button className="btn" onClick={onClose}>Cancel</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── STRATEGY MANAGER MODAL ────────────────────────────────────────────────────
+// Shows all strategies with combined PnL, trade count, ability to delete
+function StrategyManagerModal({ strategies, onClose, onDeleted, onCreated }) {
+  const [newName, setNewName] = useState('')
+  const [newType, setNewType] = useState('delta_neutral')
+  const [busy, setBusy]       = useState(false)
+  const [confirm, setConfirm] = useState(null)
+
+  const fU = n => (n>=0?'+':'') + '$' + Math.abs(Math.round(n)).toLocaleString()
+  const TYPES = ['delta_neutral','carry','arb','basket','other']
+
+  return (
+    <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:24,width:520,boxShadow:'var(--sh-lg)',margin:'auto',maxHeight:'80vh',display:'flex',flexDirection:'column'}}>
+        <div style={{fontWeight:700,fontSize:13,marginBottom:16}}>Strategy Manager</div>
+
+        {/* Strategy list */}
+        <div style={{flex:1,overflowY:'auto',marginBottom:16}}>
+          {strategies.length === 0 && (
+            <div style={{fontSize:11,color:'var(--mu)',padding:'12px 0'}}>
+              No strategies yet. Create one below, then tag trades by clicking the Strategy column.
+            </div>
+          )}
+          {strategies.map(s => (
+            <div key={s.id} style={{padding:'10px 12px',borderRadius:6,border:'1px solid var(--bd)',marginBottom:8,background:'var(--sf2)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:12,color:'var(--tx)',marginBottom:3}}>{s.name}</div>
+                  <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
+                    {s.type?.replace('_',' ')} · {s.trade_count||0} trades ·
+                    <span style={{color:s.combined_pnl>=0?'#66ffa5':'#ff5258',marginLeft:4,fontWeight:700}}>
+                      {fU(s.combined_pnl||0)}
+                    </span>
+                  </div>
+                  {(s.first_entry||s.last_exit) && (
+                    <div style={{fontSize:9,color:'var(--bd2)',marginTop:3,fontFamily:'var(--font-mono)'}}>
+                      {s.first_entry?.slice(0,10)} → {s.last_exit?.slice(0,10)}
+                      {s.symbols > 1 && ` · ${s.symbols} symbols`}
+                      {s.brokers > 1 && ` · ${s.brokers} brokers`}
+                    </div>
+                  )}
+                </div>
+                <button onClick={()=>setConfirm(s.id)}
+                  style={{fontSize:10,background:'none',border:'1px solid var(--bd)',borderRadius:4,color:'#ff5258',cursor:'pointer',padding:'2px 8px',flexShrink:0}}>
+                  Delete
+                </button>
+              </div>
+              {confirm === s.id && (
+                <div style={{marginTop:8,display:'flex',gap:6,alignItems:'center'}}>
+                  <span style={{fontSize:10,color:'var(--mu)'}}>Delete and untag all trades?</span>
+                  <button onClick={async()=>{setBusy(true);await onDeleted(s.id);setConfirm(null);setBusy(false)}}
+                    disabled={busy}
+                    style={{fontSize:10,background:'rgba(255,82,88,.1)',border:'1px solid #ff5258',borderRadius:4,color:'#ff5258',cursor:'pointer',padding:'2px 8px'}}>
+                    Confirm
+                  </button>
+                  <button onClick={()=>setConfirm(null)}
+                    style={{fontSize:10,background:'none',border:'1px solid var(--bd)',borderRadius:4,color:'var(--mu)',cursor:'pointer',padding:'2px 8px'}}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Create new */}
+        <div style={{borderTop:'1px solid var(--bd)',paddingTop:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>NEW STRATEGY</div>
+          <div style={{display:'flex',gap:8,marginBottom:8}}>
+            <input className="inp" style={{flex:1}} placeholder="Strategy name…"
+              value={newName} onChange={e=>setNewName(e.target.value)} />
+            <select className="inp" style={{width:130}} value={newType} onChange={e=>setNewType(e.target.value)}>
+              {TYPES.map(t => <option key={t} value={t}>{t.replace('_',' ')}</option>)}
+            </select>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            <button onClick={async()=>{if(!newName.trim())return;setBusy(true);await onCreated(newName.trim(),newType);setNewName('');setBusy(false)}}
+              disabled={!newName.trim()||busy} className="btn btn-p btn-sm">
+              {busy?'Creating…':'Create'}
+            </button>
+            <button className="btn" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
   const [custom, setCustom] = useState('')
   const [showCustom, setShowCustom] = useState(false)
