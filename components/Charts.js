@@ -31,13 +31,19 @@ export default function ChartComp(props) {
       return `${MONTHS_SHORT[+m-1]} ${y}`
     })
 
-    // X-axis: use YYYY-MM as raw label, format in tick callback
-    // This lets Chart.js auto-skip while we control what each shown tick displays
-    const axisLabels = allMonths  // raw 'YYYY-MM' strings
+    // X-axis: short formatted labels. Year shown at Jan boundary in multi-year view.
+    const axisLabels = allMonths.map((s, i) => {
+      const [y, m] = s.split('-')
+      const mon    = MONTHS_SHORT[+m-1]
+      if (!multiYear) return mon
+      // Show "Jan '25" at year start, just "Mar" otherwise
+      const prev = i > 0 ? allMonths[i-1].split('-') : null
+      const newYear = !prev || prev[0] !== y
+      return (newYear || +m === 1) ? `${mon} '${y.slice(2)}` : mon
+    })
 
     return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels}
       values={props.data.map(d=>Math.round(d.total_pnl))}
-      multiYear={multiYear} monthsShort={MONTHS_SHORT}
       height={220} cardHeight={280} privacy={privacy} />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
@@ -362,20 +368,8 @@ function BarChart({ title, labels, tooltipLabels, values, multiYear=false, month
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
           x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0,
-            maxTicksLimit: 12,
-            callback: function(val) {
-              // val is the tick index for category scales
-              const raw = labels[val]
-              if (!raw) return ''
-              // Only reformat YYYY-MM strings (monthly chart)
-              if (monthsShort && typeof raw === 'string' && /^\d{4}-\d{2}$/.test(raw)) {
-                const [y, m] = raw.split('-')
-                const mon = monthsShort[+m-1]
-                if (!multiYear) return mon
-                return +m === 1 ? `${mon} '${y.slice(2)}` : mon
-              }
-              return raw
-            }
+            autoSkip: !!monthsShort, maxTicksLimit: monthsShort ? 12 : undefined,
+            callback: v => v
           } }
         }
       }
