@@ -31,17 +31,14 @@ export default function ChartComp(props) {
       return `${MONTHS_SHORT[+m-1]} ${y}`
     })
 
-    // X-axis tick: short month, add year at Jan boundary only
-    const axisLabels = allMonths.map((s, i) => {
-      const [y, m] = s.split('-')
-      const prev   = i > 0 ? allMonths[i-1].split('-') : null
-      const isJan  = +m === 1
-      const yearChanged = prev && prev[0] !== y
-      if (!multiYear) return MONTHS_SHORT[+m-1]
-      return (isJan || yearChanged) ? `${MONTHS_SHORT[+m-1]} '${y.slice(2)}` : MONTHS_SHORT[+m-1]
-    })
+    // X-axis: use YYYY-MM as raw label, format in tick callback
+    // This lets Chart.js auto-skip while we control what each shown tick displays
+    const axisLabels = allMonths  // raw 'YYYY-MM' strings
 
-    return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
+    return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels}
+      values={props.data.map(d=>Math.round(d.total_pnl))}
+      multiYear={multiYear} monthsShort={MONTHS_SHORT}
+      height={220} cardHeight={280} privacy={privacy} />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
@@ -345,7 +342,7 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy }) {
+function BarChart({ title, labels, tooltipLabels, values, multiYear=false, monthsShort, height=252, cardHeight=300, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -364,7 +361,19 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
         }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
-          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0, maxTicksLimit:12} }
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0,
+            maxTicksLimit: 12,
+            callback: function(val, idx) {
+              const raw = labels[idx]
+              if (!raw || !raw.includes('-')) return raw
+              const [y, m] = raw.split('-')
+              const ms = monthsShort || ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+              const mon = ms[+m-1]
+              // Always show year at January; show short month otherwise
+              if (!multiYear) return mon
+              return +m === 1 ? `${mon} '${y.slice(2)}` : mon
+            }
+          } }
         }
       }
     })
