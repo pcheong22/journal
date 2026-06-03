@@ -913,7 +913,13 @@ function RollingChart({ trades, privacy }) {
             grid:     GRID,
             ticks:    {
               ...TICK,
-              callback: v => privacy ? '***' : (v >= 0 ? '+' : '') + '$' + Math.abs(v >= 1000 ? (v/1000).toFixed(1)+'k' : v),
+              callback: v => {
+                if (v == null || isNaN(v)) return ''
+                if (privacy) return '***'
+                const abs = Math.abs(v)
+                const str = abs >= 1000 ? (abs/1000).toFixed(1)+'k' : String(abs)
+                return (v >= 0 ? '+' : '-') + '$' + str
+              },
             },
             title: { display: false },
           },
@@ -945,7 +951,7 @@ function RollingChart({ trades, privacy }) {
   return (
     <div>
       {/* Latest values strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(80px,1fr))', gap: 6, marginBottom: 14 }}>
         {[
           [`Exp (${W_SHORT}t)`, lastExp20 != null ? (privacy ? '***' : (lastExp20 >= 0 ? '+' : '') + '$' + Math.abs(lastExp20).toLocaleString()) : '—', lastExp20 >= 0 ? 'var(--wn)' : 'var(--ls)'],
           [`Exp (${W_LONG}t)`,  lastExp50 != null ? (privacy ? '***' : (lastExp50 >= 0 ? '+' : '') + '$' + Math.abs(lastExp50).toLocaleString()) : '—', lastExp50 >= 0 ? 'var(--wn)' : 'var(--ls)'],
@@ -955,7 +961,7 @@ function RollingChart({ trades, privacy }) {
           <div key={label} className="kpi">
             <div className="kl">{label}</div>
             <div className="kv" style={{ color }}>{val}</div>
-            <div className="ks">Latest {W_SHORT}t</div>
+            <div className="ks" style={{fontSize:9}}>Latest {W_SHORT}t</div>
           </div>
         ))}
       </div>
