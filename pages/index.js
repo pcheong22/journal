@@ -647,6 +647,28 @@ function DashboardInner() {
         {tab==='overview' && stats && (
           <div className="anim">
           {(settings.dashboardOrder || ['kpis', 'equity', 'risk', 'rolling', 'accounts', 'charts']).map(section => {
+            // Variables needed by kpis case
+            const wins   = Math.round(ov.win_rate * ov.total_trades)
+            const losses = ov.total_trades - wins
+            const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
+            const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
+            const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
+            const vol = visibleTrades.reduce((s, t) => {
+              const n = t.notional_usd
+              if (!n) return s
+              if (t.entry_price && t.exit_price && t.exit_price > 0) {
+                const ratio = t.direction === 'Short'
+                  ? t.exit_price / t.entry_price
+                  : t.entry_price / t.exit_price
+                return s + n + (n * ratio)
+              }
+              return s + n * 2
+            }, 0)
+            const fmtVol = v => {
+              if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
+              if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' million'
+              return '$' + Math.round(v).toLocaleString()
+            }
             switch(section) {
               case 'kpis': return (
                 <div key='kpis'>
