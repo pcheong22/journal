@@ -20,20 +20,28 @@ export default function ChartComp(props) {
   const { type, privacy=false } = props
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} dateFrom={props.dateFrom} />
   if (type==='monthly') {
-    const allMonths = props.data.map(d => d.month_str)
-    const years = [...new Set(allMonths.map(s => s.split('-')[0]))]
-    const multiYear = years.length > 1
-    const fmtMonth = (s, i) => {
+    const allMonths   = props.data.map(d => d.month_str)  // ['2025-01', ...]
+    const years       = [...new Set(allMonths.map(s => s.split('-')[0]))]
+    const multiYear   = years.length > 1
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+    // Tooltip label: full "Jan 2025"
+    const tooltipLabels = allMonths.map(s => {
       const [y, m] = s.split('-')
-      const mon = new Date(+y, +m-1, 1).toLocaleDateString('en-GB', { month:'short' })
-      if (!multiYear) return mon
-      // Multi-year: show year only at January boundary
-      const prev = i > 0 ? allMonths[i-1].split('-') : null
-      const yearChange = prev && prev[0] !== y
-      return (+m === 1 && yearChange) ? `${mon} '${y.slice(2)}` : mon
-    }
-    const labels = props.data.map((d, i) => fmtMonth(d.month_str, i))
-    return <BarChart title="MONTHLY P&L" labels={labels} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
+      return `${MONTHS_SHORT[+m-1]} ${y}`
+    })
+
+    // X-axis tick: short month, add year at Jan boundary only
+    const axisLabels = allMonths.map((s, i) => {
+      const [y, m] = s.split('-')
+      const prev   = i > 0 ? allMonths[i-1].split('-') : null
+      const isJan  = +m === 1
+      const yearChanged = prev && prev[0] !== y
+      if (!multiYear) return MONTHS_SHORT[+m-1]
+      return (isJan || yearChanged) ? `${MONTHS_SHORT[+m-1]} '${y.slice(2)}` : MONTHS_SHORT[+m-1]
+    })
+
+    return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
@@ -337,7 +345,7 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, values, height=252, cardHeight=300, privacy }) {
+function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -349,12 +357,14 @@ function BarChart({ title, labels, values, height=252, cardHeight=300, privacy }
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{
-          title: items => items[0]?.label || '',
+          title: items => (tooltipLabels && tooltipLabels[items[0]?.dataIndex] != null)
+            ? tooltipLabels[items[0].dataIndex]
+            : (items[0]?.label || ''),
           label: ctx => privacy ? '  ***' : '  ' + fU(ctx.parsed.y)
         }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
-          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:45} }
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0, maxTicksLimit:12} }
         }
       }
     })
