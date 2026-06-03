@@ -154,14 +154,14 @@ function ParetoAnalysis({ trades }) {
               {d.pct}%
             </div>
             <div style={{flex:1,height:18,background:'var(--sf2)',borderRadius:3,overflow:'hidden',position:'relative'}}>
-              {/* Gross profit bar — green, full height */}
+              {/* Gross profit ceiling — dim, full extent */}
               <div style={{position:'absolute',top:0,left:0,height:'100%',
                 width:`${(d.grossPct/maxGrossPct)*100}%`,
-                background:'rgba(102,255,165,.55)',borderRadius:3,transition:'width .4s'}} />
-              {/* Net P&L bar — blue, slightly narrower */}
-              <div style={{position:'absolute',top:3,left:0,height:12,
+                background:'rgba(102,255,165,.18)',borderRadius:3,transition:'width .4s'}} />
+              {/* Net P&L — solid green, shrinks when losers enter */}
+              <div style={{position:'absolute',top:0,left:0,height:'100%',
                 width:`${Math.min(100,Math.max(0,(d.netPct/maxGrossPct)*100))}%`,
-                background:'rgba(126,184,247,0.85)',borderRadius:2,transition:'width .4s'}} />
+                background:'#66ffa5',borderRadius:3,transition:'width .4s'}} />
             </div>
             <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'#66ffa5',
               width:36,textAlign:'right',flexShrink:0,fontWeight:600}}>
@@ -176,12 +176,13 @@ function ParetoAnalysis({ trades }) {
         </div>
         <div style={{display:'flex',gap:16,marginTop:8}}>
           <div style={{display:'flex',alignItems:'center',gap:5,fontSize:9,color:'var(--mu)'}}>
-            <div style={{width:12,height:6,background:'rgba(102,255,165,.4)',borderRadius:2}} />
-            Gross profit %
+            <div style={{width:12,height:6,background:'#66ffa5',borderRadius:2}} />
+            Net P&L %
           </div>
           <div style={{display:'flex',alignItems:'center',gap:5,fontSize:9,color:'var(--mu)'}}>
-            <div style={{width:12,height:4,background:'#66ffa5',borderRadius:2}} />
-            Net P&L %
+            <div style={{width:12,height:6,background:'rgba(102,255,165,.18)',
+              border:'1px solid rgba(102,255,165,.35)',borderRadius:2}} />
+            Gross profit ceiling
           </div>
         </div>
       </div>
