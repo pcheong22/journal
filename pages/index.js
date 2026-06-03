@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, Component } from 'react'
+impo
+                          <th style={{minWidth:110,cursor:'default'}}>STRATEGY</th>rt { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import dynamic from 'next/dynamic'
@@ -868,7 +869,7 @@ function DashboardInner() {
           </div>
         )}
 
-        {tab==='edge' && <EdgeDiscovery trades={visibleTrades} />}
+        {tab==='edge' && <EdgeDiscovery trades={visibleTrades} stats={stats} />}
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
