@@ -512,9 +512,33 @@ function DashboardInner() {
           onDragLeave={()=>setDragOver(false)}
           onDrop={handleDrop}>
           <span style={{fontSize:15}}>📂</span>
-          <div>
+          <div style={{minWidth:0}}>
             <div style={{fontSize:12,fontWeight:600}}>Upload trade history</div>
-            <div style={{fontSize:11,color:'var(--mu)'}}>PrimeXBT · IBKR · Extended · Hyperliquid · Bybit · auto-detects format · duplicates skipped</div>
+            <div style={{fontSize:11,color:'var(--mu)',display:'flex',alignItems:'center',gap:5}}>
+              Auto-detects format · duplicates skipped
+              <span style={{position:'relative',display:'inline-flex',alignItems:'center',cursor:'help'}}
+                onMouseEnter={e=>e.currentTarget.querySelector('.upl-tip').style.display='block'}
+                onMouseLeave={e=>e.currentTarget.querySelector('.upl-tip').style.display='none'}>
+                <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:13,height:13,
+                  borderRadius:'50%',border:'1px solid var(--bd)',fontSize:8,color:'var(--mu)',fontWeight:700,lineHeight:1}}>i</span>
+                <span className="upl-tip" style={{display:'none',position:'absolute',bottom:'130%',left:'50%',
+                  transform:'translateX(-50%)',background:'var(--sf2)',border:'1px solid var(--bd)',
+                  borderRadius:7,padding:'10px 12px',fontSize:10,color:'var(--tx)',width:210,
+                  lineHeight:1.6,zIndex:99,boxShadow:'0 4px 20px rgba(0,0,0,.5)',whiteSpace:'normal',
+                  fontWeight:400,pointerEvents:'none'}}>
+                  <div style={{fontWeight:700,marginBottom:5,color:'var(--ac)',fontSize:9,textTransform:'uppercase',letterSpacing:'.06em'}}>Supported formats</div>
+                  <div style={{color:'var(--mu)',fontSize:10}}>
+                    <div>· <b style={{color:'var(--tx)'}}>PrimeXBT</b> — orders CSV export</div>
+                    <div>· <b style={{color:'var(--tx)'}}>IBKR</b> — Activity Statement CSV</div>
+                    <div>· <b style={{color:'var(--tx)'}}>Hyperliquid</b> — native trade CSV</div>
+                    <div>· <b style={{color:'var(--tx)'}}>Hypurrscan</b> — wallet export CSV</div>
+                    <div>· <b style={{color:'var(--tx)'}}>Bybit Perp</b> — bybit_perps_*.csv</div>
+                    <div>· <b style={{color:'var(--tx)'}}>Bybit Spot</b> — bybit_spot_*.csv</div>
+                    <div>· <b style={{color:'var(--tx)'}}>Extended</b> — realized_pnl.csv</div>
+                  </div>
+                </span>
+              </span>
+            </div>
           </div>
           <span className="btn btn-p btn-sm" style={{pointerEvents:'none',marginLeft:'auto',flexShrink:0}}>Browse</span>
         </div>
@@ -842,12 +866,7 @@ function DashboardInner() {
                 </button>
                 {acctStatsOpen && (
                   <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,overflow:'hidden'}}>
-                    <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}}>
-                      <colgroup>
-                        <col style={{width:'auto'}} />
-                        <col style={{width:90}} />
-                        <col style={{width:80}} />
-                      </colgroup>
+                    <table style={{width:'100%',borderCollapse:'collapse'}}>
                       <tbody>
                         {orderedAccounts.map(acc => {
                           const at  = visibleTrades.filter(t=>t.account_id===acc.id)
@@ -859,20 +878,18 @@ function DashboardInner() {
                               style={{borderBottom:'1px solid var(--sf2)',transition:'background .1s',cursor:'default'}}
                               onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'}
                               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                              <td style={{padding:'7px 10px',overflow:'hidden'}}>
-                                <div style={{display:'flex',alignItems:'center',gap:7}}>
-                                  <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0}} />
-                                  <div style={{minWidth:0}}>
-                                    <div style={{fontSize:11,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acc.label||acc.id}</div>
-                                    <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
-                                  </div>
+                              <td style={{padding:'7px 12px',display:'flex',alignItems:'center',gap:8}}>
+                                <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0}} />
+                                <div style={{minWidth:0}}>
+                                  <div style={{fontSize:11,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acc.label||acc.id}</div>
+                                  <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
                                 </div>
                               </td>
-                              <td style={{padding:'7px 8px',textAlign:'right',whiteSpace:'nowrap'}}>
-                                <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
+                              <td style={{padding:'7px 12px',textAlign:'right',whiteSpace:'nowrap'}}>
+                                <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
                               </td>
-                              <td style={{padding:'7px 10px 7px 4px',textAlign:'right',whiteSpace:'nowrap'}}>
-                                <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}%·{at.length}t</div>
+                              <td style={{padding:'7px 12px',textAlign:'right',whiteSpace:'nowrap'}}>
+                                <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}% · {at.length}t</div>
                               </td>
                             </tr>
                           )
