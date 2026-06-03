@@ -55,7 +55,7 @@ function ParetoAnalysis({ trades }) {
 
   // Build cumulative data for the chart bars
   const paretoData = useMemo(() => {
-    const pcts = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50]
+    const pcts = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80]
     return pcts.map(pct => {
       const n = Math.max(1, Math.round(sorted.length * pct / 100))
       const topN = sorted.slice(0, n)
@@ -120,7 +120,7 @@ function ParetoAnalysis({ trades }) {
             textTransform:'uppercase',letterSpacing:'.06em'}}>
             Top {threshold}% of trades ({thresholdStats.n} trades)
           </div>
-          <input type="range" min={1} max={50} value={threshold}
+          <input type="range" min={1} max={80} value={threshold}
             onChange={e=>setThreshold(+e.target.value)}
             style={{width:120,accentColor:'#66ffa5'}} />
         </div>
@@ -148,7 +148,7 @@ function ParetoAnalysis({ trades }) {
           Gross profit concentration by trade % threshold
         </div>
         {paretoData.map(d => (
-          <div key={d.pct} style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
+          <div key={d.pct} title={`Top ${d.pct}% (${d.n} trades): ${d.grossPct.toFixed(0)}% of gross profit | Net P&L ${d.netPct.toFixed(0)}% of total`} style={{display:'flex',alignItems:'center',gap:8,marginBottom:5,cursor:'default'}}>
             <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--mu)',
               width:32,textAlign:'right',flexShrink:0}}>
               {d.pct}%
@@ -157,11 +157,11 @@ function ParetoAnalysis({ trades }) {
               {/* Gross profit bar — green, full height */}
               <div style={{position:'absolute',top:0,left:0,height:'100%',
                 width:`${(d.grossPct/maxGrossPct)*100}%`,
-                background:'rgba(102,255,165,.25)',borderRadius:3,transition:'width .4s'}} />
+                background:'rgba(102,255,165,.55)',borderRadius:3,transition:'width .4s'}} />
               {/* Net P&L bar — blue, slightly narrower */}
               <div style={{position:'absolute',top:3,left:0,height:12,
                 width:`${Math.min(100,Math.max(0,(d.netPct/maxGrossPct)*100))}%`,
-                background:'#7eb8f7',borderRadius:2,transition:'width .4s',opacity:0.9}} />
+                background:'rgba(126,184,247,0.85)',borderRadius:2,transition:'width .4s'}} />
             </div>
             <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'#66ffa5',
               width:36,textAlign:'right',flexShrink:0,fontWeight:600}}>
@@ -169,6 +169,11 @@ function ParetoAnalysis({ trades }) {
             </div>
           </div>
         ))}
+        <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',
+          marginBottom:6,lineHeight:1.5}}>
+          Green = gross profit (winners only). Blue = net P&L (all trades in selection).
+          They diverge past your win rate % threshold. Hover bars for details.
+        </div>
         <div style={{display:'flex',gap:16,marginTop:8}}>
           <div style={{display:'flex',alignItems:'center',gap:5,fontSize:9,color:'var(--mu)'}}>
             <div style={{width:12,height:6,background:'rgba(102,255,165,.4)',borderRadius:2}} />
