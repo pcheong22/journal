@@ -160,7 +160,7 @@ function ParetoAnalysis({ trades }) {
                 background:'rgba(102,255,165,.25)',borderRadius:3,transition:'width .4s'}} />
               {/* Net P&L bar — blue, slightly narrower */}
               <div style={{position:'absolute',top:3,left:0,height:12,
-                width:`${Math.min(100,Math.max(0,(d.netPct/maxGrossPct)*100)}%`,
+                width:`${Math.min(100,Math.max(0,(d.netPct/maxGrossPct)*100))}%`,
                 background:'#7eb8f7',borderRadius:2,transition:'width .4s',opacity:0.9}} />
             </div>
             <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'#66ffa5',
