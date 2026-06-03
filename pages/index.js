@@ -844,7 +844,6 @@ function DashboardInner() {
                     </div>
                   )}
                 </div>
-            </div>
                 </div>
               )
               case 'rolling': return (
