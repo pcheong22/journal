@@ -8,15 +8,15 @@ const fU  = (n, d=0) => n == null ? '—' : (n>=0?'+':'') + n.toLocaleString('en
 const fA  = n => n == null ? '—' : '$' + Math.abs(Math.round(n)).toLocaleString()
 const fN  = (n,d=1) => n == null ? '—' : n.toFixed(d)
 
-const TH = { fontSize:9, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
-  letterSpacing:'.08em', fontFamily:'var(--font-mono)', padding:'6px 8px',
+const TH = { fontSize:8, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
+  letterSpacing:'.06em', fontFamily:'var(--font-mono)', padding:'5px 6px',
   borderBottom:'1px solid var(--bd)', whiteSpace:'nowrap' }
-const TD = { fontSize:10, fontFamily:'var(--font-mono)', padding:'6px 8px',
+const TD = { fontSize:10, fontFamily:'var(--font-mono)', padding:'5px 6px',
   borderBottom:'1px solid var(--bd2)', whiteSpace:'nowrap' }
 
 function Card({ children, style }) {
   return (
-    <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:'14px 12px',...style}}>
+    <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:'14px 12px',overflow:'visible',...style}}>
       {children}
     </div>
   )
@@ -61,8 +61,8 @@ function DrawdownTimeline({ events }) {
       <SectionHeader
         title="Drawdown Events"
         sub="All distinct peak-to-trough periods, ranked by severity. Click a row to see details." />
-      <div style={{overflowX:'auto'}}>
-        <table style={{width:'100%',borderCollapse:'collapse'}}>
+      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',margin:'0 -12px',padding:'0 12px'}}>
+        <table style={{borderCollapse:'collapse',minWidth:520}}>
           <thead>
             <tr>
               {['#','Peak Date','Trough Date','Recovery','Depth','Duration','Recovery Time','Status'].map(h => (
@@ -199,8 +199,8 @@ function DrawdownAttrib({ trades, events }) {
 
       {/* Attribution table */}
       {attribution.length > 0 ? (
-        <div style={{overflowX:'auto'}}>
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
+        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',margin:'0 -12px',padding:'0 12px'}}>
+          <table style={{borderCollapse:'collapse',minWidth:400}}>
             <thead>
               <tr>
                 {['Symbol','Dir','Trades','P&L in Period','% of Drawdown'].map(h => (
@@ -320,13 +320,13 @@ function SymbolDragTable({ trades }) {
       <SectionHeader
         title="Symbol Drag Analysis"
         sub="Which instruments cause the most drawdown damage? Drag Score = max drawdown ÷ total P&L. High score = consider reducing." />
-      <div style={{overflowX:'auto'}}>
-        <table style={{width:'100%',borderCollapse:'collapse'}}>
+      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',margin:'0 -12px',padding:'0 12px'}}>
+        <table style={{borderCollapse:'collapse',minWidth:360}}>
           <thead>
             <tr>
               {[
-                ['symbol','Symbol'],['trades','Trades'],['total_pnl','Total P&L'],
-                ['gross_loss','Gross Loss'],['max_dd','Max Drawdown'],['drag_score','Drag Score ↓'],
+                ['symbol','Symbol'],['trades','Trades'],['total_pnl','P&L'],
+                ['max_dd','Max DD'],['drag_score','Drag ↓'],
               ].map(([key,label]) => (
                 <th key={key} style={{...TH,textAlign:key==='symbol'?'left':'right',cursor:'pointer'}}
                   onClick={() => toggleSort(key)}>
@@ -345,8 +345,7 @@ function SymbolDragTable({ trades }) {
                 <td style={{...TD,textAlign:'right',fontWeight:600,color:r.total_pnl>=0?'#66ffa5':'#ff5258'}}>
                   {fU(r.total_pnl)}
                 </td>
-                <td style={{...TD,textAlign:'right',color:'#ff5258'}}>{fA(Math.abs(r.gross_loss))}</td>
-                <td style={{...TD,textAlign:'right',minWidth:160}}>
+                <td style={{...TD,textAlign:'right',minWidth:120}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}>
                     <div style={{width:60,height:5,background:'var(--sf2)',borderRadius:3,overflow:'hidden'}}>
                       <div style={{height:'100%',width:`${Math.round(r.max_dd/maxDd*100)}%`,
