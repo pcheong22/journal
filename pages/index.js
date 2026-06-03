@@ -866,7 +866,12 @@ function DashboardInner() {
                 </button>
                 {acctStatsOpen && (
                   <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,overflow:'hidden'}}>
-                    <table style={{width:'100%',borderCollapse:'collapse'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}}>
+                      <colgroup>
+                        <col style={{width:'auto'}} />
+                        <col style={{width:90}} />
+                        <col style={{width:76}} />
+                      </colgroup>
                       <tbody>
                         {orderedAccounts.map(acc => {
                           const at  = visibleTrades.filter(t=>t.account_id===acc.id)
@@ -878,18 +883,20 @@ function DashboardInner() {
                               style={{borderBottom:'1px solid var(--sf2)',transition:'background .1s',cursor:'default'}}
                               onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'}
                               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                              <td style={{padding:'7px 12px',display:'flex',alignItems:'center',gap:8}}>
-                                <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0}} />
-                                <div style={{minWidth:0}}>
-                                  <div style={{fontSize:11,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acc.label||acc.id}</div>
-                                  <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
+                              <td style={{padding:'7px 10px',overflow:'hidden'}}>
+                                <div style={{display:'flex',alignItems:'center',gap:7}}>
+                                  <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0}} />
+                                  <div style={{minWidth:0}}>
+                                    <div style={{fontSize:11,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acc.label||acc.id}</div>
+                                    <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
+                                  </div>
                                 </div>
                               </td>
-                              <td style={{padding:'7px 12px',textAlign:'right',whiteSpace:'nowrap'}}>
-                                <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
+                              <td style={{padding:'7px 8px',textAlign:'right',whiteSpace:'nowrap',overflow:'hidden'}}>
+                                <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:700,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
                               </td>
-                              <td style={{padding:'7px 12px',textAlign:'right',whiteSpace:'nowrap'}}>
-                                <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}% · {at.length}t</div>
+                              <td style={{padding:'7px 10px 7px 4px',textAlign:'right',whiteSpace:'nowrap',overflow:'hidden'}}>
+                                <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}%·{at.length}t</div>
                               </td>
                             </tr>
                           )
