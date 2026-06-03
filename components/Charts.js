@@ -46,6 +46,7 @@ export default function ChartComp(props) {
   if (type==='dowWr')        return <WrChart    title="WIN RATE BY DAY"   labels={props.data.map(d=>d.day_of_week)} values={props.data.map(d=>Math.round(d.win_rate*100))} height={220} />
   if (type==='hourly')       return <HourlyChart     data={props.data}               privacy={privacy} />
   if (type==='streaks')      return <StreaksView      trades={props.trades} stats={props.stats} privacy={privacy} />
+  if (type==='rolling')      return <RollingChart     trades={props.trades} privacy={privacy} />
   return null
 }
 
@@ -753,6 +754,214 @@ function StreaksView({ trades, stats, privacy }) {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ── ROLLING ANALYTICS ────────────────────────────────────────────────────────
+// Computes rolling N-trade expectancy, win rate and profit factor
+// and plots them as a multi-line chart over trade sequence number.
+function RollingChart({ trades, privacy }) {
+  const canvasRef = useRef()
+  const chartRef  = useRef()
+  const [window20, setWindow20] = useState(true) // toggle 20 vs 50
+
+  const W_SHORT = 20
+  const W_LONG  = 50
+
+  // Build rolling series from sorted trades
+  const { labels, exp20, exp50, wr20, pf20 } = (() => {
+    if (!trades || trades.length < W_SHORT) return { labels:[], exp20:[], exp50:[], wr20:[], pf20:[] }
+
+    const sorted = [...trades].sort((a,b) => {
+      const ta = a.exit_time || a.entry_time || ''
+      const tb = b.exit_time || b.entry_time || ''
+      return ta.localeCompare(tb)
+    })
+
+    const labels = [], exp20 = [], exp50 = [], wr20 = [], pf20 = []
+
+    for (let i = W_SHORT - 1; i < sorted.length; i++) {
+      const w20 = sorted.slice(i - W_SHORT + 1, i + 1)
+      const wins20  = w20.filter(t => t.pnl > 0)
+      const loss20  = w20.filter(t => t.pnl < 0)
+      const wr      = wins20.length / W_SHORT
+      const avgW    = wins20.length ? wins20.reduce((s,t)=>s+t.pnl,0)/wins20.length : 0
+      const avgL    = loss20.length ? loss20.reduce((s,t)=>s+t.pnl,0)/loss20.length : 0
+      const grossP  = wins20.reduce((s,t)=>s+t.pnl,0)
+      const grossL  = Math.abs(loss20.reduce((s,t)=>s+t.pnl,0))
+
+      labels.push(i + 1)
+      exp20.push(Math.round(wr * avgW + (1 - wr) * avgL))
+      wr20.push(Math.round(wr * 100 * 10) / 10)
+      pf20.push(grossL > 0 ? Math.round(grossP / grossL * 100) / 100 : null)
+
+      if (i >= W_LONG - 1) {
+        const w50    = sorted.slice(i - W_LONG + 1, i + 1)
+        const wins50 = w50.filter(t => t.pnl > 0)
+        const loss50 = w50.filter(t => t.pnl < 0)
+        const wr50   = wins50.length / W_LONG
+        const avgW50 = wins50.length ? wins50.reduce((s,t)=>s+t.pnl,0)/wins50.length : 0
+        const avgL50 = loss50.length ? loss50.reduce((s,t)=>s+t.pnl,0)/loss50.length : 0
+        exp50.push(Math.round(wr50 * avgW50 + (1 - wr50) * avgL50))
+      } else {
+        exp50.push(null)
+      }
+    }
+    return { labels, exp20, exp50, wr20, pf20 }
+  })()
+
+  useEffect(() => {
+    if (!canvasRef.current || !labels.length) return
+    chartRef.current?.destroy()
+
+    // Subsample for mobile perf — max 200 points
+    const step  = Math.max(1, Math.floor(labels.length / 200))
+    const lbl   = labels.filter((_,i) => i % step === 0)
+    const e20   = exp20.filter((_,i)  => i % step === 0)
+    const e50   = exp50.filter((_,i)  => i % step === 0)
+    const w20   = wr20.filter((_,i)   => i % step === 0)
+
+    chartRef.current = new Chart(canvasRef.current, {
+      type: 'line',
+      data: {
+        labels: lbl,
+        datasets: [
+          {
+            label:           `Expectancy (${W_SHORT}t)`,
+            data:            e20,
+            borderColor:     '#66ffa5',
+            backgroundColor: 'rgba(102,255,165,.08)',
+            borderWidth:     2,
+            pointRadius:     0,
+            tension:         0.3,
+            fill:            false,
+            yAxisID:         'yExp',
+          },
+          {
+            label:           `Expectancy (${W_LONG}t)`,
+            data:            e50,
+            borderColor:     '#7eb8f7',
+            backgroundColor: 'transparent',
+            borderWidth:     2,
+            borderDash:      [5, 3],
+            pointRadius:     0,
+            tension:         0.3,
+            fill:            false,
+            yAxisID:         'yExp',
+          },
+          {
+            label:           `Win Rate (${W_SHORT}t)`,
+            data:            w20,
+            borderColor:     '#f0a500',
+            backgroundColor: 'transparent',
+            borderWidth:     1.5,
+            borderDash:      [3, 2],
+            pointRadius:     0,
+            tension:         0.3,
+            fill:            false,
+            yAxisID:         'yWr',
+          },
+        ],
+      },
+      options: {
+        responsive:          true,
+        maintainAspectRatio: false,
+        interaction:         { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            display:  true,
+            position: 'bottom',
+            labels:   { boxWidth: 10, font: { size: 10 }, padding: 10, color: '#9ca3af' },
+          },
+          tooltip: {
+            ...TIP,
+            callbacks: {
+              label: c => {
+                if (c.dataset.yAxisID === 'yWr') return `${c.dataset.label}: ${c.parsed.y?.toFixed(1)}%`
+                return privacy ? `${c.dataset.label}: ***` : `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}$${c.parsed.y?.toLocaleString()}`
+              },
+            },
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type:        'line',
+                yMin:        0,
+                yMax:        0,
+                yScaleID:    'yExp',
+                borderColor: 'rgba(255,82,88,.4)',
+                borderWidth: 1,
+                borderDash:  [4, 4],
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid:  { display: false },
+            ticks: {
+              ...TICK,
+              maxTicksLimit: 8,
+              callback: v => `T${v}`,
+            },
+          },
+          yExp: {
+            position: 'left',
+            grid:     GRID,
+            ticks:    {
+              ...TICK,
+              callback: v => privacy ? '***' : (v >= 0 ? '+' : '') + '$' + Math.abs(v >= 1000 ? (v/1000).toFixed(1)+'k' : v),
+            },
+            title: { display: false },
+          },
+          yWr: {
+            position: 'right',
+            grid:     { display: false },
+            min:      0,
+            max:      100,
+            ticks:    { ...TICK, callback: v => v + '%', maxTicksLimit: 5 },
+          },
+        },
+      },
+    })
+    return () => chartRef.current?.destroy()
+  }, [JSON.stringify({ labels, exp20, exp50, wr20, privacy })])
+
+  if (!labels.length) return (
+    <div style={{ padding: 20, textAlign: 'center', color: 'var(--mu)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+      Need at least {W_SHORT} trades to show rolling analytics.
+    </div>
+  )
+
+  // Latest values for the KPI strip
+  const lastExp20 = exp20[exp20.length - 1]
+  const lastExp50 = exp50.filter(v => v != null).slice(-1)[0]
+  const lastWr20  = wr20[wr20.length - 1]
+  const lastPf20  = pf20[pf20.length - 1]
+
+  return (
+    <div>
+      {/* Latest values strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
+        {[
+          [`Exp (${W_SHORT}t)`, lastExp20 != null ? (privacy ? '***' : (lastExp20 >= 0 ? '+' : '') + '$' + Math.abs(lastExp20).toLocaleString()) : '—', lastExp20 >= 0 ? 'var(--wn)' : 'var(--ls)'],
+          [`Exp (${W_LONG}t)`,  lastExp50 != null ? (privacy ? '***' : (lastExp50 >= 0 ? '+' : '') + '$' + Math.abs(lastExp50).toLocaleString()) : '—', lastExp50 >= 0 ? 'var(--wn)' : 'var(--ls)'],
+          [`WR (${W_SHORT}t)`,  lastWr20  != null ? lastWr20.toFixed(1) + '%' : '—', lastWr20 >= 50 ? 'var(--wn)' : 'var(--ls)'],
+          [`PF (${W_SHORT}t)`,  lastPf20  != null ? lastPf20.toFixed(2) : '—', lastPf20 >= 1 ? 'var(--wn)' : 'var(--ls)'],
+        ].map(([label, val, color]) => (
+          <div key={label} className="kpi">
+            <div className="kl">{label}</div>
+            <div className="kv" style={{ color }}>{val}</div>
+            <div className="ks">Latest {W_SHORT}t</div>
+          </div>
+        ))}
+      </div>
+      {/* Chart */}
+      <div style={{ position: 'relative', height: 240 }}>
+        <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
       </div>
     </div>
   )
