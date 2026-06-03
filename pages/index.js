@@ -63,6 +63,7 @@ function DashboardInner() {
   const [accounts,         setAccounts]         = useState([])
   const [strategies,       setStrategies]       = useState([])
   const [riskOpen,         setRiskOpen]         = useState(false)
+  const [rollingOpen,      setRollingOpen]      = useState(false)
   const [acctFilterOpen,   setAcctFilterOpen]   = useState(false)
   const [strategyModal,    setStrategyModal]    = useState(null) // trade being tagged
   const [strategyMgrOpen,  setStrategyMgrOpen]  = useState(false)
@@ -856,8 +857,30 @@ function DashboardInner() {
                 </div>
               )
             })()}
-            {accounts.length > 1 && (
-              <div style={{marginBottom:14}}>
+            {/* ── ROLLING ANALYTICS (collapsible) ──────────────────────────── */}
+            <div style={{marginBottom:14}}>
+              <button onClick={()=>setRollingOpen(o=>!o)}
+                style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:10,
+                  fontFamily:'var(--font-mono)',fontWeight:600,letterSpacing:'.06em',textTransform:'uppercase',
+                  display:'flex',alignItems:'center',gap:5,padding:'0 0 10px',width:'100%',transition:'color .15s'}}
+                onMouseEnter={e=>e.currentTarget.style.color='var(--tx)'}
+                onMouseLeave={e=>e.currentTarget.style.color='var(--mu)'}>
+                {rollingOpen ? '▲' : '▼'} ROLLING ANALYTICS {rollingOpen ? '(collapse)' : '(expand)'}
+                <div style={{flex:1,height:1,background:'var(--bd)',marginLeft:8}} />
+              </button>
+              {rollingOpen && (
+                <div className="card" style={{padding:16}}>
+                  <div style={{fontSize:11,color:'var(--mu)',marginBottom:12,lineHeight:1.5}}>
+                    Rolling 20-trade and 50-trade expectancy + win rate over time.
+                    <span style={{color:'#66ffa5',marginLeft:6}}>Trending up = edge improving.</span>
+                    <span style={{color:'#ff5258',marginLeft:6}}>Trending down = edge decaying.</span>
+                  </div>
+                  <ChartComp type="rolling" trades={visibleTrades} privacy={privacy} />
+                </div>
+              )}
+            </div>
+
+            {accounts.length > 1 && (<div style={{marginBottom:14}}>
                 <button onClick={()=>setAcctStatsOpen(o=>!o)}
                   style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,letterSpacing:'.06em',textTransform:'uppercase',display:'flex',alignItems:'center',gap:5,padding:'0 0 8px',transition:'color .15s'}}
                   onMouseEnter={e=>e.currentTarget.style.color='var(--tx)'}
