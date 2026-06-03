@@ -363,15 +363,18 @@ function BarChart({ title, labels, tooltipLabels, values, multiYear=false, month
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
           x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0,
             maxTicksLimit: 12,
-            callback: function(val, idx) {
-              const raw = labels[idx]
-              if (!raw || !raw.includes('-')) return raw
-              const [y, m] = raw.split('-')
-              const ms = monthsShort || ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-              const mon = ms[+m-1]
-              // Always show year at January; show short month otherwise
-              if (!multiYear) return mon
-              return +m === 1 ? `${mon} '${y.slice(2)}` : mon
+            callback: function(val) {
+              // val is the tick index for category scales
+              const raw = labels[val]
+              if (!raw) return ''
+              // Only reformat YYYY-MM strings (monthly chart)
+              if (monthsShort && typeof raw === 'string' && /^\d{4}-\d{2}$/.test(raw)) {
+                const [y, m] = raw.split('-')
+                const mon = monthsShort[+m-1]
+                if (!multiYear) return mon
+                return +m === 1 ? `${mon} '${y.slice(2)}` : mon
+              }
+              return raw
             }
           } }
         }
