@@ -3,6 +3,7 @@
 // Matches TradeIntel styling: --bg #0c1117, --ac #66ffa5, Barlow + JetBrains Mono
 
 import { useState, useMemo } from 'react'
+import DrawdownAttribution from './DrawdownAttribution'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fU  = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
@@ -868,9 +869,10 @@ const SUB_TABS = [
   ['heatmaps',  '🌡 Heatmaps'],
   ['where',     '🔎 Where My Edge Lives'],
   ['simulator', '🧪 Simulator'],
+  ['drawdown',  '📉 Drawdown'],
 ]
 
-export default function EdgeDiscovery({ trades = [] }) {
+export default function EdgeDiscovery({ trades = [], stats = null }) {
   const [subTab, setSubTab] = useState('where')
 
   if (!trades.length) return (
@@ -907,6 +909,7 @@ export default function EdgeDiscovery({ trades = [] }) {
       )}
       {subTab === 'where'     && <WhereMyEdgeLives        trades={trades} />}
       {subTab === 'simulator' && <PerformanceSimulator    trades={trades} />}
+      {subTab === 'drawdown'  && <DrawdownAttribution    trades={trades} stats={stats} />}
     </div>
   )
 }
