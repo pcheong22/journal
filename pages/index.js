@@ -896,6 +896,7 @@ function DashboardInner() {
                 </div>
               )}
                 </div>
+                </div>
               )
               case 'accounts': return (
                 <div key='accounts'>
@@ -973,7 +974,7 @@ function DashboardInner() {
           })}
           </div>        )}
 
-        {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} /></div>}
+        {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} strategies={strategies} /></div>}
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
