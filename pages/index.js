@@ -645,31 +645,12 @@ function DashboardInner() {
       <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}>
 
         {tab==='overview' && stats && (
-          <div className="anim" style={{display:'flex',flexDirection:'column'}}>
-            {(() => {
-              const wins   = Math.round(ov.win_rate * ov.total_trades)
-              const losses = ov.total_trades - wins
-              const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
-              const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
-              const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
-              const vol = visibleTrades.reduce((s, t) => {
-                const n = t.notional_usd
-                if (!n) return s
-                if (t.entry_price && t.exit_price && t.exit_price > 0) {
-                  const ratio = t.direction === 'Short'
-                    ? t.exit_price / t.entry_price
-                    : t.entry_price / t.exit_price
-                  return s + n + (n * ratio)
-                }
-                return s + n * 2
-              }, 0)
-              const fmtVol = v => {
-                if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
-                if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' million'
-                return '$' + Math.round(v).toLocaleString()
-              }
-              return (
-                <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('kpis')}} className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
+          <div className="anim">
+          {(settings.dashboardOrder || ['kpis', 'equity', 'risk', 'rolling', 'accounts', 'charts']).map(section => {
+            switch(section) {
+              case 'kpis': return (
+                <div key='kpis'>
+
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
@@ -706,11 +687,19 @@ function DashboardInner() {
                 </div>
               )
             })()}
-            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('equity')}}>
+                </div>
+              )
+              case 'equity': return (
+                <div key='equity'>
+
             {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
             </div>
-            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('risk')}}>
+                </div>
+              )
+              case 'risk': return (
+                <div key='risk'>
+
             {/* ── RISK ANALYTICS (collapsible) ──────────────────────── */}
             {(() => {
               const ov = stats.overview
@@ -862,7 +851,11 @@ function DashboardInner() {
               )
             })()}
             </div>
-            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('rolling')}}>
+                </div>
+              )
+              case 'rolling': return (
+                <div key='rolling'>
+
             {/* ── ROLLING ANALYTICS (collapsible) ──────────────────────────── */}
             <div style={{marginBottom:14}}>
               <button onClick={()=>setRollingOpen(o=>!o)}
@@ -885,8 +878,11 @@ function DashboardInner() {
                 </div>
               )}
             </div>
+                </div>
+              )
+              case 'accounts': return (
+                <div key='accounts'>
 
-            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('accounts')}}>
             {accounts.length > 1 && (<div style={{marginBottom:14}}>
                 <button onClick={()=>setAcctStatsOpen(o=>!o)}
                   style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,letterSpacing:'.06em',textTransform:'uppercase',display:'flex',alignItems:'center',gap:5,padding:'0 0 8px',transition:'color .15s'}}
@@ -936,7 +932,11 @@ function DashboardInner() {
             
             </div>
             </div>
-            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('charts')}}>
+                </div>
+              )
+              case 'charts': return (
+                <div key='charts'>
+
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
             {/* Row 2: Three equal supporting charts */}
@@ -952,7 +952,12 @@ function DashboardInner() {
             </div>
           </div>
             </div>
-        )}
+                </div>
+              )
+              default: return null
+            }
+          })}
+          </div>        )}
 
         {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} /></div>}
 
