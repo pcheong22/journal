@@ -870,6 +870,7 @@ function DashboardInner() {
         )}
 
         {tab==='edge' && <EdgeDiscovery trades={visibleTrades} stats={stats} />}
+        
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
