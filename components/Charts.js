@@ -958,9 +958,12 @@ function RollingChart({ trades, privacy }) {
           [`WR (${W_SHORT}t)`,  lastWr20  != null ? lastWr20.toFixed(1) + '%' : '—', lastWr20 >= 50 ? 'var(--wn)' : 'var(--ls)'],
           [`PF (${W_SHORT}t)`,  lastPf20  != null ? lastPf20.toFixed(2) : '—', lastPf20 >= 1 ? 'var(--wn)' : 'var(--ls)'],
         ].map(([label, val, color]) => (
-          <div key={label} className="kpi">
+          <div key={label} className="kpi" style={{minWidth:0,overflow:'hidden'}}>
             <div className="kl">{label}</div>
-            <div className="kv" style={{ color }}>{val}</div>
+            <div style={{fontSize:'clamp(11px,3.5vw,18px)',fontWeight:700,color,fontFamily:'var(--font-mono)',
+              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2,margin:'3px 0'}}>
+              {val}
+            </div>
             <div className="ks" style={{fontSize:9}}>Latest {W_SHORT}t</div>
           </div>
         ))}
