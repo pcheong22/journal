@@ -63,6 +63,7 @@ function DashboardInner() {
   const [accounts,         setAccounts]         = useState([])
   const [strategies,       setStrategies]       = useState([])
   const [riskOpen,         setRiskOpen]         = useState(false)
+  const [acctFilterOpen,   setAcctFilterOpen]   = useState(false)
   const [strategyModal,    setStrategyModal]    = useState(null) // trade being tagged
   const [strategyMgrOpen,  setStrategyMgrOpen]  = useState(false)
   const [tags,           setTags]           = useState([])
@@ -422,55 +423,68 @@ function DashboardInner() {
       </header>
 
       {accounts.length > 0 && (
-        <div style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)',padding:'8px 24px',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>ACCOUNTS</span>
-          <button onClick={()=>setSelAccounts(new Set())}
-            style={{padding:'4px 10px',borderRadius:5,border:'1px solid',fontSize:11,fontFamily:'var(--font-mono)',cursor:'pointer',fontWeight:600,transition:'all .15s',
-              background:selAccounts.size===0?'var(--ac)':'var(--sf2)',borderColor:selAccounts.size===0?'var(--ac)':'var(--bd)',color:selAccounts.size===0?'#fff':'var(--tx2)'}}>
-            ALL ({allTrades.length.toLocaleString()})
-          </button>
-          {orderedAccounts.map(acc => {
-            const isActive = selAccounts.size===0 || selAccounts.has(acc.id)
-            const isDragging = dragAccId === acc.id
-            return (
-              <div key={acc.id}
-                draggable
-                onDragStart={()=>setDragAccId(acc.id)}
-                onDragOver={e=>{e.preventDefault()}}
-                onDrop={()=>{
-                  if (!dragAccId || dragAccId===acc.id) return
-                  setAccountOrder(prev => {
-                    const next = [...prev]
-                    const from = next.indexOf(dragAccId)
-                    const to   = next.indexOf(acc.id)
-                    next.splice(from, 1)
-                    next.splice(to, 0, dragAccId)
-                    return next
-                  })
-                  setDragAccId(null)
-                }}
-                onDragEnd={()=>setDragAccId(null)}
-                style={{display:'flex',alignItems:'center',gap:0,borderRadius:6,overflow:'hidden',
-                  border:`1px solid ${isActive&&selAccounts.size>0?acc.color:isActive?'var(--bd2)':'var(--bd)'}`,
-                  background:isActive&&selAccounts.size>0?acc.color+'18':'var(--sf2)',
-                  transition:'all .15s',opacity:isDragging?0.4:1,cursor:'grab'}}>
-                <button onClick={()=>toggleAccount(acc.id)}
-                  style={{padding:'4px 10px',border:'none',background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',gap:5,fontSize:11,fontFamily:'var(--font-mono)',fontWeight:500,color:isActive?'var(--tx)':'var(--mu)'}}>
-                  <span style={{width:8,height:8,borderRadius:'50%',background:acc.color,flexShrink:0,opacity:isActive?1:.4}} />
-                  <span style={{fontWeight:600}}>{acc.label||acc.id}</span>
-                </button>
-                <div style={{borderLeft:'1px solid var(--bd)',display:'flex'}}>
-                  <button onClick={()=>selectOnly(acc.id)} title="View only" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--mu)'}}>⊙</button>
-                  <button onClick={()=>setEditingAccount(acc)} title="Edit" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--mu)'}}>✎</button>
-                  <button onClick={()=>handleClear(acc.id)} title="Delete" style={{padding:'4px 7px',border:'none',background:'transparent',cursor:'pointer',fontSize:10,color:'var(--ls)'}}>✕</button>
-                </div>
-              </div>
-            )
-          })}
-          {accounts.length > 0 && <button className="btn btn-d btn-sm" style={{marginLeft:'auto'}} onClick={()=>handleClear(null)}>🗑 Clear all</button>}
+        <div style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)',padding:'8px 16px'}}>
+          {/* Header row */}
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:acctFilterOpen?10:0}}>
+            <span style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)'}}>ACCOUNTS</span>
+            <button onClick={()=>setSelAccounts(new Set())}
+              style={{padding:'3px 10px',borderRadius:4,border:'1px solid',fontSize:10,fontFamily:'var(--font-mono)',cursor:'pointer',fontWeight:700,transition:'all .15s',
+                background:selAccounts.size===0?'var(--ac)':'transparent',borderColor:selAccounts.size===0?'var(--ac)':'var(--bd)',color:selAccounts.size===0?'#0c1117':'var(--tx2)'}}>
+              ALL ({allTrades.length.toLocaleString()})
+            </button>
+            <button onClick={()=>setAcctFilterOpen(o=>!o)}
+              style={{fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,color:'var(--mu)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>
+              {acctFilterOpen ? '▲ hide' : '▼ filter'}
+            </button>
+            <button className="btn btn-d btn-sm" style={{marginLeft:'auto'}} onClick={()=>handleClear(null)}>🗑 Clear all</button>
+          </div>
+          {/* 2-col grid — collapsible */}
+          {acctFilterOpen && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+              {orderedAccounts.map(acc => {
+                const isActive  = selAccounts.size===0 || selAccounts.has(acc.id)
+                const isDragging = dragAccId === acc.id
+                return (
+                  <div key={acc.id}
+                    draggable
+                    onDragStart={()=>setDragAccId(acc.id)}
+                    onDragOver={e=>e.preventDefault()}
+                    onDrop={()=>{
+                      if (!dragAccId || dragAccId===acc.id) return
+                      setAccountOrder(prev => {
+                        const next = [...prev]
+                        const from = next.indexOf(dragAccId)
+                        const to   = next.indexOf(acc.id)
+                        next.splice(from,1); next.splice(to,0,dragAccId)
+                        return next
+                      })
+                      setDragAccId(null)
+                    }}
+                    onDragEnd={()=>setDragAccId(null)}
+                    style={{display:'flex',alignItems:'center',gap:0,borderRadius:6,overflow:'hidden',minWidth:0,
+                      border:`1px solid ${isActive&&selAccounts.size>0?acc.color+'60':'var(--bd)'}`,
+                      background:isActive&&selAccounts.size>0?acc.color+'12':'var(--sf2)',
+                      opacity:isDragging?0.4:1,cursor:'grab',transition:'all .15s'}}>
+                    <button onClick={()=>toggleAccount(acc.id)}
+                      style={{flex:1,minWidth:0,padding:'5px 8px',border:'none',background:'transparent',
+                        cursor:'pointer',display:'flex',alignItems:'center',gap:6,
+                        fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,
+                        color:isActive?'var(--tx)':'var(--mu)',textAlign:'left'}}>
+                      <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0,opacity:isActive?1:.4}} />
+                      <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acc.label||acc.id}</span>
+                    </button>
+                    <div style={{borderLeft:'1px solid var(--bd)',display:'flex',flexShrink:0}}>
+                      <button onClick={()=>selectOnly(acc.id)} title="View only" style={{padding:'5px 6px',border:'none',background:'transparent',cursor:'pointer',fontSize:9,color:'var(--mu)'}}>⊙</button>
+                      <button onClick={()=>setEditingAccount(acc)} title="Edit" style={{padding:'5px 6px',border:'none',background:'transparent',cursor:'pointer',fontSize:9,color:'var(--mu)'}}>✎</button>
+                      <button onClick={()=>handleClear(acc.id)} title="Delete" style={{padding:'5px 6px',border:'none',background:'transparent',cursor:'pointer',fontSize:9,color:'var(--ls)'}}>✕</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
-
       <div className="date-range-bar">
         <span style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>RANGE</span>
         {DATE_PRESETS.map(p => (
@@ -827,26 +841,37 @@ function DashboardInner() {
                   {acctStatsOpen ? '▲' : '▼'} ACCOUNT BREAKDOWN {acctStatsOpen ? '(collapse)' : '(expand)'}
                 </button>
                 {acctStatsOpen && (
-                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                    {orderedAccounts.map(acc => {
-                      const at  = visibleTrades.filter(t=>t.account_id===acc.id)
-                      if (!at.length) return null
-                      const ap  = at.reduce((s,t)=>s+t.pnl,0)
-                      const awr = at.filter(t=>t.pnl>0).length/at.length
-                      return (
-                        <div key={acc.id} style={{background:'var(--sf)',border:`1px solid ${acc.color}30`,borderRadius:8,padding:'8px 14px',display:'flex',alignItems:'center',gap:10,boxShadow:'var(--sh-sm)'}}>
-                          <div style={{width:8,height:8,borderRadius:'50%',background:acc.color}} />
-                          <div>
-                            <div style={{fontSize:11,fontWeight:600}}>{acc.label||acc.id}</div>
-                            <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
-                          </div>
-                          <div style={{borderLeft:'1px solid var(--bd)',paddingLeft:10}}>
-                            <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:600,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
-                            <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}% WR · {at.length}t</div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,overflow:'hidden'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse'}}>
+                      <tbody>
+                        {orderedAccounts.map(acc => {
+                          const at  = visibleTrades.filter(t=>t.account_id===acc.id)
+                          if (!at.length) return null
+                          const ap  = at.reduce((s,t)=>s+t.pnl,0)
+                          const awr = at.filter(t=>t.pnl>0).length/at.length
+                          return (
+                            <tr key={acc.id}
+                              style={{borderBottom:'1px solid var(--sf2)',transition:'background .1s',cursor:'default'}}
+                              onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'}
+                              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                              <td style={{padding:'7px 12px',display:'flex',alignItems:'center',gap:8}}>
+                                <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0}} />
+                                <div style={{minWidth:0}}>
+                                  <div style={{fontSize:11,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acc.label||acc.id}</div>
+                                  <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{acc.broker}</div>
+                                </div>
+                              </td>
+                              <td style={{padding:'7px 12px',textAlign:'right',whiteSpace:'nowrap'}}>
+                                <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:ap>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(ap))}</div>
+                              </td>
+                              <td style={{padding:'7px 12px',textAlign:'right',whiteSpace:'nowrap'}}>
+                                <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{(awr*100).toFixed(1)}% · {at.length}t</div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -997,7 +1022,7 @@ function DashboardInner() {
               <div className="tw trade-tbl-wrap">
                 <table style={{minWidth:1020}}>
                   <thead><tr>
-                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_strategy','Strategy'],['_r','Result']].map(([k,l])=>(
+                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
                       <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
                         {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
                       </th>
