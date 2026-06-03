@@ -869,7 +869,6 @@ function DashboardInner() {
         )}
 
         {tab==='edge' && <EdgeDiscovery trades={visibleTrades} stats={stats} />}
-        
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
@@ -998,7 +997,7 @@ function DashboardInner() {
               <div className="tw trade-tbl-wrap">
                 <table style={{minWidth:1020}}>
                   <thead><tr>
-                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
+                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_strategy','Strategy'],['_r','Result']].map(([k,l])=>(
                       <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
                         {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
                       </th>
