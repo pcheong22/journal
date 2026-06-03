@@ -686,15 +686,11 @@ function DashboardInner() {
                   </div>
                 </div>
               )
-            })()}
-                </div>
-              )
               case 'equity': return (
                 <div key='equity'>
 
             {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
-            </div>
                 </div>
               )
               case 'risk': return (
@@ -848,8 +844,6 @@ function DashboardInner() {
                     </div>
                   )}
                 </div>
-              )
-            })()}
             </div>
                 </div>
               )
@@ -877,7 +871,6 @@ function DashboardInner() {
                   <ChartComp type="rolling" trades={visibleTrades} privacy={privacy} />
                 </div>
               )}
-            </div>
                 </div>
               )
               case 'accounts': return (
@@ -931,7 +924,6 @@ function DashboardInner() {
             )}
             
             </div>
-            </div>
                 </div>
               )
               case 'charts': return (
@@ -950,7 +942,6 @@ function DashboardInner() {
               <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
               <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
             </div>
-          </div>
             </div>
                 </div>
               )
