@@ -672,7 +672,7 @@ function DashboardInner() {
             switch(section) {
               case 'kpis': return (
                 <div key='kpis'>
-
+                  <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
@@ -705,6 +705,7 @@ function DashboardInner() {
                     <div className="kl">TOTAL VOLUME</div>
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
                     <div className="ks">Entry + exit notional</div>
+                  </div>
                   </div>
                 </div>
               )
