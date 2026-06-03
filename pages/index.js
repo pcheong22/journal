@@ -640,7 +640,7 @@ function DashboardInner() {
         />
       )}
 
-      <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto'}}>
+      <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}>
 
         {tab==='overview' && stats && (
           <div className="anim">
@@ -920,7 +920,7 @@ function DashboardInner() {
           </div>
         )}
 
-        {tab==='edge' && <EdgeDiscovery trades={visibleTrades} stats={stats} />}
+        {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} /></div>}
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
