@@ -2,7 +2,7 @@
 // Drawdown Attribution sub-tab for the Edge Discovery tab
 // Shows: drawdown timeline, top event attribution by symbol/direction, symbol drag table
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 
 const fU  = (n, d=0) => n == null ? '—' : (n>=0?'+':'') + n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fA  = n => n == null ? '—' : '$' + Math.abs(Math.round(n)).toLocaleString()
@@ -47,7 +47,7 @@ function DepthBar({ depth, maxDepth }) {
 }
 
 // ── SECTION 1: Drawdown Timeline ──────────────────────────────────────────────
-function DrawdownTimeline({ events }) {
+function DrawdownTimeline({ events, onSelect, selectedIdx }) {
   const [selected, setSelected] = useState(null)
   const top = events.slice(0, 10)
   const maxDepth = top.length ? top[0].depth : 1
@@ -60,7 +60,7 @@ function DrawdownTimeline({ events }) {
     <Card>
       <SectionHeader
         title="Drawdown Events"
-        sub="All distinct peak-to-trough periods, ranked by severity. Click a row to see details." />
+        sub="Tap a row to see attribution breakdown below." />
       <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
         <table style={{borderCollapse:'collapse',minWidth:460}}>
           <thead>
@@ -73,10 +73,12 @@ function DrawdownTimeline({ events }) {
           <tbody>
             {top.map((ev, i) => (
               <tr key={i}
-                onClick={() => setSelected(selected === i ? null : i)}
-                style={{cursor:'pointer',background:selected===i?'var(--ac-bg)':'transparent',transition:'background .1s'}}
-                onMouseEnter={e=>e.currentTarget.style.background=selected===i?'var(--ac-bg)':'var(--sf2)'}
-                onMouseLeave={e=>e.currentTarget.style.background=selected===i?'var(--ac-bg)':'transparent'}>
+                onClick={() => { setSelected(i); onSelect && onSelect(i) }}
+                style={{cursor:'pointer',background:selected===i||selectedIdx===i?'rgba(255,82,88,.08)':'transparent',
+                  borderLeft:selected===i||selectedIdx===i?'2px solid #ff5258':'2px solid transparent',
+                  transition:'all .1s'}}
+                onMouseEnter={e=>{ if(selected!==i && selectedIdx!==i) e.currentTarget.style.background='var(--sf2)' }}
+                onMouseLeave={e=>{ if(selected!==i && selectedIdx!==i) e.currentTarget.style.background='transparent' }}>
                 <td style={{...TD,textAlign:'center',color:'var(--mu)',fontWeight:700}}>{i+1}</td>
                 <td style={{...TD}}>{ev.peak_date || '—'}</td>
                 <td style={{...TD,color:'#ff5258'}}>{ev.trough_date || '—'}</td>
@@ -120,9 +122,15 @@ function DrawdownTimeline({ events }) {
 }
 
 // ── SECTION 2: Top Drawdown Attribution ──────────────────────────────────────
-function DrawdownAttrib({ trades, events }) {
-  const [selectedEvent, setSelectedEvent] = useState(0)
-  const top3 = events.slice(0, 3)
+function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
+  const [selectedEvent, setSelectedEvent] = useState(initialEvent)
+  // Sync when parent changes initialEvent (row click from timeline)
+  const prevInitial = useRef(initialEvent)
+  if (prevInitial.current !== initialEvent) {
+    prevInitial.current = initialEvent
+    setSelectedEvent(initialEvent)
+  }
+  const top3 = events.slice(0, Math.max(3, initialEvent + 1))
 
   const attribution = useMemo(() => {
     if (!top3.length || selectedEvent >= top3.length) return []
@@ -157,6 +165,7 @@ function DrawdownAttrib({ trades, events }) {
 
   return (
     <Card>
+      <div ref={attribRef} style={{scrollMarginTop:80}} />
       <SectionHeader
         title="Drawdown Attribution"
         sub="Which symbols and directions caused each major drawdown?" />
@@ -371,7 +380,18 @@ function SymbolDragTable({ trades }) {
 
 // ── MAIN EXPORT ───────────────────────────────────────────────────────────────
 export default function DrawdownAttribution({ trades = [], stats = null }) {
-  const events = stats?.drawdown_events || []
+  const events    = stats?.drawdown_events || []
+  const attribRef = useRef(null)
+  const [focusedEvent, setFocusedEvent] = useState(0)
+
+  const handleRowSelect = useCallback((idx) => {
+    // Clamp to available events, scroll attribution into view
+    const clamped = Math.min(idx, events.length - 1)
+    setFocusedEvent(clamped)
+    setTimeout(() => {
+      attribRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+  }, [events.length])
 
   if (!trades.length) return (
     <div style={{padding:40,textAlign:'center',color:'var(--mu)',fontFamily:'var(--font-mono)',fontSize:12}}>
@@ -381,8 +401,15 @@ export default function DrawdownAttribution({ trades = [], stats = null }) {
 
   return (
     <div style={{padding:'0 4px',maxWidth:1400,margin:'0 auto',display:'grid',gap:12}}>
-      <DrawdownTimeline events={events} />
-      {events.length >= 1 && <DrawdownAttrib trades={trades} events={events} />}
+      <DrawdownTimeline events={events} onSelect={handleRowSelect} selectedIdx={focusedEvent} />
+      {events.length >= 1 && (
+        <DrawdownAttrib
+          trades={trades}
+          events={events}
+          attribRef={attribRef}
+          initialEvent={focusedEvent}
+        />
+      )}
       <SymbolDragTable trades={trades} />
     </div>
   )
