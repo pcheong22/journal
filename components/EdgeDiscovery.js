@@ -884,7 +884,7 @@ export default function EdgeDiscovery({ trades = [], stats = null }) {
   return (
     <div style={{padding:'12px 0',maxWidth:1400,margin:'0 auto'}}>
       {/* Sub-tab nav */}
-      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',
+      <div style={{overflowX:'auto',overflowY:'hidden',WebkitOverflowScrolling:'touch',
         borderBottom:'1px solid var(--bd)',marginBottom:16,
         scrollbarWidth:'none',msOverflowStyle:'none'}}>
         <div style={{display:'flex',gap:0,minWidth:'max-content',padding:'0 12px',alignItems:'center'}}>
