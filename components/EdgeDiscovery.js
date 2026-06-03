@@ -4,6 +4,7 @@
 
 import { useState, useMemo } from 'react'
 import DrawdownAttribution from './DrawdownAttribution'
+import EdgeConcentration   from './EdgeConcentration'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fU  = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
@@ -864,12 +865,13 @@ function PerformanceSimulator({ trades }) {
 // MAIN COMPONENT
 // ────────────────────────────────────────────────────────────────────────────
 const SUB_TABS = [
-  ['symbol',    '🎯 Symbols'],
-  ['duration',  '⏱ Duration'],
-  ['heatmaps',  '🌡 Heatmaps'],
-  ['where',     '🔎 My Edge'],
-  ['simulator', '🧪 Simulator'],
-  ['drawdown',  '📉 Drawdown'],
+  ['symbol',        '🎯 Symbols'],
+  ['duration',      '⏱ Duration'],
+  ['heatmaps',      '🌡 Heatmaps'],
+  ['where',         '🔎 My Edge'],
+  ['concentration', '📊 Concentration'],
+  ['simulator',     '🧪 Simulator'],
+  ['drawdown',      '📉 Drawdown'],
 ]
 
 export default function EdgeDiscovery({ trades = [], stats = null }) {
@@ -915,7 +917,8 @@ export default function EdgeDiscovery({ trades = [], stats = null }) {
       )}
       {subTab === 'where'     && <WhereMyEdgeLives        trades={trades} />}
       {subTab === 'simulator' && <PerformanceSimulator    trades={trades} />}
-      {subTab === 'drawdown'  && <DrawdownAttribution    trades={trades} stats={stats} />}
+      {subTab === 'concentration' && <EdgeConcentration trades={trades} />}
+      {subTab === 'drawdown'      && <DrawdownAttribution trades={trades} stats={stats} />}
     </div>
   )
 }
