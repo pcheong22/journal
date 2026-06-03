@@ -89,7 +89,7 @@ function ParetoAnalysis({ trades }) {
     <Card>
       <SectionHeader
         title="Pareto Analysis"
-        sub="How concentrated is your profitability? The more top-heavy, the more dependent you are on a small number of trades." />
+        sub="How concentrated is your profitability? Green = gross profit from winners only. Blue = net P&L including losses in the selection. They diverge when top trades include some losers." />
 
       {/* Summary callout */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
@@ -154,14 +154,14 @@ function ParetoAnalysis({ trades }) {
               {d.pct}%
             </div>
             <div style={{flex:1,height:18,background:'var(--sf2)',borderRadius:3,overflow:'hidden',position:'relative'}}>
-              {/* Gross profit bar */}
+              {/* Gross profit bar — green, full height */}
               <div style={{position:'absolute',top:0,left:0,height:'100%',
                 width:`${(d.grossPct/maxGrossPct)*100}%`,
-                background:'rgba(102,255,165,.4)',borderRadius:3,transition:'width .4s'}} />
-              {/* Net P&L bar */}
-              <div style={{position:'absolute',top:4,left:0,height:10,
-                width:`${Math.min(100,(d.netPct/maxGrossPct)*100)}%`,
-                background:'#66ffa5',borderRadius:2,transition:'width .4s',opacity:0.8}} />
+                background:'rgba(102,255,165,.25)',borderRadius:3,transition:'width .4s'}} />
+              {/* Net P&L bar — blue, slightly narrower */}
+              <div style={{position:'absolute',top:3,left:0,height:12,
+                width:`${Math.min(100,Math.max(0,(d.netPct/maxGrossPct)*100)}%`,
+                background:'#7eb8f7',borderRadius:2,transition:'width .4s',opacity:0.9}} />
             </div>
             <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'#66ffa5',
               width:36,textAlign:'right',flexShrink:0,fontWeight:600}}>
