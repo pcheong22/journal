@@ -110,6 +110,7 @@ function DashboardInner() {
     acctStatsDefault:  false,
     tradeLogPageSize:  50,
     hlTimezone:        'Asia/Dubai',
+    dashboardOrder:    ['kpis','equity','risk','rolling','accounts','charts'],
   })
 
   const saveSetting = (key, value) => {
@@ -644,7 +645,7 @@ function DashboardInner() {
       <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}>
 
         {tab==='overview' && stats && (
-          <div className="anim">
+          <div className="anim" style={{display:'flex',flexDirection:'column'}}>
             {(() => {
               const wins   = Math.round(ov.win_rate * ov.total_trades)
               const losses = ov.total_trades - wins
@@ -668,7 +669,7 @@ function DashboardInner() {
                 return '$' + Math.round(v).toLocaleString()
               }
               return (
-                <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
+                <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('kpis')}} className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
@@ -705,8 +706,11 @@ function DashboardInner() {
                 </div>
               )
             })()}
+            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('equity')}}>
             {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
+            </div>
+            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('risk')}}>
             {/* ── RISK ANALYTICS (collapsible) ──────────────────────── */}
             {(() => {
               const ov = stats.overview
@@ -857,6 +861,8 @@ function DashboardInner() {
                 </div>
               )
             })()}
+            </div>
+            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('rolling')}}>
             {/* ── ROLLING ANALYTICS (collapsible) ──────────────────────────── */}
             <div style={{marginBottom:14}}>
               <button onClick={()=>setRollingOpen(o=>!o)}
@@ -880,6 +886,7 @@ function DashboardInner() {
               )}
             </div>
 
+            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('accounts')}}>
             {accounts.length > 1 && (<div style={{marginBottom:14}}>
                 <button onClick={()=>setAcctStatsOpen(o=>!o)}
                   style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,letterSpacing:'.06em',textTransform:'uppercase',display:'flex',alignItems:'center',gap:5,padding:'0 0 8px',transition:'color .15s'}}
@@ -927,6 +934,9 @@ function DashboardInner() {
               </div>
             )}
             
+            </div>
+            </div>
+            <div style={{order: (settings.dashboardOrder||['kpis','equity','risk','rolling','accounts','charts']).indexOf('charts')}}>
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
             {/* Row 2: Three equal supporting charts */}
@@ -941,6 +951,7 @@ function DashboardInner() {
               <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
             </div>
           </div>
+            </div>
         )}
 
         {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} /></div>}
@@ -1570,6 +1581,56 @@ function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
   )
 }
 
+
+// ── DASHBOARD ORDER LIST ──────────────────────────────────────────────────────
+// Drag-to-reorder list for Overview sections in Settings
+function DashboardOrderList({ order, onChange }) {
+  const [dragId, setDragId] = useState(null)
+
+  const SECTION_LABELS = {
+    kpis:     '📊 KPI Cards',
+    equity:   '📈 Equity Curve',
+    risk:     '🛡 Risk Analytics',
+    rolling:  '🔄 Rolling Analytics',
+    accounts: '🏦 Account Breakdown',
+    charts:   '📉 Charts',
+  }
+
+  const handleDrop = (targetId) => {
+    if (!dragId || dragId === targetId) return
+    const next = [...order]
+    const from = next.indexOf(dragId)
+    const to   = next.indexOf(targetId)
+    next.splice(from, 1)
+    next.splice(to, 0, dragId)
+    onChange(next)
+    setDragId(null)
+  }
+
+  return (
+    <div style={{display:'grid',gap:5}}>
+      {order.map((id, i) => (
+        <div key={id}
+          draggable
+          onDragStart={() => setDragId(id)}
+          onDragOver={e => e.preventDefault()}
+          onDrop={() => handleDrop(id)}
+          onDragEnd={() => setDragId(null)}
+          style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',
+            borderRadius:6,border:`1px solid ${dragId===id?'var(--ac)':'var(--bd)'}`,
+            background:dragId===id?'var(--ac-bg)':'var(--sf2)',
+            cursor:'grab',transition:'all .15s',opacity:dragId===id?0.5:1,
+            userSelect:'none'}}>
+          <span style={{color:'var(--bd2)',fontSize:14}}>⠿</span>
+          <span style={{fontSize:11,color:'var(--tx)',fontWeight:500,flex:1}}>{SECTION_LABELS[id] || id}</span>
+          <span style={{fontSize:9,color:'var(--bd2)',fontFamily:'var(--font-mono)',
+            background:'var(--sf)',padding:'1px 6px',borderRadius:3,border:'1px solid var(--bd)'}}>{i+1}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
   const TABS         = ['overview','coach','streaks','calendar','symbols','timing','tradelog','missed']
@@ -1646,6 +1707,18 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
               ]}
               onChange={v => saveSetting('hlTimezone', v)} />
           </Row>
+          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>DASHBOARD LAYOUT</div>
+          <div style={{padding:'8px 0 4px'}}>
+            <div style={{fontSize:11,color:'var(--mu)',marginBottom:10}}>Drag to reorder Overview sections</div>
+            <DashboardOrderList
+              order={settings.dashboardOrder || ['kpis','equity','risk','rolling','accounts','charts']}
+              onChange={order => saveSetting('dashboardOrder', order)}
+            />
+            <button style={{marginTop:8,fontSize:10,color:'var(--mu)',background:'none',border:'none',cursor:'pointer',padding:'4px 0',fontFamily:'var(--font-mono)'}}
+              onClick={() => saveSetting('dashboardOrder', ['kpis','equity','risk','rolling','accounts','charts'])}>
+              Reset to default order
+            </button>
+          </div>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
           <Row label="Rows per page" sub="Number of trades shown per page">
             <Select value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
