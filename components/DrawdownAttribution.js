@@ -123,18 +123,20 @@ function DrawdownTimeline({ events, onSelect, selectedIdx }) {
 
 // ── SECTION 2: Top Drawdown Attribution ──────────────────────────────────────
 function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
-  const [selectedEvent, setSelectedEvent] = useState(initialEvent)
+  const [selectedEvent, setSelectedEvent] = useState(0)
   // Sync when parent changes initialEvent (row click from timeline)
   const prevInitial = useRef(initialEvent)
   if (prevInitial.current !== initialEvent) {
     prevInitial.current = initialEvent
-    setSelectedEvent(initialEvent)
+    // Clamp to valid range
+    setSelectedEvent(Math.max(0, Math.min(initialEvent, events.length - 1)))
   }
-  const top3 = events.slice(0, Math.max(3, initialEvent + 1))
+  const topN = events  // show all events in attribution selector
 
   const attribution = useMemo(() => {
-    if (!top3.length || selectedEvent >= top3.length) return []
-    const ev = top3[selectedEvent]
+    const safeIdx = Math.max(0, Math.min(selectedEvent, topN.length - 1))
+  if (!topN.length) return []
+    const ev = topN[safeIdx]
     if (!ev.peak_date || !ev.trough_date) return []
 
     const inWindow = trades.filter(t => {
@@ -158,9 +160,10 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
       .slice(0, 15)
   }, [trades, events, selectedEvent])
 
-  if (!top3.length) return null
+  if (!topN.length) return null
 
-  const ev = top3[selectedEvent]
+  const safeSelectedEvent = Math.max(0, Math.min(selectedEvent, topN.length - 1))
+  const ev = topN[safeSelectedEvent]
   const totalWindowPnl = attribution.reduce((s, r) => s + r.pnl, 0)
 
   return (
@@ -172,7 +175,7 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
 
       {/* Event selector */}
       <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-        {top3.map((e, i) => (
+        {topN.map((e, i) => (
           <button key={i} onClick={() => setSelectedEvent(i)}
             style={{padding:'5px 10px',borderRadius:6,fontSize:10,fontFamily:'var(--font-mono)',
               border:`1px solid ${selectedEvent===i?'#ff5258':'var(--bd)'}`,
@@ -184,7 +187,7 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
       </div>
 
       {/* Event summary */}
-      <div style={{background:'rgba(255,82,88,.05)',border:'1px solid rgba(255,82,88,.2)',borderRadius:8,
+      {!ev ? null : <div style={{background:'rgba(255,82,88,.05)',border:'1px solid rgba(255,82,88,.2)',borderRadius:8,
         padding:'8px 10px',marginBottom:12,display:'grid',
         gridTemplateColumns:'repeat(auto-fit,minmax(90px,1fr))',gap:8}}>
         {[
@@ -202,6 +205,7 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
         ))}
       </div>
 
+      }
       {/* Attribution table */}
       {attribution.length > 0 ? (
         <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
@@ -385,8 +389,9 @@ export default function DrawdownAttribution({ trades = [], stats = null }) {
   const [focusedEvent, setFocusedEvent] = useState(0)
 
   const handleRowSelect = useCallback((idx) => {
-    // Clamp to available events, scroll attribution into view
-    const clamped = Math.min(idx, events.length - 1)
+    // Clamp to valid range
+    if (!events.length) return
+    const clamped = Math.max(0, Math.min(idx, events.length - 1))
     setFocusedEvent(clamped)
     setTimeout(() => {
       attribRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
