@@ -62,6 +62,7 @@ function DashboardInner() {
   const [allTrades,      setAllTrades]      = useState([])
   const [accounts,         setAccounts]         = useState([])
   const [strategies,       setStrategies]       = useState([])
+  const [riskOpen,         setRiskOpen]         = useState(false)
   const [strategyModal,    setStrategyModal]    = useState(null) // trade being tagged
   const [strategyMgrOpen,  setStrategyMgrOpen]  = useState(false)
   const [tags,           setTags]           = useState([])
@@ -665,6 +666,158 @@ function DashboardInner() {
                 </div>
               )
             })()}
+            {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
+            <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
+            {/* ── RISK ANALYTICS (collapsible) ──────────────────────── */}
+            {(() => {
+              const ov = stats.overview
+              // riskOpen state is declared at component level
+              const fN  = (n, d=2) => n == null ? '—' : n.toFixed(d)
+              const fP  = (n)      => n == null ? '—' : n.toFixed(1) + '%'
+              const fU2 = (n)      => n == null ? '—' : (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0})
+              const badge = (val, good, fair) => {
+                const label = val == null ? null : val >= good ? 'Good' : val >= fair ? 'Fair' : 'Poor'
+                const col   = label === 'Good' ? '#66ffa5' : label === 'Fair' ? '#f0a500' : '#ff5258'
+                return label ? <span style={{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:3,fontFamily:'var(--font-mono)',
+                  background:`${col}20`,color:col,border:`1px solid ${col}40`,whiteSpace:'nowrap'}}>{label}</span> : null
+              }
+              const Tip = ({text, children}) => (
+                <span style={{position:'relative',display:'inline-block',cursor:'help'}}
+                  onMouseEnter={e=>e.currentTarget.querySelector('.tip').style.display='block'}
+                  onMouseLeave={e=>e.currentTarget.querySelector('.tip').style.display='none'}>
+                  {children}
+                  <span className="tip" style={{display:'none',position:'absolute',bottom:'130%',left:0,
+                    background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:6,padding:'8px 10px',
+                    fontSize:10,color:'var(--mu)',width:200,lineHeight:1.5,zIndex:99,whiteSpace:'normal',
+                    fontWeight:400,textTransform:'none',letterSpacing:0,boxShadow:'0 4px 20px rgba(0,0,0,.6)',
+                    fontFamily:'var(--font-sans)'}}>
+                    {text}
+                  </span>
+                </span>
+              )
+              const RCard = ({label, val, fmt, bench, good, fair, tip}) => (
+                <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',
+                  display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+                  <div style={{flex:1}}>
+                    <Tip text={tip}>
+                      <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
+                        letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
+                        display:'inline-block',paddingBottom:1,marginBottom:4}}>
+                        {label} ⓘ
+                      </div>
+                    </Tip>
+                    <div style={{fontSize:20,fontWeight:700,fontFamily:'var(--font-mono)',margin:'3px 0',
+                      color:val==null?'var(--mu)':val>=0?'#66ffa5':'#ff5258'}}>{fmt(val)}</div>
+                    <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{bench}</div>
+                  </div>
+                  {good != null && badge(val, good, fair)}
+                </div>
+              )
+              const GBar = ({label, val, max, color}) => (
+                <div style={{marginBottom:10}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',textTransform:'uppercase',letterSpacing:'.05em'}}>{label}</span>
+                    <span style={{fontSize:12,fontWeight:700,fontFamily:'var(--font-mono)',color}}>{val == null ? '—' : val < 1 ? '<1%' : val.toFixed(1)+'%'}</span>
+                  </div>
+                  <div style={{height:5,background:'var(--sf2)',borderRadius:3,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:`${Math.min(100,val||0)}%`,background:color,borderRadius:3,transition:'width .4s'}} />
+                  </div>
+                </div>
+              )
+              return (
+                <div style={{marginBottom:14}}>
+                  <button onClick={()=>setRiskOpen(o=>!o)}
+                    style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:10,
+                      fontFamily:'var(--font-mono)',fontWeight:600,letterSpacing:'.06em',textTransform:'uppercase',
+                      display:'flex',alignItems:'center',gap:5,padding:'0 0 10px',width:'100%',transition:'color .15s'}}
+                    onMouseEnter={e=>e.currentTarget.style.color='var(--tx)'}
+                    onMouseLeave={e=>e.currentTarget.style.color='var(--mu)'}>
+                    {riskOpen ? '▲' : '▼'} RISK ANALYTICS {riskOpen ? '(collapse)' : '(expand)'}
+                    <div style={{flex:1,height:1,background:'var(--bd)',marginLeft:8}} />
+                  </button>
+                  {riskOpen && (
+                    <div style={{display:'grid',gap:10}}>
+                      {/* Row 1: 4 ratio cards */}
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))',gap:8}}>
+                        <RCard label="Sharpe Ratio" val={ov.sharpe} fmt={fN}
+                          bench=">1.0 good · >2.0 excellent" good={2} fair={1}
+                          tip="Return on deployed notional ÷ volatility. Risk-free rate 4.5% p.a. Measures return per unit of total risk." />
+                        <RCard label="Sortino Ratio" val={ov.sortino} fmt={fN}
+                          bench="Penalises downside vol only" good={2} fair={1}
+                          tip="Like Sharpe but only penalises downside volatility. Higher than Sharpe indicates losses are consistent rather than wild swings." />
+                        <RCard label="Profit Factor" val={ov.profit_factor} fmt={fN}
+                          bench="Gross profit ÷ gross loss" good={1.5} fair={1.1}
+                          tip="Total winning P&L divided by total losing P&L. >1.5 strong, >2.0 excellent." />
+                        <RCard label="Recovery Factor" val={ov.recovery_factor} fmt={fN}
+                          bench="Net P&L ÷ max drawdown" good={2} fair={1}
+                          tip="How many times your net profit covers your worst drawdown. >2 indicates strong recovery from losses." />
+                      </div>
+                      {/* Row 2: Kelly + Risk of Ruin */}
+                      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px 16px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+                          <div>
+                            <Tip text="Optimal fraction of capital to risk per trade based on win rate and payoff ratio. Half Kelly recommended to reduce variance while preserving edge.">
+                              <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
+                                letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
+                                display:'inline-block',paddingBottom:1,marginBottom:12,cursor:'help'}}>
+                                Kelly Fraction ⓘ
+                              </div>
+                            </Tip>
+                            <GBar label="Full Kelly" val={ov.kelly_full} max={50} color="#f0a500" />
+                            <GBar label="Half Kelly (recommended)" val={ov.kelly_half} max={50} color="#66ffa5" />
+                            <div style={{fontSize:10,color:'var(--mu)',marginTop:6,lineHeight:1.5}}>
+                              {ov.kelly_half != null
+                                ? `Bet ${ov.kelly_half}% of capital per trade at half Kelly.`
+                                : 'Insufficient data for Kelly calculation.'}
+                            </div>
+                          </div>
+                          <div>
+                            <Tip text="Approximate probability of losing 30%+ of account from any peak, and of total ruin, based on win rate and payoff ratio at current sizing.">
+                              <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
+                                letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
+                                display:'inline-block',paddingBottom:1,marginBottom:12,cursor:'help'}}>
+                                Risk of Ruin ⓘ
+                              </div>
+                            </Tip>
+                            <GBar label="P(30% drawdown from peak)" val={ov.ror_half} max={100}
+                              color={ov.ror_half > 20 ? '#ff5258' : ov.ror_half > 10 ? '#f0a500' : '#66ffa5'} />
+                            <GBar label="P(total ruin)" val={ov.ror_ruin} max={100}
+                              color={ov.ror_ruin > 10 ? '#ff5258' : '#66ffa5'} />
+                            <div style={{fontSize:10,color:'var(--mu)',marginTop:6,lineHeight:1.5}}>
+                              Based on historical win rate and payoff ratio.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Row 3: Ulcer Index */}
+                      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,
+                        padding:'14px 16px',display:'flex',alignItems:'center',gap:20,flexWrap:'wrap'}}>
+                        <div style={{flex:1,minWidth:130}}>
+                          <Tip text="Measures depth and duration of drawdowns. Unlike max drawdown, captures how long you spent underwater. Lower is better.">
+                            <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
+                              letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
+                              display:'inline-block',paddingBottom:1,marginBottom:6,cursor:'help'}}>
+                              Ulcer Index ⓘ
+                            </div>
+                          </Tip>
+                          <div style={{fontSize:24,fontWeight:700,fontFamily:'var(--font-mono)',color:
+                            ov.ulcer_index == null ? 'var(--mu)' : ov.ulcer_index < 5 ? '#66ffa5' : ov.ulcer_index < 15 ? '#f0a500' : '#ff5258',
+                            margin:'4px 0'}}>
+                            {ov.ulcer_index != null ? ov.ulcer_index.toFixed(1)+'%' : '—'}
+                          </div>
+                          <div style={{fontSize:10,color:'var(--mu)'}}>Avg pain below peak equity</div>
+                        </div>
+                        <div style={{flex:1,minWidth:140,fontSize:10,color:'var(--mu)',lineHeight:1.6}}>
+                          {ov.ulcer_index != null && ov.ulcer_index < 5 && 'Low ulcer index — drawdowns are shallow and short-lived.'}
+                          {ov.ulcer_index != null && ov.ulcer_index >= 5 && ov.ulcer_index < 15 && 'Moderate ulcer index — some prolonged drawdown periods.'}
+                          {ov.ulcer_index != null && ov.ulcer_index >= 15 && 'High ulcer index — significant time spent in drawdown.'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             {accounts.length > 1 && (
               <div style={{marginBottom:14}}>
                 <button onClick={()=>setAcctStatsOpen(o=>!o)}
@@ -698,8 +851,7 @@ function DashboardInner() {
                 )}
               </div>
             )}
-            {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
-            <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
+            
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
             {/* Row 2: Three equal supporting charts */}
