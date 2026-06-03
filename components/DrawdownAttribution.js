@@ -16,7 +16,7 @@ const TD = { fontSize:10, fontFamily:'var(--font-mono)', padding:'5px 6px',
 
 function Card({ children, style }) {
   return (
-    <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:'14px 12px',overflow:'visible',...style}}>
+    <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:10,padding:'14px 12px',overflow:'hidden',...style}}>
       {children}
     </div>
   )
@@ -61,11 +61,11 @@ function DrawdownTimeline({ events }) {
       <SectionHeader
         title="Drawdown Events"
         sub="All distinct peak-to-trough periods, ranked by severity. Click a row to see details." />
-      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',margin:'0 -12px',padding:'0 12px'}}>
-        <table style={{borderCollapse:'collapse',minWidth:520}}>
+      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+        <table style={{borderCollapse:'collapse',minWidth:460}}>
           <thead>
             <tr>
-              {['#','Peak Date','Trough Date','Recovery','Depth','Duration','Recovery Time','Status'].map(h => (
+              {['#','Peak','Trough','Recovery','Depth','Status'].map(h => (
                 <th key={h} style={{...TH,textAlign:h==='#'?'center':'left'}}>{h}</th>
               ))}
             </tr>
@@ -86,8 +86,6 @@ function DrawdownTimeline({ events }) {
                 <td style={{...TD,minWidth:180}}>
                   <DepthBar depth={ev.depth} maxDepth={maxDepth} />
                 </td>
-                <td style={{...TD,color:'var(--mu)'}}>{ev.duration_days != null ? `${ev.duration_days}d` : '—'}</td>
-                <td style={{...TD,color:'var(--mu)'}}>{ev.recovery_days != null ? `${ev.recovery_days}d` : ev.recovery_date ? '0d' : '—'}</td>
                 <td style={{...TD}}>
                   <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:3,fontFamily:'var(--font-mono)',
                     background:ev.recovery_date?'rgba(102,255,165,.1)':'rgba(255,165,0,.1)',
@@ -106,12 +104,10 @@ function DrawdownTimeline({ events }) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(90px,1fr))',gap:6,marginTop:12,
         padding:'10px 0',borderTop:'1px solid var(--bd)'}}>
         {[
-          ['Total Events',    events.length],
-          ['Open Drawdowns',  events.filter(e=>!e.recovery_date).length],
-          ['Avg Depth',       fA(events.reduce((s,e)=>s+e.depth,0)/events.length)],
-          ['Avg Duration',    `${Math.round(events.filter(e=>e.duration_days!=null).reduce((s,e)=>s+(e.duration_days||0),0) / Math.max(1,events.filter(e=>e.duration_days!=null).length))}d`],
-          ['Worst Drawdown',  fA(events[0]?.depth)],
-          ['Longest Recovery', `${Math.max(...events.filter(e=>e.recovery_days!=null).map(e=>e.recovery_days),0)}d`],
+          ['Total Events',   events.length],
+          ['Open',           events.filter(e=>!e.recovery_date).length],
+          ['Avg Depth',      fA(events.reduce((s,e)=>s+e.depth,0)/events.length)],
+          ['Worst',          fA(events[0]?.depth)],
         ].map(([label, val]) => (
           <div key={label}>
             <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.07em',fontFamily:'var(--font-mono)',marginBottom:3}}>{label}</div>
@@ -199,8 +195,8 @@ function DrawdownAttrib({ trades, events }) {
 
       {/* Attribution table */}
       {attribution.length > 0 ? (
-        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',margin:'0 -12px',padding:'0 12px'}}>
-          <table style={{borderCollapse:'collapse',minWidth:400}}>
+        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <table style={{borderCollapse:'collapse',minWidth:340}}>
             <thead>
               <tr>
                 {['Symbol','Dir','Trades','P&L in Period','% of Drawdown'].map(h => (
@@ -320,8 +316,8 @@ function SymbolDragTable({ trades }) {
       <SectionHeader
         title="Symbol Drag Analysis"
         sub="Which instruments cause the most drawdown damage? Drag Score = max drawdown ÷ total P&L. High score = consider reducing." />
-      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',margin:'0 -12px',padding:'0 12px'}}>
-        <table style={{borderCollapse:'collapse',minWidth:360}}>
+      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+        <table style={{borderCollapse:'collapse',minWidth:300}}>
           <thead>
             <tr>
               {[
