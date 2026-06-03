@@ -385,7 +385,7 @@ export default function DrawdownAttribution({ trades = [], stats = null }) {
   )
 
   return (
-    <div style={{padding:'20px 24px',maxWidth:1400,margin:'0 auto',display:'grid',gap:20}}>
+    <div style={{padding:'0 12px',maxWidth:1400,margin:'0 auto',display:'grid',gap:16}}>
       <DrawdownTimeline events={events} />
       {events.length >= 1 && <DrawdownAttrib trades={trades} events={events} />}
       <SymbolDragTable trades={trades} />

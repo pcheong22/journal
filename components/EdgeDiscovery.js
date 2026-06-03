@@ -864,10 +864,10 @@ function PerformanceSimulator({ trades }) {
 // MAIN COMPONENT
 // ────────────────────────────────────────────────────────────────────────────
 const SUB_TABS = [
-  ['symbol',    '🎯 Symbol Edge'],
-  ['duration',  '⏱ Duration Edge'],
+  ['symbol',    '🎯 Symbols'],
+  ['duration',  '⏱ Duration'],
   ['heatmaps',  '🌡 Heatmaps'],
-  ['where',     '🔎 Where My Edge Lives'],
+  ['where',     '🔎 My Edge'],
   ['simulator', '🧪 Simulator'],
   ['drawdown',  '📉 Drawdown'],
 ]
@@ -882,20 +882,26 @@ export default function EdgeDiscovery({ trades = [], stats = null }) {
   )
 
   return (
-    <div style={{padding:'20px 24px',maxWidth:1400,margin:'0 auto'}}>
+    <div style={{padding:'12px 0',maxWidth:1400,margin:'0 auto'}}>
       {/* Sub-tab nav */}
-      <div style={{display:'flex',gap:4,marginBottom:20,flexWrap:'wrap',borderBottom:'1px solid var(--bd)',paddingBottom:0}}>
-        {SUB_TABS.map(([id, label]) => (
-          <button key={id} onClick={()=>setSubTab(id)}
-            style={{padding:'8px 16px',border:'none',borderBottom:`2px solid ${subTab===id?'var(--ac)':'transparent'}`,
-              background:'transparent',color:subTab===id?'var(--ac2)':'var(--mu)',fontSize:12,fontWeight:subTab===id?700:400,
-              cursor:'pointer',transition:'all .15s',marginBottom:-1,whiteSpace:'nowrap'}}>
-            {label}
-          </button>
-        ))}
-        <div style={{marginLeft:'auto',display:'flex',alignItems:'center',
-          fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',paddingBottom:8}}>
-          {trades.length.toLocaleString()} trades
+      <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',
+        borderBottom:'1px solid var(--bd)',marginBottom:16,
+        scrollbarWidth:'none',msOverflowStyle:'none'}}>
+        <div style={{display:'flex',gap:0,minWidth:'max-content',padding:'0 12px',alignItems:'center'}}>
+          {SUB_TABS.map(([id, label]) => (
+            <button key={id} onClick={()=>setSubTab(id)}
+              style={{padding:'8px 14px',border:'none',
+                borderBottom:`2px solid ${subTab===id?'var(--ac)':'transparent'}`,
+                background:'transparent',color:subTab===id?'var(--ac2)':'var(--mu)',
+                fontSize:12,fontWeight:subTab===id?700:400,
+                cursor:'pointer',transition:'all .15s',marginBottom:-1,whiteSpace:'nowrap'}}>
+              {label}
+            </button>
+          ))}
+          <span style={{marginLeft:12,fontSize:10,color:'var(--bd)',
+            fontFamily:'var(--font-mono)',paddingBottom:8,whiteSpace:'nowrap'}}>
+            {trades.length.toLocaleString()} trades
+          </span>
         </div>
       </div>
 
