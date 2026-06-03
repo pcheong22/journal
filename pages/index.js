@@ -943,7 +943,6 @@ function DashboardInner() {
               <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
               <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
             </div>
-            </div>
                 </div>
               )
               default: return null
