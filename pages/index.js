@@ -947,8 +947,6 @@ function DashboardInner() {
                 )}
               </div>
             )}
-            
-            </div>
                 </div>
               )
               case 'charts': return (
