@@ -89,10 +89,10 @@ export default function ChartComp(props) {
   if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
   if (type==='symbolWr')     return <HBarChart  title="WIN RATE BY SYMBOL" labels={props.data.map(d=>d.symbol)}    values={props.data.map(d=>Math.round(d.win_rate*100))} height={270} isWr />
-  if (type==='sessionPnl')   return <BarChart   title="SESSION P&L"      labels={props.data.map(d=>d.session)}     values={props.data.map(d=>Math.round(d.total_pnl))} height={200} privacy={privacy} />
-  if (type==='sessionWr')    return <WrChart    title="SESSION WIN RATE"  labels={props.data.map(d=>d.session)}     values={props.data.map(d=>Math.round(d.win_rate*100))} height={200} />
-  if (type==='dowPnl')       return <BarChart   title="P&L BY DAY"       labels={props.data.map(d=>d.day_of_week)} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} privacy={privacy} />
-  if (type==='dowWr')        return <WrChart    title="WIN RATE BY DAY"   labels={props.data.map(d=>d.day_of_week)} values={props.data.map(d=>Math.round(d.win_rate*100))} height={220} />
+  if (type==='sessionPnl')   return <BarChart   title="SESSION P&L"      labels={props.data.map(d=>d.session)}     values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={280} tickRotation={35} privacy={privacy} />
+  if (type==='sessionWr')    return <WrChart    title="SESSION WIN RATE"  labels={props.data.map(d=>d.session)}     values={props.data.map(d=>Math.round(d.win_rate*100))} height={200} cardHeight={280} tickRotation={35} />
+  if (type==='dowPnl')       return <BarChart   title="P&L BY DAY"       labels={props.data.map(d=>d.day_of_week)} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={300} tickRotation={35} privacy={privacy} />
+  if (type==='dowWr')        return <WrChart    title="WIN RATE BY DAY"   labels={props.data.map(d=>d.day_of_week)} values={props.data.map(d=>Math.round(d.win_rate*100))} height={220} cardHeight={300} tickRotation={35} />
   if (type==='hourly')       return <HourlyChart     data={props.data}               privacy={privacy} />
   if (type==='streaks')      return <StreaksView      trades={props.trades} stats={props.stats} privacy={privacy} />
   if (type==='rolling')      return <RollingChart     trades={props.trades} privacy={privacy} />
@@ -448,7 +448,7 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
 }
 
 // ── WIN RATE BAR ─────────────────────────────────────────────────────────────
-function WrChart({ title, labels, values, height }) {
+function WrChart({ title, labels, values, height=252, cardHeight=300, tickRotation=0 }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -457,11 +457,11 @@ function WrChart({ title, labels, values, height }) {
     const ch = new Chart(ref.current, {
       type:'bar', data:{labels, datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
       options:{responsive:true, plugins:{legend:NOLEG, tooltip:TIP},
-        scales:{y:{grid:GRID, min:0, max:100, ticks:{...TICK, callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:{...TICK, maxRotation:35, minRotation:35, autoSkip:false}}}}
+        scales:{y:{grid:GRID, min:0, max:100, ticks:{...TICK, callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:{...TICK, maxRotation:tickRotation, minRotation:tickRotation, autoSkip:false}}}}
     })
     return () => ch.destroy()
   }, [JSON.stringify(values)])
-  return (<div className="card"><div className="ct"><span className="ind" />{title}</div><canvas ref={ref} height={height} /></div>)
+  return (<div className="card" style={{height:cardHeight,boxSizing:"border-box"}}><div className="ct"><span className="ind" />{title}</div><div style={{position:"relative",height:height}}><canvas ref={ref} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%"}} /></div></div>)
 }
 
 // ── HORIZONTAL BAR ───────────────────────────────────────────────────────────
@@ -690,26 +690,83 @@ export function Top5PnlChart({ trades, mode, privacy }) {
 
 // ── HOURLY CHART ─────────────────────────────────────────────────────────────
 function HourlyChart({ data, privacy }) {
-  const ref = useRef()
+  const pnlRef = useRef(); const wrRef = useRef()
+  const pnlChart = useRef(); const wrChart = useRef()
   const hrMap = {}; data?.forEach(h => { hrMap[h.hour] = h })
   const allH   = Array.from({length:24},(_,i)=>i)
-  const values = allH.map(h => hrMap[h] ? Math.round(hrMap[h].total_pnl) : 0)
-  const cs     = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
-  const bc     = values.map(v => v>=0?'#059669':'#dc2626')
+  const labels = allH.map(h => (h<10?'0':'')+h+':00')
+  const pnlVals= allH.map(h => hrMap[h] ? Math.round(hrMap[h].total_pnl) : 0)
+  const wrVals = allH.map(h => hrMap[h] ? Math.round(hrMap[h].win_rate*100) : 0)
+  const pnlCs  = pnlVals.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
+  const pnlBc  = pnlVals.map(v => v>=0?'#059669':'#dc2626')
+  const wrCs   = wrVals.map(v => v>=67?'rgba(5,150,105,.12)':v<50?'rgba(220,38,38,.12)':'rgba(234,179,8,.12)')
+  const wrBc   = wrVals.map(v => v>=67?'#059669':v<50?'#dc2626':'#ca8a04')
+  const xTicks = {...TICK, maxRotation:45, minRotation:45, autoSkip:true, maxTicksLimit:12}
+
   useEffect(() => {
-    if (!ref.current) return
-    const ch = new Chart(ref.current, {
+    if (!pnlRef.current) return
+    pnlChart.current?.destroy()
+    pnlChart.current = new Chart(pnlRef.current, {
       type:'bar',
-      data:{labels:allH.map(h=>(h<10?'0':'')+h+':00'), datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
-      options:{responsive:true, plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c=>{const h=hrMap[c.dataIndex]; return h?[privacy?'***':fU(Math.round(h.total_pnl)),(h.win_rate*100).toFixed(0)+'% WR',h.count+' trades']:[];}}}},
-        scales:{y:{grid:GRID, ticks:{...TICK, callback: privTick(privacy)}}, x:{grid:{display:false}, ticks:TICK}}}
+      data:{labels, datasets:[{data:pnlVals, backgroundColor:pnlCs, borderColor:pnlBc, borderWidth:1.5, borderRadius:3}]},
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c=>{const h=hrMap[c.dataIndex]; return h?[privacy?'***':fU(Math.round(h.total_pnl)),(h.win_rate*100).toFixed(0)+'% WR',h.count+' trades']:[];},}}},
+        scales:{y:{grid:GRID, ticks:{...TICK, callback:privTick(privacy)}}, x:{grid:{display:false}, ticks:xTicks}}}
     })
-    return () => ch.destroy()
-  }, [JSON.stringify(values), privacy])
+    return () => pnlChart.current?.destroy()
+  }, [JSON.stringify(pnlVals), privacy])
+
+  useEffect(() => {
+    if (!wrRef.current) return
+    wrChart.current?.destroy()
+    wrChart.current = new Chart(wrRef.current, {
+      type:'bar',
+      data:{labels, datasets:[{data:wrVals, backgroundColor:wrCs, borderColor:wrBc, borderWidth:1.5, borderRadius:3}]},
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c=>{const h=hrMap[c.dataIndex]; return h?[(c.parsed.y)+'% WR',h.count+' trades']:[];},}}},
+        scales:{y:{grid:GRID, min:0, max:100, ticks:{...TICK, callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:xTicks}}}
+    })
+    return () => wrChart.current?.destroy()
+  }, [JSON.stringify(wrVals)])
+
+  // Hour table
+  const TH2 = {fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.07em',fontFamily:'var(--font-mono)',padding:'6px 8px',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}
+  const TD2 = {fontSize:11,fontFamily:'var(--font-mono)',padding:'5px 8px',borderBottom:'1px solid var(--bd2)',whiteSpace:'nowrap'}
+
   return (
-    <div className="card" style={{marginBottom:10}}>
-      <div className="ct"><span className="ind" />P&L BY HOUR (GMT)</div>
-      <canvas ref={ref} height={130} />
+    <div style={{display:'grid',gap:10}}>
+      <div className="card" style={{height:280,boxSizing:'border-box'}}>
+        <div className="ct"><span className="ind" />P&L BY HOUR (GMT)</div>
+        <div style={{position:'relative',height:220}}><canvas ref={pnlRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      </div>
+      <div className="card" style={{height:280,boxSizing:'border-box'}}>
+        <div className="ct"><span className="ind" />WIN RATE BY HOUR (GMT)</div>
+        <div style={{position:'relative',height:220}}><canvas ref={wrRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      </div>
+      <div className="card">
+        <div className="ct"><span className="ind" />HOUR OF DAY</div>
+        <div style={{overflowX:'auto'}}>
+          <table style={{borderCollapse:'collapse',minWidth:320,width:'100%'}}>
+            <thead><tr>
+              {['Hour','Trades','Total P&L','Win Rate','Avg P&L'].map(h=><th key={h} style={TH2}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {allH.filter(h=>hrMap[h]?.count>0).map(h => {
+                const d = hrMap[h]
+                return (
+                  <tr key={h} onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <td style={{...TD2,fontWeight:700}}>{(h<10?'0':'')+h+':00'}</td>
+                    <td style={TD2}>{d.count}</td>
+                    <td style={{...TD2,color:d.total_pnl>=0?'#66ffa5':'#ff5258'}} className="private">{fU(Math.round(d.total_pnl))}</td>
+                    <td style={{...TD2,color:d.win_rate>=.67?'#66ffa5':d.win_rate<.5?'#ff5258':'#f0a500'}}>{(d.win_rate*100).toFixed(1)}%</td>
+                    <td style={{...TD2,color:d.avg_pnl>=0?'#66ffa5':'#ff5258'}} className="private">{fU(Math.round(d.avg_pnl))}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
