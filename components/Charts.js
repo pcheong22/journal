@@ -31,10 +31,10 @@ export default function ChartComp(props) {
       return `${MONTHS_SHORT[+m-1]} ${y}`
     })
 
-    // X-axis: just month abbreviations — years shown in a separate YearRow like equity curve
+    // X-axis: quarterly labels only (Jan, Apr, Jul, Oct) — year row handles year context
     const axisLabels = allMonths.map(s => {
       const [, m] = s.split('-')
-      return MONTHS_SHORT[+m-1]
+      return [3, 6, 9, 12].includes(+m) ? MONTHS_SHORT[+m-1] : ''
     })
 
     // Compute year bands for YearRow — same approach as equity curve
