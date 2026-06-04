@@ -31,15 +31,17 @@ export default function ChartComp(props) {
       return `${MONTHS_SHORT[+m-1]} ${y}`
     })
 
-    // X-axis: short formatted labels. Year shown at Jan boundary in multi-year view.
+    // X-axis: show Jan (with year), Apr, Jul, Oct — blank other months
+    // This avoids crowding while always anchoring year labels
     const axisLabels = allMonths.map((s, i) => {
       const [y, m] = s.split('-')
-      const mon    = MONTHS_SHORT[+m-1]
-      if (!multiYear) return mon
-      // Show "Jan '25" at year start, just "Mar" otherwise
-      const prev = i > 0 ? allMonths[i-1].split('-') : null
+      const mon = MONTHS_SHORT[+m-1]
+      const quarter = [1, 4, 7, 10].includes(+m)
+      if (!multiYear) return quarter ? mon : ''
+      const prev    = i > 0 ? allMonths[i-1].split('-') : null
       const newYear = !prev || prev[0] !== y
-      return (newYear || +m === 1) ? `${mon} '${y.slice(2)}` : mon
+      if (+m === 1 || newYear) return `${mon} '${y.slice(2)}`
+      return quarter ? mon : ''
     })
 
     return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels}
@@ -367,7 +369,7 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
         }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
-          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0} }
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0, autoSkip:false} }
         }
       }
     })
