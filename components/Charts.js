@@ -20,46 +20,69 @@ export default function ChartComp(props) {
   const { type, privacy=false } = props
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} dateFrom={props.dateFrom} />
   if (type==='monthly') {
-    const allMonths   = props.data.map(d => d.month_str)  // ['2025-01', ...]
-    const years       = [...new Set(allMonths.map(s => s.split('-')[0]))]
-    const multiYear   = years.length > 1
     const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const rawMonths = props.data.map(d => d.month_str)  // ['2025-01', ...]
 
-    // Tooltip label: full "Jan 2025"
-    const tooltipLabels = allMonths.map(s => {
-      const [y, m] = s.split('-')
+    // Pad missing months so multi-year always shows a continuous spine
+    // Find full range from first to last month
+    const allMonths = (() => {
+      if (!rawMonths.length) return []
+      const [fy, fm] = rawMonths[0].split('-').map(Number)
+      const [ly, lm] = rawMonths[rawMonths.length-1].split('-').map(Number)
+      const pnlMap = {}
+      props.data.forEach(d => { pnlMap[d.month_str] = Math.round(d.total_pnl) })
+      const months = []
+      let y = fy, m = fm
+      while (y < ly || (y === ly && m <= lm)) {
+        const key = `${y}-${String(m).padStart(2,'0')}`
+        months.push({ key, pnl: pnlMap[key] ?? 0 })
+        m++; if (m > 12) { m = 1; y++ }
+      }
+      return months
+    })()
+
+    const years     = [...new Set(allMonths.map(d => d.key.split('-')[0]))]
+    const multiYear = years.length > 1
+    const n         = allMonths.length
+
+    // Tooltip labels
+    const tooltipLabels = allMonths.map(d => {
+      const [y, m] = d.key.split('-')
       return `${MONTHS_SHORT[+m-1]} ${y}`
     })
 
-    // X-axis: quarterly labels only (Jan, Apr, Jul, Oct) — year row handles year context
-    const axisLabels = allMonths.map(s => {
-      const [, m] = s.split('-')
-      return [3, 6, 9, 12].includes(+m) ? MONTHS_SHORT[+m-1] : ''
+    // X-axis labels: show all if ≤6, every other if 7-12, quarterly (Mar/Jun/Sep/Dec) if 13+
+    const axisLabels = allMonths.map((d, i) => {
+      const [, m] = d.key.split('-')
+      const mon   = MONTHS_SHORT[+m-1]
+      if (n <= 6)  return mon
+      if (n <= 12) return i % 2 === 0 ? mon : ''
+      return [3, 6, 9, 12].includes(+m) ? mon : ''
     })
 
-    // Compute year bands for YearRow — same approach as equity curve
-    // Each band: { year, leftPct (% of total bars), widthPct }
+    // Year bands for YearRow
     const yearBands = (() => {
       if (!multiYear) return []
       const total = allMonths.length
       const bands = []
-      let bandStart = 0, bandYear = allMonths[0]?.split('-')[0]
-      allMonths.forEach((s, i) => {
-        const y = s.split('-')[0]
+      let bandStart = 0, bandYear = allMonths[0]?.key.split('-')[0]
+      allMonths.forEach((d, i) => {
+        const y = d.key.split('-')[0]
         if (y !== bandYear) {
           bands.push({ year: bandYear, leftPct: (bandStart/total)*100, widthPct: ((i-bandStart)/total)*100 })
           bandStart = i; bandYear = y
         }
       })
-      // Last band
       bands.push({ year: bandYear, leftPct: (bandStart/total)*100, widthPct: ((allMonths.length-bandStart)/total)*100 })
       return bands
     })()
 
-    return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels}
-      values={props.data.map(d=>Math.round(d.total_pnl))}
+    return <BarChart title="MONTHLY P&L"
+      labels={axisLabels} tooltipLabels={tooltipLabels}
+      values={allMonths.map(d => d.pnl)}
       yearBands={yearBands} multiYear={multiYear}
-      height={220} cardHeight={multiYear ? 300 : 280} privacy={privacy} />
+      height={220} cardHeight={multiYear ? 300 : 280}
+      tickRotation={35} privacy={privacy} />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} tickRotation={35} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
