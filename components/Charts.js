@@ -167,19 +167,19 @@ function EquityChart({ data, privacy, dateFrom }) {
       if (!yearBoundaries[yr]) yearBoundaries[yr] = { start: idx, end: idx }
       yearBoundaries[yr].end = idx
 
-      // Month label on the 1st of Mar/Jun/Sep/Dec only
+      // Adaptive month labels: show all if ≤6 months, every other if 7-12, quarterly if 13+
       const isFirstOfMonth = dom === 1
       const moKey = `${yr}-${d.getUTCMonth()}`
       const moNum = d.getUTCMonth() + 1  // 1-12
-      const isQuarter = [3, 6, 9, 12].includes(moNum)
       if (isFirstOfMonth && !seenMonths.has(moKey)) {
         seenMonths.add(moKey)
-        if (isQuarter) {
-          const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-          spineLabels.push(mon)
-        } else {
-          spineLabels.push('')
-        }
+        const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+        const mIdx = seenMonths.size - 1  // 0-based month index
+        let show = false
+        if (totalMonths <= 6)  show = true
+        else if (totalMonths <= 12) show = mIdx % 2 === 0
+        else show = [3, 6, 9, 12].includes(moNum)
+        spineLabels.push(show ? mon : '')
       } else {
         spineLabels.push('')
       }
