@@ -31,24 +31,37 @@ export default function ChartComp(props) {
       return `${MONTHS_SHORT[+m-1]} ${y}`
     })
 
-    // X-axis: show Jan (with year), Apr, Jul, Oct — blank other months
-    // This avoids crowding while always anchoring year labels
-    const axisLabels = allMonths.map((s, i) => {
-      const [y, m] = s.split('-')
-      const mon = MONTHS_SHORT[+m-1]
-      const quarter = [1, 4, 7, 10].includes(+m)
-      if (!multiYear) return quarter ? mon : ''
-      const prev    = i > 0 ? allMonths[i-1].split('-') : null
-      const newYear = !prev || prev[0] !== y
-      if (+m === 1 || newYear) return `${mon} '${y.slice(2)}`
-      return quarter ? mon : ''
+    // X-axis: just month abbreviations — years shown in a separate YearRow like equity curve
+    const axisLabels = allMonths.map(s => {
+      const [, m] = s.split('-')
+      return MONTHS_SHORT[+m-1]
     })
+
+    // Compute year bands for YearRow — same approach as equity curve
+    // Each band: { year, leftPct (% of total bars), widthPct }
+    const yearBands = (() => {
+      if (!multiYear) return []
+      const total = allMonths.length
+      const bands = []
+      let bandStart = 0, bandYear = allMonths[0]?.split('-')[0]
+      allMonths.forEach((s, i) => {
+        const y = s.split('-')[0]
+        if (y !== bandYear) {
+          bands.push({ year: bandYear, leftPct: (bandStart/total)*100, widthPct: ((i-bandStart)/total)*100 })
+          bandStart = i; bandYear = y
+        }
+      })
+      // Last band
+      bands.push({ year: bandYear, leftPct: (bandStart/total)*100, widthPct: ((allMonths.length-bandStart)/total)*100 })
+      return bands
+    })()
 
     return <BarChart title="MONTHLY P&L" labels={axisLabels} tooltipLabels={tooltipLabels}
       values={props.data.map(d=>Math.round(d.total_pnl))}
-      height={220} cardHeight={280} privacy={privacy} />
+      yearBands={yearBands} multiYear={multiYear}
+      height={220} cardHeight={multiYear ? 300 : 280} privacy={privacy} />
   }
-  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
+  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} tickRotation={35} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
   if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
@@ -350,12 +363,14 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy }) {
-  const ref = useRef()
+function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy, tickRotation=0, yearBands=[], multiYear=false }) {
+  const ref     = useRef()
+  const chartRef = useRef()
   useEffect(() => {
     if (!ref.current) return
     const cs = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
     const bc = values.map(v => v>=0?'#059669':'#dc2626')
+    chartRef.current?.destroy()
     const ch = new Chart(ref.current, {
       type:'bar',
       data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
@@ -369,16 +384,18 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
         }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
-          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0, autoSkip:false} }
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:tickRotation, minRotation:tickRotation, autoSkip:false} }
         }
       }
     })
+    chartRef.current = ch
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
   return (
     <div className="card" style={{height:cardHeight,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />{title}</div>
       <div style={{position:'relative',height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      {multiYear && yearBands.length > 0 && <YearRow yearBands={yearBands} chartRef={chartRef} canvasRef={ref} />}
     </div>
   )
 }
