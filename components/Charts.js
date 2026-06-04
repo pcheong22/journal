@@ -20,22 +20,71 @@ export default function ChartComp(props) {
   const { type, privacy=false } = props
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} dateFrom={props.dateFrom} />
   if (type==='monthly') {
-    const allMonths = props.data.map(d => d.month_str)
-    const years = [...new Set(allMonths.map(s => s.split('-')[0]))]
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const rawMonths = props.data.map(d => d.month_str)  // ['2025-01', ...]
+
+    // Pad missing months so multi-year always shows a continuous spine
+    // Find full range from first to last month
+    const allMonths = (() => {
+      if (!rawMonths.length) return []
+      const [fy, fm] = rawMonths[0].split('-').map(Number)
+      const [ly, lm] = rawMonths[rawMonths.length-1].split('-').map(Number)
+      const pnlMap = {}
+      props.data.forEach(d => { pnlMap[d.month_str] = Math.round(d.total_pnl) })
+      const months = []
+      let y = fy, m = fm
+      while (y < ly || (y === ly && m <= lm)) {
+        const key = `${y}-${String(m).padStart(2,'0')}`
+        months.push({ key, pnl: pnlMap[key] ?? 0 })
+        m++; if (m > 12) { m = 1; y++ }
+      }
+      return months
+    })()
+
+    const years     = [...new Set(allMonths.map(d => d.key.split('-')[0]))]
     const multiYear = years.length > 1
-    const fmtMonth = (s, i) => {
-      const [y, m] = s.split('-')
-      const mon = new Date(+y, +m-1, 1).toLocaleDateString('en-GB', { month:'short' })
-      if (!multiYear) return mon
-      // Multi-year: show year only at January boundary
-      const prev = i > 0 ? allMonths[i-1].split('-') : null
-      const yearChange = prev && prev[0] !== y
-      return (+m === 1 && yearChange) ? `${mon} '${y.slice(2)}` : mon
-    }
-    const labels = props.data.map((d, i) => fmtMonth(d.month_str, i))
-    return <BarChart title="MONTHLY P&L" labels={labels} values={props.data.map(d=>Math.round(d.total_pnl))} height={220} cardHeight={280} privacy={privacy} />
+    const n         = allMonths.length
+
+    // Tooltip labels
+    const tooltipLabels = allMonths.map(d => {
+      const [y, m] = d.key.split('-')
+      return `${MONTHS_SHORT[+m-1]} ${y}`
+    })
+
+    // X-axis labels: show all if ≤6, every other if 7-12, quarterly (Mar/Jun/Sep/Dec) if 13+
+    const axisLabels = allMonths.map((d, i) => {
+      const [, m] = d.key.split('-')
+      const mon   = MONTHS_SHORT[+m-1]
+      if (n <= 6)  return mon
+      if (n <= 12) return i % 2 === 0 ? mon : ''
+      return [3, 6, 9, 12].includes(+m) ? mon : ''
+    })
+
+    // Year bands for YearRow
+    const yearBands = (() => {
+      if (!multiYear) return []
+      const total = allMonths.length
+      const bands = []
+      let bandStart = 0, bandYear = allMonths[0]?.key.split('-')[0]
+      allMonths.forEach((d, i) => {
+        const y = d.key.split('-')[0]
+        if (y !== bandYear) {
+          bands.push({ year: bandYear, leftPct: (bandStart/total)*100, widthPct: ((i-bandStart)/total)*100 })
+          bandStart = i; bandYear = y
+        }
+      })
+      bands.push({ year: bandYear, leftPct: (bandStart/total)*100, widthPct: ((allMonths.length-bandStart)/total)*100 })
+      return bands
+    })()
+
+    return <BarChart title="MONTHLY P&L"
+      labels={axisLabels} tooltipLabels={tooltipLabels}
+      values={allMonths.map(d => d.pnl)}
+      yearBands={yearBands} multiYear={multiYear}
+      height={220} cardHeight={multiYear ? 300 : 280}
+      tickRotation={35} privacy={privacy} />
   }
-  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} />
+  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} tickRotation={35} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
   if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
@@ -118,18 +167,19 @@ function EquityChart({ data, privacy, dateFrom }) {
       if (!yearBoundaries[yr]) yearBoundaries[yr] = { start: idx, end: idx }
       yearBoundaries[yr].end = idx
 
-      // Month label on the 1st of each month, subsampled by stride
+      // Adaptive month labels: show all if ≤6 months, every other if 7-12, quarterly if 13+
       const isFirstOfMonth = dom === 1
       const moKey = `${yr}-${d.getUTCMonth()}`
+      const moNum = d.getUTCMonth() + 1  // 1-12
       if (isFirstOfMonth && !seenMonths.has(moKey)) {
         seenMonths.add(moKey)
-        const moNum = seenMonths.size - 1 // 0-based month count
-        if (moNum % stride === 0) {
-          const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
-          spineLabels.push(mon)
-        } else {
-          spineLabels.push('')
-        }
+        const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
+        const mIdx = seenMonths.size - 1  // 0-based month index
+        let show = false
+        if (totalMonths <= 6)  show = true
+        else if (totalMonths <= 12) show = mIdx % 2 === 0
+        else show = [3, 6, 9, 12].includes(moNum)
+        spineLabels.push(show ? mon : '')
       } else {
         spineLabels.push('')
       }
@@ -199,7 +249,8 @@ function EquityChart({ data, privacy, dateFrom }) {
             grid: { display: false },
             ticks: {
               ...TICK,
-              maxRotation: 0,
+              maxRotation: 35,
+              minRotation: 35,
               autoSkip: false,
               callback: (val, i) => spineLabels[i] || null,
             },
@@ -337,33 +388,39 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, values, height=252, cardHeight=300, privacy }) {
-  const ref = useRef()
+function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy, tickRotation=0, yearBands=[], multiYear=false }) {
+  const ref     = useRef()
+  const chartRef = useRef()
   useEffect(() => {
     if (!ref.current) return
     const cs = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
     const bc = values.map(v => v>=0?'#059669':'#dc2626')
+    chartRef.current?.destroy()
     const ch = new Chart(ref.current, {
       type:'bar',
       data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{
-          title: items => items[0]?.label || '',
+          title: items => (tooltipLabels && tooltipLabels[items[0]?.dataIndex] != null)
+            ? tooltipLabels[items[0].dataIndex]
+            : (items[0]?.label || ''),
           label: ctx => privacy ? '  ***' : '  ' + fU(ctx.parsed.y)
         }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
-          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:45} }
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:tickRotation, minRotation:tickRotation, autoSkip:false} }
         }
       }
     })
+    chartRef.current = ch
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
   return (
     <div className="card" style={{height:cardHeight,boxSizing:'border-box'}}>
       <div className="ct"><span className="ind" />{title}</div>
       <div style={{position:'relative',height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      {multiYear && yearBands.length > 0 && <YearRow yearBands={yearBands} chartRef={chartRef} canvasRef={ref} />}
     </div>
   )
 }

@@ -4,6 +4,7 @@
 
 import { useState, useMemo } from 'react'
 import DrawdownAttribution from './DrawdownAttribution'
+import EdgeConcentration   from './EdgeConcentration'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fU  = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
@@ -484,7 +485,11 @@ function DowHeatmap({ trades }) {
               const l = getVal(dow, 'Long')
               const s = getVal(dow, 'Short')
               const all = trades.filter(t=>t.day_of_week===dow)
-              const comb = all.length ? { val: metric==='total' ? all.reduce((s,t)=>s+t.pnl,0) : expectancy(all), count: all.length } : { val: null, count: 0 }
+              const combVal = !all.length ? null
+                : metric === 'total'   ? all.reduce((s,t)=>s+t.pnl,0)
+                : metric === 'winrate' ? all.filter(t=>t.pnl>0).length/all.length*100
+                : expectancy(all)
+              const comb = { val: combVal, count: all.length }
               return (
                 <tr key={dow}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'}
@@ -506,23 +511,38 @@ function DowHeatmap({ trades }) {
 // ────────────────────────────────────────────────────────────────────────────
 // TAB 4: Where My Edge Lives (ranked combos)
 // ────────────────────────────────────────────────────────────────────────────
-function WhereMyEdgeLives({ trades }) {
-  const [sortKey,  setSortKey]  = useState('expectancy')
-  const [sortDir,  setSortDir]  = useState(-1)
-  const [minTrades, setMinTrades] = useState(10)
+function WhereMyEdgeLives({ trades, strategies = [] }) {
+  const [sortKey,    setSortKey]    = useState('expectancy')
+  const [sortDir,    setSortDir]    = useState(-1)
+  const [minTrades,  setMinTrades]  = useState(10)
+  const [inclStrategy, setInclStrategy] = useState(false)
+
+  // Build strategy lookup map
+  const strategyMap = useMemo(() => {
+    const m = {}
+    strategies.forEach(s => { m[s.id] = s.name })
+    return m
+  }, [strategies])
 
   const combos = useMemo(() => {
     const map = {}
     trades.forEach(t => {
-      const b   = bucketLabel(t.duration_mins)
-      const key = `${t.symbol}|${t.direction}|${b}`
+      const b    = bucketLabel(t.duration_mins)
+      const strat = inclStrategy
+        ? (t.strategy_id ? (strategyMap[t.strategy_id] || 'Unknown Strategy') : 'Untagged')
+        : null
+      const key  = inclStrategy
+        ? `${t.symbol}|${t.direction}|${b}|${strat}`
+        : `${t.symbol}|${t.direction}|${b}`
       if (!map[key]) map[key] = []
       map[key].push(t)
     })
     return Object.entries(map)
       .filter(([,ts]) => ts.length >= minTrades)
       .map(([key, ts]) => {
-        const [symbol, direction, duration] = key.split('|')
+        const parts    = key.split('|')
+        const [symbol, direction, duration] = parts
+        const strategy = inclStrategy ? (parts[3] || null) : null
         const wins   = ts.filter(t=>t.pnl>0)
         const losses = ts.filter(t=>t.pnl<0)
         const wr     = wins.length / ts.length
@@ -531,7 +551,7 @@ function WhereMyEdgeLives({ trades }) {
         const exp    = expectancy(ts)
         const pf     = profitFactor(ts)
         const total  = ts.reduce((s,t)=>s+t.pnl,0)
-        return { symbol, direction, duration, trades:ts.length, wr, avgW, avgL, pf, expectancy:exp, total }
+        return { symbol, direction, duration, strategy, trades:ts.length, wr, avgW, avgL, pf, expectancy:exp, total }
       })
   }, [trades, minTrades])
 
@@ -563,7 +583,7 @@ function WhereMyEdgeLives({ trades }) {
         onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
       <td style={{...TD,fontFamily:'var(--font-mono)',fontSize:9,color:'var(--mu)',textAlign:'center',width:28}}>{rank}</td>
       <td style={{...TD,minWidth:220}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
           <span style={{fontWeight:700,color:'var(--tx)',fontSize:12}}>{r.symbol}</span>
           <span style={{fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3,
             color:r.direction==='Long'?'#00b5a3':'#ffb300',
@@ -573,6 +593,13 @@ function WhereMyEdgeLives({ trades }) {
           </span>
           <span style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',
             padding:'1px 5px',borderRadius:3,border:'1px solid var(--bd2)'}}>{r.duration}</span>
+          {r.strategy && (
+            <span style={{fontSize:9,color:'#a78bfa',fontFamily:'var(--font-mono)',
+              padding:'1px 5px',borderRadius:3,
+              background:'rgba(167,139,250,.1)',border:'1px solid rgba(167,139,250,.3)'}}>
+              {r.strategy}
+            </span>
+          )}
         </div>
       </td>
       <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{r.trades}</td>
@@ -601,6 +628,16 @@ function WhereMyEdgeLives({ trades }) {
               {n}+
             </button>
           ))}
+          {strategies.length > 0 && (
+            <button onClick={()=>setInclStrategy(o=>!o)}
+              style={{padding:'3px 10px',borderRadius:4,
+                border:`1px solid ${inclStrategy?'var(--ac)':'var(--bd)'}`,
+                background:inclStrategy?'var(--ac-bg)':'transparent',
+                color:inclStrategy?'var(--ac2)':'var(--mu)',
+                fontSize:11,cursor:'pointer',fontFamily:'var(--font-mono)',fontWeight:600}}>
+              {inclStrategy ? '✓ ' : ''}+ Strategy
+            </button>
+          )}
           <div style={{marginLeft:'auto',fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
             <span style={{color:'#66ffa5',fontWeight:700}}>{positive.length}</span> positive ·
             <span style={{color:'#ff5258',fontWeight:700,marginLeft:6}}>{negative.length}</span> negative combinations
@@ -864,15 +901,16 @@ function PerformanceSimulator({ trades }) {
 // MAIN COMPONENT
 // ────────────────────────────────────────────────────────────────────────────
 const SUB_TABS = [
-  ['symbol',    '🎯 Symbols'],
-  ['duration',  '⏱ Duration'],
-  ['heatmaps',  '🌡 Heatmaps'],
-  ['where',     '🔎 My Edge'],
-  ['simulator', '🧪 Simulator'],
-  ['drawdown',  '📉 Drawdown'],
+  ['symbol',        '🎯 Symbols'],
+  ['duration',      '⏱ Duration'],
+  ['heatmaps',      '🌡 Heatmaps'],
+  ['where',         '🔎 My Edge'],
+  ['concentration', '📊 Concentration'],
+  ['simulator',     '🧪 Simulator'],
+  ['drawdown',      '📉 Drawdown'],
 ]
 
-export default function EdgeDiscovery({ trades = [], stats = null }) {
+export default function EdgeDiscovery({ trades = [], stats = null, strategies = [] }) {
   const [subTab, setSubTab] = useState('where')
 
   if (!trades.length) return (
@@ -913,9 +951,10 @@ export default function EdgeDiscovery({ trades = [], stats = null }) {
           <DowHeatmap            trades={trades} />
         </div>
       )}
-      {subTab === 'where'     && <WhereMyEdgeLives        trades={trades} />}
+      {subTab === 'where'     && <WhereMyEdgeLives        trades={trades} strategies={strategies} />}
       {subTab === 'simulator' && <PerformanceSimulator    trades={trades} />}
-      {subTab === 'drawdown'  && <DrawdownAttribution    trades={trades} stats={stats} />}
+      {subTab === 'concentration' && <EdgeConcentration trades={trades} />}
+      {subTab === 'drawdown'      && <DrawdownAttribution trades={trades} stats={stats} />}
     </div>
   )
 }

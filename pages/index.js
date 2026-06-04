@@ -110,6 +110,7 @@ function DashboardInner() {
     acctStatsDefault:  false,
     tradeLogPageSize:  50,
     hlTimezone:        'Asia/Dubai',
+    dashboardOrder:    ['kpis','equity','risk','rolling','accounts','charts'],
   })
 
   const saveSetting = (key, value) => {
@@ -645,30 +646,33 @@ function DashboardInner() {
 
         {tab==='overview' && stats && (
           <div className="anim">
-            {(() => {
-              const wins   = Math.round(ov.win_rate * ov.total_trades)
-              const losses = ov.total_trades - wins
-              const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
-              const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
-              const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
-              const vol = visibleTrades.reduce((s, t) => {
-                const n = t.notional_usd
-                if (!n) return s
-                if (t.entry_price && t.exit_price && t.exit_price > 0) {
-                  const ratio = t.direction === 'Short'
-                    ? t.exit_price / t.entry_price
-                    : t.entry_price / t.exit_price
-                  return s + n + (n * ratio)
-                }
-                return s + n * 2
-              }, 0)
-              const fmtVol = v => {
-                if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
-                if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' million'
-                return '$' + Math.round(v).toLocaleString()
+          {(settings.dashboardOrder || ['kpis', 'equity', 'risk', 'rolling', 'accounts', 'charts']).map(section => {
+            // Variables needed by kpis case
+            const wins   = Math.round(ov.win_rate * ov.total_trades)
+            const losses = ov.total_trades - wins
+            const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
+            const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
+            const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
+            const vol = visibleTrades.reduce((s, t) => {
+              const n = t.notional_usd
+              if (!n) return s
+              if (t.entry_price && t.exit_price && t.exit_price > 0) {
+                const ratio = t.direction === 'Short'
+                  ? t.exit_price / t.entry_price
+                  : t.entry_price / t.exit_price
+                return s + n + (n * ratio)
               }
-              return (
-                <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
+              return s + n * 2
+            }, 0)
+            const fmtVol = v => {
+              if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
+              if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' million'
+              return '$' + Math.round(v).toLocaleString()
+            }
+            switch(section) {
+              case 'kpis': return (
+                <div key='kpis'>
+                  <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
@@ -702,11 +706,19 @@ function DashboardInner() {
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
                     <div className="ks">Entry + exit notional</div>
                   </div>
+                  </div>
                 </div>
               )
-            })()}
+              case 'equity': return (
+                <div key='equity'>
+
             {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
             <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
+                </div>
+              )
+              case 'risk': return (
+                <div key='risk'>
+
             {/* ── RISK ANALYTICS (collapsible) ──────────────────────── */}
             {(() => {
               const ov = stats.overview
@@ -857,6 +869,11 @@ function DashboardInner() {
                 </div>
               )
             })()}
+                </div>
+              )
+              case 'rolling': return (
+                <div key='rolling'>
+
             {/* ── ROLLING ANALYTICS (collapsible) ──────────────────────────── */}
             <div style={{marginBottom:14}}>
               <button onClick={()=>setRollingOpen(o=>!o)}
@@ -878,7 +895,11 @@ function DashboardInner() {
                   <ChartComp type="rolling" trades={visibleTrades} privacy={privacy} />
                 </div>
               )}
-            </div>
+                </div>
+                </div>
+              )
+              case 'accounts': return (
+                <div key='accounts'>
 
             {accounts.length > 1 && (<div style={{marginBottom:14}}>
                 <button onClick={()=>setAcctStatsOpen(o=>!o)}
@@ -926,7 +947,11 @@ function DashboardInner() {
                 )}
               </div>
             )}
-            
+                </div>
+              )
+              case 'charts': return (
+                <div key='charts'>
+
             {/* Row 1: Monthly P&L — full width spotlight */}
             <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
             {/* Row 2: Three equal supporting charts */}
@@ -940,10 +965,14 @@ function DashboardInner() {
               <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} />
               <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} />
             </div>
-          </div>
-        )}
+                </div>
+              )
+              default: return null
+            }
+          })}
+          </div>        )}
 
-        {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} /></div>}
+        {tab==='edge' && <div style={{margin:'0 -24px'}}><EdgeDiscovery trades={visibleTrades} stats={stats} strategies={strategies} /></div>}
 
         {tab==='coach' && (
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
@@ -1570,6 +1599,56 @@ function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
   )
 }
 
+
+// ── DASHBOARD ORDER LIST ──────────────────────────────────────────────────────
+// Drag-to-reorder list for Overview sections in Settings
+function DashboardOrderList({ order, onChange }) {
+  const [dragId, setDragId] = useState(null)
+
+  const SECTION_LABELS = {
+    kpis:     '📊 KPI Cards',
+    equity:   '📈 Equity Curve',
+    risk:     '🛡 Risk Analytics',
+    rolling:  '🔄 Rolling Analytics',
+    accounts: '🏦 Account Breakdown',
+    charts:   '📉 Charts',
+  }
+
+  const handleDrop = (targetId) => {
+    if (!dragId || dragId === targetId) return
+    const next = [...order]
+    const from = next.indexOf(dragId)
+    const to   = next.indexOf(targetId)
+    next.splice(from, 1)
+    next.splice(to, 0, dragId)
+    onChange(next)
+    setDragId(null)
+  }
+
+  return (
+    <div style={{display:'grid',gap:5}}>
+      {order.map((id, i) => (
+        <div key={id}
+          draggable
+          onDragStart={() => setDragId(id)}
+          onDragOver={e => e.preventDefault()}
+          onDrop={() => handleDrop(id)}
+          onDragEnd={() => setDragId(null)}
+          style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',
+            borderRadius:6,border:`1px solid ${dragId===id?'var(--ac)':'var(--bd)'}`,
+            background:dragId===id?'var(--ac-bg)':'var(--sf2)',
+            cursor:'grab',transition:'all .15s',opacity:dragId===id?0.5:1,
+            userSelect:'none'}}>
+          <span style={{color:'var(--bd2)',fontSize:14}}>⠿</span>
+          <span style={{fontSize:11,color:'var(--tx)',fontWeight:500,flex:1}}>{SECTION_LABELS[id] || id}</span>
+          <span style={{fontSize:9,color:'var(--bd2)',fontFamily:'var(--font-mono)',
+            background:'var(--sf)',padding:'1px 6px',borderRadius:3,border:'1px solid var(--bd)'}}>{i+1}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
   const TABS         = ['overview','coach','streaks','calendar','symbols','timing','tradelog','missed']
@@ -1646,6 +1725,18 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
               ]}
               onChange={v => saveSetting('hlTimezone', v)} />
           </Row>
+          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>DASHBOARD LAYOUT</div>
+          <div style={{padding:'8px 0 4px'}}>
+            <div style={{fontSize:11,color:'var(--mu)',marginBottom:10}}>Drag to reorder Overview sections</div>
+            <DashboardOrderList
+              order={settings.dashboardOrder || ['kpis','equity','risk','rolling','accounts','charts']}
+              onChange={order => saveSetting('dashboardOrder', order)}
+            />
+            <button style={{marginTop:8,fontSize:10,color:'var(--mu)',background:'none',border:'none',cursor:'pointer',padding:'4px 0',fontFamily:'var(--font-mono)'}}
+              onClick={() => saveSetting('dashboardOrder', ['kpis','equity','risk','rolling','accounts','charts'])}>
+              Reset to default order
+            </button>
+          </div>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
           <Row label="Rows per page" sub="Number of trades shown per page">
             <Select value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
