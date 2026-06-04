@@ -239,12 +239,34 @@ function EquityChart({ data, privacy, dateFrom }) {
           }
         },
         scales: {
-          y: {
-            min: Math.min(0, ...spineVals) * 1.12,
-            max: Math.max(...spineVals) * 1.12,
-            grid: GRID,
-            ticks: { ...TICK, callback: privacy ? () => '***' : v => '$' + (v/1000).toFixed(0) + 'k' }
-          },
+          y: (() => {
+            const dataMin = Math.min(0, ...spineVals)
+            const dataMax = Math.max(...spineVals)
+            const range   = dataMax - dataMin
+            // Pick a clean step size based on range
+            const rawStep = range / 5
+            const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+            const step = Math.ceil(rawStep / magnitude) * magnitude
+            const yMin = Math.floor(dataMin / step) * step
+            const yMax = Math.ceil(dataMax  / step) * step
+            return {
+              min: yMin,
+              max: yMax,
+              grid: GRID,
+              ticks: {
+                ...TICK,
+                stepSize: step,
+                callback: privacy ? () => '***' : v => {
+                  if (v === 0) return '$0'
+                  const abs = Math.abs(v)
+                  const str = abs >= 1000000 ? (abs/1000000).toFixed(1)+'M'
+                            : abs >= 1000    ? (abs/1000).toFixed(0)+'k'
+                            : String(abs)
+                  return (v < 0 ? '-' : '') + '$' + str
+                }
+              }
+            }
+          })(),
           x: {
             grid: { display: false },
             ticks: {
@@ -435,7 +457,7 @@ function WrChart({ title, labels, values, height }) {
     const ch = new Chart(ref.current, {
       type:'bar', data:{labels, datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
       options:{responsive:true, plugins:{legend:NOLEG, tooltip:TIP},
-        scales:{y:{grid:GRID, max:110, ticks:{...TICK, callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:TICK}}}
+        scales:{y:{grid:GRID, min:0, max:100, ticks:{...TICK, callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:{...TICK, maxRotation:35, minRotation:35, autoSkip:false}}}}
     })
     return () => ch.destroy()
   }, [JSON.stringify(values)])
