@@ -167,13 +167,14 @@ function EquityChart({ data, privacy, dateFrom }) {
       if (!yearBoundaries[yr]) yearBoundaries[yr] = { start: idx, end: idx }
       yearBoundaries[yr].end = idx
 
-      // Month label on the 1st of each month, subsampled by stride
+      // Month label on the 1st of Mar/Jun/Sep/Dec only
       const isFirstOfMonth = dom === 1
       const moKey = `${yr}-${d.getUTCMonth()}`
+      const moNum = d.getUTCMonth() + 1  // 1-12
+      const isQuarter = [3, 6, 9, 12].includes(moNum)
       if (isFirstOfMonth && !seenMonths.has(moKey)) {
         seenMonths.add(moKey)
-        const moNum = seenMonths.size - 1 // 0-based month count
-        if (moNum % stride === 0) {
+        if (isQuarter) {
           const mon = d.toLocaleDateString('en-US', { month:'short', timeZone:'UTC' })
           spineLabels.push(mon)
         } else {
@@ -248,7 +249,8 @@ function EquityChart({ data, privacy, dateFrom }) {
             grid: { display: false },
             ticks: {
               ...TICK,
-              maxRotation: 0,
+              maxRotation: 35,
+              minRotation: 35,
               autoSkip: false,
               callback: (val, i) => spineLabels[i] || null,
             },
