@@ -348,7 +348,7 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, tooltipLabels, values, multiYear=false, monthsShort, height=252, cardHeight=300, privacy }) {
+function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy }) {
   const ref = useRef()
   useEffect(() => {
     if (!ref.current) return
@@ -367,10 +367,7 @@ function BarChart({ title, labels, tooltipLabels, values, multiYear=false, month
         }} },
         scales:{
           y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
-          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0,
-            autoSkip: !!monthsShort, maxTicksLimit: monthsShort ? 12 : undefined,
-            callback: v => v
-          } }
+          x:{ grid:{display:false}, ticks:{...TICK, maxRotation:0, minRotation:0} }
         }
       }
     })
