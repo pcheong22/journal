@@ -485,7 +485,11 @@ function DowHeatmap({ trades }) {
               const l = getVal(dow, 'Long')
               const s = getVal(dow, 'Short')
               const all = trades.filter(t=>t.day_of_week===dow)
-              const comb = all.length ? { val: metric==='total' ? all.reduce((s,t)=>s+t.pnl,0) : expectancy(all), count: all.length } : { val: null, count: 0 }
+              const combVal = !all.length ? null
+                : metric === 'total'   ? all.reduce((s,t)=>s+t.pnl,0)
+                : metric === 'winrate' ? all.filter(t=>t.pnl>0).length/all.length*100
+                : expectancy(all)
+              const comb = { val: combVal, count: all.length }
               return (
                 <tr key={dow}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'}
