@@ -1,3 +1,5 @@
+import DataQuality from '../components/DataQuality'
+import {escapeHTML} from '../lib/reportSafety'
 import ImportReview, {importRequest} from '../components/ImportReview'
 import ImportHistory from '../components/ImportHistory'
 import BackupPanel from '../components/BackupPanel'
@@ -156,10 +158,11 @@ function DashboardInner() {
   useEffect(() => { document.body.classList.toggle('privacy-on', privacy) }, [privacy])
   useEffect(() => { document.body.classList.toggle('dark-mode', darkMode) }, [darkMode])
 
-  const visibleTrades = allTrades.filter(t => selAccounts.size === 0 || selAccounts.has(t.account_id))
+  const selectedTrades = allTrades.filter(t => selAccounts.size === 0 || selAccounts.has(t.account_id))
+  const visibleTrades = selectedTrades.filter(t=>['USD','USDC','USDT'].includes(t.currency))
 
   useEffect(() => {
-    setStats(computeStats(visibleTrades))
+    setStats(computeStats(visibleTrades.filter(t=>['USD','USDC','USDT'].includes(t.currency))))
     if (visibleTrades.length > 0) {
       const tradesWithDates = visibleTrades.filter(t => t.entry_time || t.exit_time)
       if (tradesWithDates.length > 0) {
@@ -175,12 +178,12 @@ function DashboardInner() {
   }, [allTrades, selAccounts])
 
   useEffect(() => {
-    const enriched = visibleTrades.map(t => {
+    const enriched = selectedTrades.map(t => {
       let price_pct = null
       if (t.entry_price && t.exit_price && t.entry_price > 0) {
         price_pct = t.direction === 'Long'
           ? (t.exit_price / t.entry_price - 1) * 100
-          : (t.entry_price / t.exit_price - 1) * 100
+          : ((t.entry_price - t.exit_price) / t.entry_price) * 100
       }
       return { ...t, price_pct }
     })
@@ -210,7 +213,7 @@ function DashboardInner() {
     try {
       const params = new URLSearchParams()
       if (from && from !== '2000-01-01') params.set('from', from + 'T00:00:00Z')
-      if (to)   params.set('to', to + 'T23:59:59Z')
+      if (to)   params.set('to', to + 'T23:59:59.999Z')
       const res  = await journalFetch(`/api/trades?${params}`)
       const data = await res.json()
       if (data.trades)   setAllTrades(data.trades.map(reportingTrade))
@@ -511,6 +514,7 @@ function DashboardInner() {
       )}
       <div className="date-range-bar">
         <span style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>RANGE</span>
+        <span style={{fontSize:10,color:'var(--mu)'}}>Reporting dates: UTC</span>
         {DATE_PRESETS.map(p => (
           <button key={p.label} className={`preset-btn ${datePreset===p.label?'active':''}`} onClick={()=>applyPreset(p.label)}>{p.label}</button>
         ))}
@@ -680,13 +684,14 @@ function DashboardInner() {
 
         {tab==='overview' && stats && (
           <div className="anim">
+          {selectedTrades.length>visibleTrades.length&&<p role="status">{selectedTrades.length-visibleTrades.length} trades in other currencies are excluded from dollar analytics. They remain in the Trade Log.</p>}<DataQuality trades={visibleTrades} />
           {(settings.dashboardOrder || ['kpis', 'equity', 'risk', 'rolling', 'accounts', 'charts']).map(section => {
             // Variables needed by kpis case
             const wins   = Math.round(ov.win_rate * ov.total_trades)
-            const losses = ov.total_trades - wins
+            const losses = ov.losing_count
             const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
-            const expVal = exp != null ? exp.toFixed(2)+'×' : '—'
-            const expC   = exp == null ? 'neu' : exp >= 1 ? 'pos' : 'neg'
+            const expVal = fU(ov.total_pnl/ov.total_trades)
+            const expC = ov.total_pnl>=0?'pos':'neg'
             const vol = visibleTrades.reduce((s, t) => {
               const n = t.notional_usd
               if (!n) return s
@@ -710,12 +715,12 @@ function DashboardInner() {
                   <div className="kpi">
                     <div className="kl">TOTAL P&L</div>
                     <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
-                    <div className="ks">Net realised</div>
+                    <div className="ks">Reported realised</div>
                   </div>
                   <div className="kpi">
                     <div className="kl">WIN RATE</div>
                     <div className="kv acc">{(ov.win_rate*100).toFixed(1)}%</div>
-                    <div className="ks">{Math.round(ov.win_rate*ov.total_trades)} W / {Math.round((1-ov.win_rate)*ov.total_trades)} L</div>
+                    <div className="ks">{ov.winning_count} W / {ov.losing_count} L / {ov.breakeven_count} B</div>
                   </div>
                   <div className="kpi">
                     <div className="kl">TOTAL TRADES</div>
@@ -724,7 +729,7 @@ function DashboardInner() {
                   </div>
                   <RiskRewardCard rr={ov.avg_loss ? Math.abs(ov.avg_win/ov.avg_loss) : null} avgWin={ov.avg_win} avgLoss={ov.avg_loss} />
                   <ExpectancyCard expVal={expVal} expC={expC} />
-                  <CalmarCard calmar={ov.calmar} maxDrawdown={ov.max_drawdown} />
+                  <div className="kpi"><div className="kl">CLOSED-TRADE DRAWDOWN</div><div className="kv neg private">{fU(-ov.max_drawdown)}</div><div className="ks">From cumulative realised P&amp;L</div></div>
                   <div className="kpi">
                     <div className="kl">LONG P&L</div>
                     <div className="kv pos private">{fU(Math.round(ov.long_pnl))}</div>
@@ -736,9 +741,9 @@ function DashboardInner() {
                     <div className="ks">{(ov.short_wr*100).toFixed(1)}% WR · {ov.short_count}</div>
                   </div>
                   <div className="kpi">
-                    <div className="kl">TOTAL VOLUME</div>
+                    <div className="kl">ESTIMATED TURNOVER</div>
                     <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
-                    <div className="ks">Entry + exit notional</div>
+                    <div className="ks">Entry + exit notional estimates</div>
                   </div>
                   </div>
                 </div>
@@ -822,82 +827,11 @@ function DashboardInner() {
                   </button>
                   {riskOpen && (
                     <div style={{display:'grid',gap:10}}>
-                      {/* Row 1: 4 ratio cards */}
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))',gap:8}}>
-                        <RCard label="Sharpe Ratio" val={ov.sharpe} fmt={fN}
-                          bench=">1.0 good · >2.0 excellent" good={2} fair={1}
-                          tip="Return on deployed notional ÷ volatility. Risk-free rate 4.5% p.a. Measures return per unit of total risk." />
-                        <RCard label="Sortino Ratio" val={ov.sortino} fmt={fN}
-                          bench="Penalises downside vol only" good={2} fair={1}
-                          tip="Like Sharpe but only penalises downside volatility. Higher than Sharpe indicates losses are consistent rather than wild swings." />
-                        <RCard label="Profit Factor" val={ov.profit_factor} fmt={fN}
-                          bench="Gross profit ÷ gross loss" good={1.5} fair={1.1}
-                          tip="Total winning P&L divided by total losing P&L. >1.5 strong, >2.0 excellent." />
-                        <RCard label="Recovery Factor" val={ov.recovery_factor} fmt={fN}
-                          bench="Net P&L ÷ max drawdown" good={2} fair={1}
-                          tip="How many times your net profit covers your worst drawdown. >2 indicates strong recovery from losses." />
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:8}}>
+                       <RCard label="Profit factor" val={ov.profit_factor} fmt={fN} bench="Gross wins ÷ gross losses" good={1.5} fair={1} tip="Descriptive ratio for these closed trades. No gross losses means the ratio is undefined." />
+                       <RCard label="P&L recovery" val={ov.recovery_factor} fmt={fN} bench="Net P&L ÷ closed-trade drawdown" good={2} fair={1} tip="Uses realised trade P&L, not account equity or intratrade drawdowns." />
                       </div>
-                      {/* Row 2: Kelly + Risk of Ruin */}
-                      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px 16px'}}>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
-                          <div>
-                            <Tip text="Optimal fraction of capital to risk per trade based on win rate and payoff ratio. Half Kelly recommended to reduce variance while preserving edge.">
-                              <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
-                                letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
-                                display:'inline-block',paddingBottom:1,marginBottom:12,cursor:'help'}}>
-                                Kelly Fraction ⓘ
-                              </div>
-                            </Tip>
-                            <GBar label="Full Kelly" val={ov.kelly_full} max={50} color="#f0a500" />
-                            <GBar label="Half Kelly (recommended)" val={ov.kelly_half} max={50} color="#66ffa5" />
-                            <div style={{fontSize:10,color:'var(--mu)',marginTop:6,lineHeight:1.5}}>
-                              {ov.kelly_half != null
-                                ? `Bet ${ov.kelly_half}% of capital per trade at half Kelly.`
-                                : 'Insufficient data for Kelly calculation.'}
-                            </div>
-                          </div>
-                          <div>
-                            <Tip text="Approximate probability of losing 30%+ of account from any peak, and of total ruin, based on win rate and payoff ratio at current sizing.">
-                              <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
-                                letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
-                                display:'inline-block',paddingBottom:1,marginBottom:12,cursor:'help'}}>
-                                Risk of Ruin ⓘ
-                              </div>
-                            </Tip>
-                            <GBar label="P(30% drawdown from peak)" val={ov.ror_half} max={100}
-                              color={ov.ror_half > 20 ? '#ff5258' : ov.ror_half > 10 ? '#f0a500' : '#66ffa5'} />
-                            <GBar label="P(total ruin)" val={ov.ror_ruin} max={100}
-                              color={ov.ror_ruin > 10 ? '#ff5258' : '#66ffa5'} />
-                            <div style={{fontSize:10,color:'var(--mu)',marginTop:6,lineHeight:1.5}}>
-                              Based on historical win rate and payoff ratio.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Row 3: Ulcer Index */}
-                      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,
-                        padding:'14px 16px',display:'flex',alignItems:'center',gap:20,flexWrap:'wrap'}}>
-                        <div style={{flex:1,minWidth:130}}>
-                          <Tip text="Measures depth and duration of drawdowns. Unlike max drawdown, captures how long you spent underwater. Lower is better.">
-                            <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
-                              letterSpacing:'.08em',fontFamily:'var(--font-mono)',borderBottom:'1px dashed var(--bd)',
-                              display:'inline-block',paddingBottom:1,marginBottom:6,cursor:'help'}}>
-                              Ulcer Index ⓘ
-                            </div>
-                          </Tip>
-                          <div style={{fontSize:24,fontWeight:700,fontFamily:'var(--font-mono)',color:
-                            ov.ulcer_index == null ? 'var(--mu)' : ov.ulcer_index < 5 ? '#66ffa5' : ov.ulcer_index < 15 ? '#f0a500' : '#ff5258',
-                            margin:'4px 0'}}>
-                            {ov.ulcer_index != null ? ov.ulcer_index.toFixed(1)+'%' : '—'}
-                          </div>
-                          <div style={{fontSize:10,color:'var(--mu)'}}>Avg pain below peak equity</div>
-                        </div>
-                        <div style={{flex:1,minWidth:140,fontSize:10,color:'var(--mu)',lineHeight:1.6}}>
-                          {ov.ulcer_index != null && ov.ulcer_index < 5 && 'Low ulcer index — drawdowns are shallow and short-lived.'}
-                          {ov.ulcer_index != null && ov.ulcer_index >= 5 && ov.ulcer_index < 15 && 'Moderate ulcer index — some prolonged drawdown periods.'}
-                          {ov.ulcer_index != null && ov.ulcer_index >= 15 && 'High ulcer index — significant time spent in drawdown.'}
-                        </div>
-                      </div>
+                      <p style={{color:'var(--mu)',fontSize:12,lineHeight:1.7}}>Portfolio Sharpe, Sortino, Calmar and Ulcer metrics require account equity and cash-flow history. These exports do not provide that history. Position-sizing and risk-of-ruin recommendations are unavailable.</p>
                     </div>
                   )}
                 </div>
@@ -1076,7 +1010,7 @@ function DashboardInner() {
                           <td className={`${d.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(d.total_pnl))}</td>
                           <td className={d.win_rate>=.65?'pos':d.win_rate<.55?'neg':'wa'}>{(d.win_rate*100).toFixed(1)}%</td>
                           <td className={`${d.avg_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(d.avg_pnl))}</td>
-                          <td><span className={`pill ${d.win_rate>=.65?'pb':d.win_rate<.55?'pr':'pw'}`}>{d.win_rate>=.65?'▲ TRADE FULL':d.win_rate<.55?'▼ AVOID':'→ HALF SIZE'}</span></td>
+                          <td><span className={`pill ${d.win_rate>=.65?'pb':d.win_rate<.55?'pr':'pw'}`}>{d.win_rate>=.65?'Higher historical WR':d.win_rate<.55?'Lower historical WR':'Middle historical WR'}</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -1147,7 +1081,7 @@ function DashboardInner() {
                                 </span>
                               : <span style={{color:'var(--bd2)',fontSize:10}}>—</span>}
                           </td>
-                          <td><span className={`pill ${t.pnl>=0?'pb':'pr'}`}>{t.pnl>=0?'WIN':'LOSS'}</span></td>
+                          <td><span className={`pill ${t.pnl>=0?'pb':'pr'}`}>{t.pnl>0?'WIN':t.pnl<0?'LOSS':'BREAKEVEN'}</span></td>
                         </tr>
                       )
                     })}
@@ -1277,48 +1211,7 @@ function CalmarCard({ calmar, maxDrawdown }) {
   )
 }
 
-function ExpectancyCard({ expVal, expC }) {
-  const [show, setShow] = useState(false)
-  const colorMap = { pos:'var(--wn)', neg:'var(--ls)', neu:'var(--tx)', acc:'var(--ac)', wa:'var(--wa)' }
-  return (
-    <div className="kpi" style={{position:'relative'}}>
-      <div style={{display:'flex',alignItems:'center',gap:4}}>
-        <div className="kl">EXPECTANCY</div>
-        <span
-          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
-          onClick={()=>setShow(s=>!s)}
-          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
-      </div>
-      <div className={`kv ${expC}`}>{expVal}</div>
-      <div className="ks">%W×AvgW / %L×AvgL</div>
-      {show && (
-        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>EXPECTANCY</div>
-          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
-            For every $1 lost on losing trades, how many dollars do you make on winners. A measure of your edge quality, independent of win rate.
-          </div>
-          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (%W × AvgW) ÷ (%L × AvgL)</div>
-          <div style={{display:'grid',gap:5}}>
-            {[
-              ['Below 1.0×', 'Negative expectancy — losing more on losers than winning on winners.', 'var(--ls)'],
-              ['1.0× – 1.5×', 'Positive but marginal. Profitable system, room to improve.', 'var(--wa)'],
-              ['1.5× – 2.0×', 'Solid edge. Winners meaningfully outweigh losers.', 'var(--wn)'],
-              ['Above 2.0×',  'Strong edge. Hallmark of elite traders.', 'var(--ac)'],
-            ].map(([range, desc, col]) => (
-              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
-                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:70}}>{range}</span>
-                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{marginTop:10,paddingTop:8,borderTop:'1px solid var(--bd)',fontSize:10,color:'var(--mu)',lineHeight:1.5,fontStyle:'italic'}}>
-            Note: A high win rate alone does not guarantee positive expectancy — losses must be kept small relative to wins.
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+function ExpectancyCard({expVal,expC}) {return <div className="kpi" title="Average reported realised P&L per closed trade, including breakeven trades. Describes this sample; not a forecast."><div className="kl">AVG P&amp;L / TRADE</div><div className={`kv ${expC} private`}>{expVal}</div><div className="ks">Total P&amp;L ÷ all closes</div></div>}
 
 const HL_ACCOUNTS = [
   { id:'0xffbB07326634300D7ef131E2B5826Dcb49c0C8E0', label:'Hyperliquid 0xffbB....C8E0' },
@@ -1854,7 +1747,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
     try {
       const params = new URLSearchParams()
       if (activeFrom) params.set('from', activeFrom + 'T00:00:00Z')
-      if (activeTo)   params.set('to',   activeTo   + 'T23:59:59Z')
+      if (activeTo)   params.set('to',   activeTo   + 'T23:59:59.999Z')
       const res  = await journalFetch('/api/missed-trades?' + params)
       const data = await res.json()
       setMissed(data.missed_trades || [])
@@ -1927,7 +1820,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const previewPnl = (() => {
     const ep = parseFloat(form.entry_price), xp = parseFloat(form.exit_price), sz = parseFloat(form.position_size_usd)
     if (!ep || !xp || !sz || ep <= 0) return null
-    const pct = form.direction === 'Long' ? (xp/ep - 1) : (ep/xp - 1)
+    const pct = form.direction === 'Long' ? (xp/ep - 1) : ((ep-xp)/ep)
     return { pct: pct*100, usd: pct*sz }
   })()
 
@@ -2370,17 +2263,19 @@ function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
   const exportPDF = () => {
     if (!report) return
     const printWin = window.open('', '_blank')
+    if(!printWin)return
+    printWin.opener=null
     const insights = (typeof report.insights==='string'?JSON.parse(report.insights):report.insights)||[]
     const TYPE_COLOR = { critical:'#dc2626', bias:'#d97706', opportunity:'#1a56db', strength:'#059669' }
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>AI Coaching Report</title>
 <style>body{font-family:Arial,sans-serif;font-size:13px;color:#0f1117;max-width:900px;margin:0 auto;padding:32px}h1{font-size:22px;margin-bottom:4px}.sub{color:#6b7280;font-size:12px;margin-bottom:24px}.meta{display:flex;gap:24px;margin-bottom:24px;padding:16px;background:#f7f8fa;border-radius:8px;border:1px solid #e2e5ea}.meta-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}.meta-val{font-size:18px;font-weight:700;color:#1a56db}.edge-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}.edge-box{padding:12px 16px;border-radius:8px}.edge-win{background:#ecfdf5;border:1px solid #a7f3d0}.edge-los{background:#fef2f2;border:1px solid #fecaca}.edge-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.tip{padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:24px}.tip-lbl{font-size:10px;font-weight:700;color:#1e429f;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.insights{display:grid;grid-template-columns:1fr 1fr;gap:12px}.insight{border-radius:8px;padding:14px;border:1px solid #e2e5ea;page-break-inside:avoid}.ins-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-bottom:8px;color:#fff}.ins-title{font-weight:700;font-size:13px;margin-bottom:6px}.ins-body{font-size:12px;color:#3a3f4a;line-height:1.6;margin-bottom:10px}.ins-action{font-size:11px;padding:8px 10px;background:#f7f8fa;border-radius:4px;line-height:1.6}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e2e5ea;font-size:11px;color:#9ca3af}@media print{body{padding:16px}}</style></head><body>
 <h1>AI Trading Coach Report</h1>
-<div class="sub">Period: ${report.period||periodLabel} · ${tradeCount?.toLocaleString()} trades · via ${report.provider==='claude'?'Claude (Anthropic)':'Qwen-Plus'}</div>
-<div class="meta"><div class="meta-item"><div class="meta-label">Consistency Score</div><div class="meta-val">${report.score??'—'}/100</div></div>${report.archetype?`<div class="meta-item"><div class="meta-label">Trader Archetype</div><div class="meta-val" style="font-size:14px">${report.archetype}</div></div>`:''}</div>
-${report.core_edge?`<div class="edge-grid"><div class="edge-box edge-win"><div class="edge-lbl" style="color:#065f46">✅ Core Edge</div><div style="color:#065f46">${report.core_edge}</div></div><div class="edge-box edge-los"><div class="edge-lbl" style="color:#991b1b">⚠ Core Weakness</div><div style="color:#991b1b">${report.core_weakness}</div></div></div>`:''}
-${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Focus</div><div style="color:#1e429f">${report.coaching_tip}</div></div>`:''}
-<div class="insights">${insights.map(ins=>{const c=TYPE_COLOR[ins.type]||'#6b7280';return`<div class="insight" style="border-left:3px solid ${c}"><span class="ins-tag" style="background:${c}">${ins.tag||ins.type?.toUpperCase()}</span><div class="ins-title">${ins.title}</div><div class="ins-body">${ins.body}</div><div class="ins-action"><strong>Action:</strong> ${ins.action}</div></div>`}).join('')}</div>
-<div class="footer">Trading Journal · AI Coaching Report · ${report.period||periodLabel}</div>
+<div class="sub">Period: ${escapeHTML(report.period||periodLabel)} · ${tradeCount?.toLocaleString()} trades · via ${report.provider==='claude'?'Claude (Anthropic)':'Qwen-Plus'}</div>
+<div class="meta"><div class="meta-item"><div class="meta-label">Consistency Score</div><div class="meta-val">${escapeHTML(report.score??'—')}/100</div></div>${report.archetype?`<div class="meta-item"><div class="meta-label">Trader Archetype</div><div class="meta-val" style="font-size:14px">${escapeHTML(report.archetype)}</div></div>`:''}</div>
+${report.core_edge?`<div class="edge-grid"><div class="edge-box edge-win"><div class="edge-lbl" style="color:#065f46">✅ Core Edge</div><div style="color:#065f46">${escapeHTML(report.core_edge)}</div></div><div class="edge-box edge-los"><div class="edge-lbl" style="color:#991b1b">⚠ Core Weakness</div><div style="color:#991b1b">${escapeHTML(report.core_weakness)}</div></div></div>`:''}
+${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Focus</div><div style="color:#1e429f">${escapeHTML(report.coaching_tip)}</div></div>`:''}
+<div class="insights">${insights.map(ins=>{const c=TYPE_COLOR[ins.type]||'#6b7280';return`<div class="insight" style="border-left:3px solid ${c}"><span class="ins-tag" style="background:${c}">${escapeHTML(ins.tag||ins.type?.toUpperCase())}</span><div class="ins-title">${escapeHTML(ins.title)}</div><div class="ins-body">${escapeHTML(ins.body)}</div><div class="ins-action"><strong>Action:</strong> ${escapeHTML(ins.action)}</div></div>`}).join('')}</div>
+<div class="footer">Trading Journal · AI Coaching Report · ${escapeHTML(report.period||periodLabel)}</div>
 </body></html>`
     printWin.document.write(html); printWin.document.close(); printWin.onload=()=>printWin.print()
   }

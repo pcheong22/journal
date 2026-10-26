@@ -648,8 +648,8 @@ function WhereMyEdgeLives({ trades, strategies = [] }) {
       {/* Positive expectancy table */}
       <Card>
         <SectionHeader
-          title="✅ Scale These — Positive Expectancy Combinations"
-          sub="Ranked by expectancy. These are the behaviours worth repeating and sizing up." />
+          title="Positive historical expectancy combinations"
+          sub="Ranked within this sample. Small groups and repeated comparisons can produce chance patterns; validate on future data." />
         <div style={{overflowX:'auto'}}>
           <table style={{width:'100%',borderCollapse:'collapse'}}>
             <thead>
@@ -680,7 +680,7 @@ function WhereMyEdgeLives({ trades, strategies = [] }) {
       {negative.length > 0 && (
         <Card>
           <SectionHeader
-            title="❌ Eliminate These — Negative Expectancy Combinations"
+            title="Negative historical expectancy combinations"
             sub="Ranked by how much they're costing you. Consider removing these from your playbook." />
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
@@ -921,6 +921,7 @@ export default function EdgeDiscovery({ trades = [], stats = null, strategies = 
 
   return (
     <div style={{padding:'12px 16px',maxWidth:1400,margin:'0 auto'}}>
+      <p style={{fontSize:12,color:'var(--mu)',lineHeight:1.7}}>Exploratory historical analysis. Group sample sizes matter; comparisons are not proof of a persistent edge. Scenarios assume hindsight and are not forecasts or sizing advice.</p>
       {/* Sub-tab nav */}
       <div style={{overflowX:'auto',overflowY:'hidden',WebkitOverflowScrolling:'touch',
         borderBottom:'1px solid var(--bd)',marginBottom:16,

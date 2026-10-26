@@ -343,7 +343,7 @@ function EquityChart({ data, privacy, dateFrom }) {
 
   return (
     <div className="card" style={{marginBottom:10}}>
-      <div className="ct"><span className="ind" />CUMULATIVE EQUITY CURVE<span style={{marginLeft:'auto',fontSize:10,fontWeight:400,color:'var(--mu)'}}>Drag y-axis ⇅ to rescale</span></div>
+      <div className="ct"><span className="ind" />CUMULATIVE REALISED P&L<span style={{marginLeft:'auto',fontSize:10,fontWeight:400,color:'var(--mu)'}}>Drag y-axis ⇅ to rescale</span></div>
       <div ref={wrapRef} style={{position:'relative',userSelect:'none'}}>
         <div style={{position:'relative',height:360,width:'100%'}}>
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',cursor:'crosshair'}} />
@@ -487,10 +487,9 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
   useEffect(() => {
     if (!ref.current) return
     const ch = new Chart(ref.current, {
-      type:'doughnut',
-      data:{labels:['Long P&L','Short P&L'], datasets:[{data:[Math.max(longPnl,0),Math.max(shortPnl,0)], backgroundColor:['rgba(0,181,163,.75)','rgba(255,179,0,.65)'], borderColor:['#00b5a3','#ffb300'], borderWidth:1.5}]},
-      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},padding:14,color:'#6b7280'}},
-        tooltip:{...TIP, callbacks:{label: c=>privacy?'***':c.label+': '+fU(Math.round(c.parsed))}}}}
+      type:'bar',
+      data:{labels:['Long P&L','Short P&L'], datasets:[{data:[longPnl,shortPnl],backgroundColor:[longPnl>=0?'#059669':'#dc2626',shortPnl>=0?'#059669':'#dc2626'],borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:privTick(privacy)}}},plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>privacy?'***':fU(c.parsed.y)}}}}
     })
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
@@ -782,7 +781,7 @@ function StreaksView({ trades, stats, privacy }) {
   const segments = []
   let cur = null
   sorted.forEach((t, i) => {
-    const type = t.pnl >= 0 ? 'W' : 'L'
+    const type = t.pnl > 0 ? 'W' : t.pnl < 0 ? 'L' : 'B'
     if (!cur || cur.type !== type) {
       if (cur) segments.push(cur)
       cur = { type, count:1, pnl:t.pnl, trades:[t], start:t.exit_time || t.entry_time }
@@ -802,7 +801,7 @@ function StreaksView({ trades, stats, privacy }) {
         {[
           ['MAX WIN STREAK',  ov.max_win_streak  + ' trades', 'pos', 'Consecutive wins'],
           ['MAX LOSS STREAK', ov.max_loss_streak + ' trades', 'neg', 'Consecutive losses'],
-          ['CURRENT STREAK',  lastSeg ? lastSeg.count + (lastSeg.type==='W'?' wins':' losses') : '—', lastSeg?.type==='W'?'pos':'neg', lastSeg?.type==='W'?'Active win run':'Active loss run'],
+          ['CURRENT STREAK',  lastSeg ? lastSeg.type==='B'?'Breakeven':lastSeg.count + (lastSeg.type==='W'?' wins':' losses') : '—', lastSeg?.type==='W'?'pos':'neg', lastSeg?.type==='B'?'Resets consecutive runs':lastSeg?.type==='W'?'Active win run':'Active loss run'],
           ['TOTAL SEGMENTS',  segments.length, 'neu', 'Streak changes'],
           ['AVG WIN RUN',     (segments.filter(s=>s.type==='W').reduce((a,s)=>a+s.count,0)/Math.max(segments.filter(s=>s.type==='W').length,1)).toFixed(1), 'pos', 'Average win streak length'],
           ['AVG LOSS RUN',    (segments.filter(s=>s.type==='L').reduce((a,s)=>a+s.count,0)/Math.max(segments.filter(s=>s.type==='L').length,1)).toFixed(1), 'neg', 'Average loss streak length'],
@@ -819,10 +818,10 @@ function StreaksView({ trades, stats, privacy }) {
         <div className="ct"><span className="ind" />TRADE OUTCOME TIMELINE · Last {Math.min(sorted.length,120)} trades</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:3,marginBottom:8}}>
           {sorted.slice(-120).map((t,i) => {
-            const isW = t.pnl >= 0
+            const isW = t.pnl > 0
             return (
               <div key={i} title={`${t.symbol} ${isW?'+':''} ${privacy?'***':fU(t.pnl)} · ${(t.exit_time || t.entry_time)?.slice(0,10) || 'Unknown date'}`}
-                style={{width:14,height:14,borderRadius:3,background:isW?'var(--wn)':'var(--ls)',opacity:.85,cursor:'default',flexShrink:0,transition:'transform .1s'}}
+                style={{width:14,height:14,borderRadius:3,background:t.pnl===0?'var(--mu)':isW?'var(--wn)':'var(--ls)',opacity:.85,cursor:'default',flexShrink:0,transition:'transform .1s'}}
                 onMouseEnter={e=>e.target.style.transform='scale(1.3)'}
                 onMouseLeave={e=>e.target.style.transform='scale(1)'} />
             )
@@ -831,7 +830,7 @@ function StreaksView({ trades, stats, privacy }) {
         <div style={{display:'flex',gap:14,fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
           <span><span style={{display:'inline-block',width:10,height:10,borderRadius:2,background:'var(--wn)',marginRight:4}} />Win</span>
           <span><span style={{display:'inline-block',width:10,height:10,borderRadius:2,background:'var(--ls)',marginRight:4}} />Loss</span>
-          <span>· Hover for detail · Left = oldest</span>
+          <span>· Grey = breakeven (resets runs) · Left = oldest</span>
         </div>
       </div>
 
@@ -843,8 +842,8 @@ function StreaksView({ trades, stats, privacy }) {
             const maxH  = Math.max(...segments.map(s=>s.count))
             const h     = Math.max(8, Math.round((seg.count / maxH) * 80))
             return (
-              <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title={`${isW?'Win':'Loss'} streak: ${seg.count} · P&L: ${privacy?'***':fU(Math.round(seg.pnl))}`}>
-                <div style={{width:12, height:h, borderRadius:3, background:isW?'var(--wn)':'var(--ls)', opacity:.8, flexShrink:0}} />
+              <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title={`${seg.type==='B'?'Breakeven':isW?'Win':'Loss'} streak: ${seg.count} · P&L: ${privacy?'***':fU(Math.round(seg.pnl))}`}>
+                <div style={{width:12, height:h, borderRadius:3, background:seg.type==='B'?'var(--mu)':isW?'var(--wn)':'var(--ls)', opacity:.8, flexShrink:0}} />
                 {seg.count > 3 && <div style={{fontSize:8,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{seg.count}</div>}
               </div>
             )
