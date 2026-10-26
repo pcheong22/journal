@@ -1,3 +1,5 @@
+import ImportReview, {importRequest} from '../components/ImportReview'
+import ImportHistory from '../components/ImportHistory'
 import BackupPanel from '../components/BackupPanel'
 import { journalFetch } from '../lib/request'
 import { useState, useEffect, useRef, useCallback, Component } from 'react'
@@ -77,6 +79,7 @@ function DashboardInner() {
   const [stats,          setStats]          = useState(null)
   const [loadError, setLoadError] = useState('')
   const [loading,        setLoading]        = useState(true)
+  const [importPreview,setImportPreview]=useState(null)
   const [upload,         setUpload]         = useState({ status:'idle', message:'', broker:'', accountId:'' })
   const [dragOver,       setDragOver]       = useState(false)
   const [hlAccountModal,  setHlAccountModal]  = useState(null) // pending HL native file
@@ -268,16 +271,16 @@ function DashboardInner() {
       }
     }
     setUpload({ status:'uploading', message:`Parsing ${file.name}…`, broker:'', accountId:'' })
-    const form = new FormData()
-    form.append('file', file)
-    if (accountIdOverride) form.append('accountId', accountIdOverride)
-    form.append('timezone', timezoneOverride || settings.hlTimezone || 'Asia/Dubai')
     try {
-      const res  = await journalFetch('/api/upload', { method:'POST', body:form })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Upload failed')
-      setUpload({ status:'success', message:data.message, broker:data.broker||'', accountId:data.accountId||'' })
-      if (data.imported > 0 || data.reconciled > 0 || data.removed > 0 || data.executionsSaved > 0) await loadTrades(dateFrom, dateTo)
+      if(file.size>20*1024*1024)throw new Error('Choose an export smaller than 20 MB.')
+      const bytes=await file.arrayBuffer()
+      const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('')
+      const candidate=await importRequest({action:'upload',filename:file.name,size:file.size,sha})
+      if(candidate.url){const response=await fetch(candidate.url,{method:'PUT',headers:{'Content-Type':'application/octet-stream','x-upsert':'false'},body:bytes});if(!response.ok)throw new Error('Export upload failed. Please retry.')}
+      const timezone=timezoneOverride || settings.hlTimezone || 'Asia/Dubai'
+      const preview=await importRequest({action:'preview',id:candidate.id,accountId:accountIdOverride,timezone})
+      setImportPreview({...preview,requestTimezone:timezone})
+      setUpload({status:'idle',message:'',broker:'',accountId:''})
     } catch(e) { setUpload({ status:'error', message:e.message, broker:'', accountId:'' }) }
   }
   const handleDrop  = e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
@@ -594,6 +597,7 @@ function DashboardInner() {
           onClose={()=>setShowSettings(false)}
         />
       )}
+      {importPreview && <ImportReview preview={importPreview} onClose={()=>setImportPreview(null)} onComplete={async result=>{setImportPreview(null);setUpload({status:'success',message:result.warning || `Import complete: ${result.inserted} new, ${result.updated} updated, ${result.removed} duplicates removed, ${result.skipped} unchanged.`,broker:result.broker,accountId:result.accountId});await loadTrades(dateFrom,dateTo)}} />}
       {hlAccountModal && (
         <HyperliquidAccountModal
           onSelect={accountId => { setHlAccountModal(null); handleFile(hlAccountModal, accountId) }}
@@ -1695,7 +1699,7 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
         </div>
         <div style={{padding:'0 24px 24px'}}>
-          <BackupPanel settings={settings} />
+          <BackupPanel settings={settings} /><ImportHistory />
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
           <Row label="Dark mode" sub="Default theme on load">
             <Toggle value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />

@@ -154,8 +154,8 @@ test('sign-in sends email only to the configured owner and never creates new use
 })
 
 test('CSV resource limits are enforced during parsing, including LF-only exports', () => {
-  const source = readFileSync(new URL('../pages/api/upload.js', import.meta.url), 'utf8')
-  const fn = source.slice(source.indexOf('function parseCSV('), source.indexOf('export const config'))
+  const source = readFileSync(new URL('../lib/csv.js', import.meta.url), 'utf8')
+  const fn = source.slice(source.indexOf('function parseCSV('), source.length)
   const parse = vm.runInNewContext(fn + '\nparseCSV', { uploadError: safety.uploadError })
   assert.equal(JSON.stringify(parse('a,b\n"c,d",e')), JSON.stringify([['a','b'],['c,d','e']]))
   assert.throws(() => parse('x,'.repeat(301)), /columns/)
