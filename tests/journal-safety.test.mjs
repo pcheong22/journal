@@ -8,12 +8,14 @@ import Renderer, { act } from 'react-test-renderer'
 const require=createRequire(import.meta.url)
 const { transformSync }=require('next/dist/build/swc')
 const pure=async path=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL(path,import.meta.url),'utf8')).toString('base64'))
+const draft=await pure('../lib/noteDraft.js')
 const notes=await pure('../lib/journalNotes.js'),backup=await pure('../lib/backupFormat.js'),request=await pure('../lib/request.js')
 const code=transformSync(readFileSync(new URL('../components/TradeModal.js',import.meta.url),'utf8'),{filename:'TradeModal.js',jsc:{parser:{syntax:'ecmascript',jsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code
 const exports={}
 vm.runInNewContext(code,{exports,console,document:{addEventListener(){},removeEventListener(){}},require:path=>{
   if(path==='react')return React
   if(path==='react/jsx-runtime')return require(path)
+  if(path.endsWith('/noteDraft'))return draft
   if(path.endsWith('/journalNotes'))return notes
   if(path.endsWith('/request'))return request
   if(path.endsWith('/tradeUtils'))return {simulatePnLPath:()=>null}
