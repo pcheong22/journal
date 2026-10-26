@@ -1,35 +1,40 @@
+import dynamic from 'next/dynamic'
 import {useEffect,useState} from 'react'
-import {chartReference,chartUrl,fullChartUrl,initialChartInterval,chartPeriod,validChartSymbol} from '../lib/marketChart'
+import {chartPeriod,chartReference,fullChartUrl} from '../lib/marketChart'
+import {defaultHistoryInterval,HISTORY_INTERVALS} from '../lib/marketHistory'
+import {journalFetch} from '../lib/request'
+
+const HistoricalReplayChart=dynamic(()=>import('./HistoricalReplayChart'),{ssr:false,loading:()=> <div className="market-chart-skeleton" role="status">Preparing historical chart…</div>})
+const INTERVAL_LABEL={'1m':'1 minute','5m':'5 minutes','15m':'15 minutes','30m':'30 minutes','1h':'1 hour','4h':'4 hours','1d':'1 day'}
+
+function previewHistory(trade){
+ const end=Math.floor(Date.parse(trade.exit_time)/1000),start=Math.floor(Date.parse(trade.entry_time)/1000),base=Number(trade.entry_price)||100,count=80,step=Math.max(300,Math.floor((end-start+7200)/(count-20))),candles=[]
+ for(let index=0;index<count;index++){const time=start-step*20+step*index,wave=Math.sin(index/5)*base*.004,drift=(index-20)*base*.00008,open=base+wave+drift,close=open+Math.sin(index*1.7)*base*.0015;candles.push({time,open,high:Math.max(open,close)+base*.0018,low:Math.min(open,close)-base*.0018,close,volume:0})}
+ return {candles,interval:'5m',source:{kind:'sample',symbol:trade.symbol,label:'Representative sample history'},trade,markers:[{time:Date.parse(trade.entry_time),price:Number(trade.entry_price),side:trade.direction==='Long'?'Buy':'Sell',source:'sample entry'},{time:Date.parse(trade.exit_time),price:Number(trade.exit_price),side:trade.direction==='Long'?'Sell':'Buy',source:'sample exit'}],executionCoverage:'sample'}
+}
 
 export default function MarketChart({trade,active,preview=false}){
- const [started,setStarted]=useState(false),[dark,setDark]=useState(false),[override,setOverride]=useState(''),[candidate,setCandidate]=useState(''),[inputError,setInputError]=useState(''),[status,setStatus]=useState('loading'),[attempt,setAttempt]=useState(0)
- const reference=chartReference(trade,override),symbol=reference.symbol
- const src=chartUrl(symbol,dark,initialChartInterval(trade))
+ const [started,setStarted]=useState(false),[dark,setDark]=useState(false),[interval,setIntervalValue]=useState(()=>defaultHistoryInterval(trade)),[history,setHistory]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[retry,setRetry]=useState(0)
+ const reference=chartReference(trade),external=reference.symbol||reference.savedSymbol
  useEffect(()=>{if(active)setStarted(true)},[active])
+ useEffect(()=>{const sync=()=>setDark(document.body.classList.contains('dark-mode'));sync();const observer=new MutationObserver(sync);observer.observe(document.body,{attributes:true,attributeFilter:['class']});return()=>observer.disconnect()},[])
+ useEffect(()=>{setIntervalValue(defaultHistoryInterval(trade));setHistory(null);setError('')},[trade.id])
  useEffect(()=>{
-  const sync=()=>setDark(document.body.classList.contains('dark-mode'));sync()
-  const observer=new MutationObserver(sync);observer.observe(document.body,{attributes:true,attributeFilter:['class']})
-  return()=>observer.disconnect()
- },[])
- useEffect(()=>{
-  if(!started||preview||!src)return
-  setStatus('loading')
-  const timer=setTimeout(()=>setStatus(current=>current==='loading'?'slow':current),15000)
-  return()=>clearTimeout(timer)
- },[started,src,preview,attempt])
- const retry=()=>{setStatus('loading');setAttempt(n=>n+1)}
- const unavailable=status==='unavailable'
- return <section className="market-chart" hidden={!active} aria-label="Market reference chart">
-  <div className="section-heading"><div><h2>Market reference</h2><p>{symbol?reference.label:'No reference feed has been mapped for this instrument.'}</p></div><a className="btn" href={fullChartUrl(symbol||reference.savedSymbol)} target="_blank" rel="noopener noreferrer">Open on TradingView ↗</a></div>
-  <div className="chart-reference-facts"><span>Trade product <strong>{trade.original_symbol||trade.symbol}</strong></span><span>Chart feed <strong>{symbol||'Not mapped'}</strong></span>{reference.savedSymbol!==symbol&&<span>Saved chart ticker <a href={fullChartUrl(reference.savedSymbol)} target="_blank" rel="noopener noreferrer">{reference.savedSymbol} ↗</a></span>}</div>
-  <p className="chart-disclosure">Shows recent market data, without your execution markers. Use chart controls to find the trade period. Reference prices, contracts and currency may differ from {trade.broker||'your broker'} executions.</p>
+  if(!started)return
+  if(preview){setHistory(previewHistory(trade));return}
+  const controller=new AbortController();setLoading(true);setError('')
+  journalFetch(`/api/market-history?tradeId=${encodeURIComponent(trade.id)}&interval=${encodeURIComponent(interval)}`,{signal:controller.signal})
+   .then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||'Historical chart data could not be loaded.');return body.history})
+   .then(value=>{if(!controller.signal.aborted)setHistory(value)}).catch(reason=>{if(!controller.signal.aborted)setError(reason.message||'Historical chart data could not be loaded.')}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
+  return()=>controller.abort()
+ },[started,trade.id,interval,retry,preview])
+ return <section className="market-chart" hidden={!active} aria-label="Historical market replay">
+  <div className="section-heading"><div><h2>Historical trade replay</h2><p>{history?.source?.label||'Loading the market period around this position.'}</p></div><div className="market-chart-actions"><label>Interval<select className="inp" value={interval} onChange={event=>setIntervalValue(event.target.value)}>{HISTORY_INTERVALS.map(value=><option key={value} value={value}>{INTERVAL_LABEL[value]}</option>)}</select></label><a className="btn" href={fullChartUrl(external)} target="_blank" rel="noopener noreferrer">Open on TradingView ↗</a></div></div>
+  <div className="chart-reference-facts"><span>Trade product <strong>{trade.original_symbol||trade.symbol}</strong></span><span>Historical feed <strong>{history?.source?.symbol||'Resolving…'}</strong></span><span>Coverage <strong>{history?.executionCoverage==='complete'?'Imported fills':history?.executionCoverage==='summary_only'?'Average entry / exit':'Available source history'}</strong></span></div>
   <dl className="chart-trade-period"><div><dt>Trade opened</dt><dd>{chartPeriod(trade.entry_time)}</dd></div><div><dt>Trade closed</dt><dd>{chartPeriod(trade.exit_time)}</dd></div></dl>
-  {preview?<p className="data-check-notice">External charts are disabled in this sample preview.</p>:!symbol||unavailable?<div className="chart-fallback" role="status"><h3>{symbol?'Chart unavailable here':'Choose a reference feed'}</h3><p>TradingView may restrict a symbol in embedded charts even when it works on its website. Open the chart above, try another qualified feed below, or attach a chart screenshot to this trade.</p>{symbol&&<button className="btn" onClick={retry}>Retry chart</button>}</div>:<>
-   <div className="chart-load-status" role="status">{status==='loading'?'Opening TradingView…':status==='slow'?'TradingView is taking longer than expected. You can retry or open it directly.':'TradingView frame opened. Blank chart or symbol error? Use the recovery options below.'}</div>
-   <div className="market-chart-frame" aria-busy={status==='loading'}>{started&&<iframe key={attempt} src={src} title={`${reference.market} reference chart on TradingView`} onLoad={()=>setStatus('opened')} onError={()=>setStatus('unavailable')} referrerPolicy="strict-origin-when-cross-origin" allowFullScreen/>}</div>
-   <div className="chart-recovery"><button className="text-button" onClick={()=>setStatus('unavailable')}>Chart not working?</button><button className="text-button" onClick={retry}>Reload chart</button></div>
-  </>}
-  <details className="chart-feed-picker"><summary>Use another reference feed</summary><form onSubmit={event=>{event.preventDefault();const value=candidate.trim().toUpperCase();if(!validChartSymbol(value)){setInputError('Use an exchange-qualified symbol, such as OANDA:WTICOUSD.');return}setInputError('');setOverride(value);retry()}}><label>TradingView feed<input className="inp" aria-invalid={!!inputError} aria-describedby={inputError?'chart-feed-error':undefined} value={candidate} onChange={event=>setCandidate(event.target.value)} placeholder="EXCHANGE:SYMBOL" maxLength={80}/></label><button className="btn" type="submit">Use feed</button>{override&&<button className="btn" type="button" onClick={()=>{setOverride('');setCandidate('');setInputError('');retry()}}>Use default feed</button>}</form>{inputError&&<p id="chart-feed-error" role="alert">{inputError}</p>}<p>This changes this open chart only. Your saved trade, contract and analytics are unchanged.</p></details>
-  <p className="chart-credit">Chart and market data by <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView</a>. Availability and delay depend on the selected feed.</p>
+  {preview&&<p className="preview-inline">Representative chart data · the signed-in journal loads the actual historical feed and imported executions.</p>}
+  {loading?<div className="market-chart-skeleton" role="status"><strong>Loading historical candles…</strong><span>Positioning the chart around the trade and matching execution times.</span></div>:error?<div className="chart-fallback" role="alert"><h3>Historical chart unavailable</h3><p>{error}</p><button className="btn btn-p" onClick={()=>setRetry(value=>value+1)}>Retry</button>{external&&<a className="btn" href={fullChartUrl(external)} target="_blank" rel="noopener noreferrer">Open reference chart ↗</a>}</div>:history?<HistoricalReplayChart key={`${trade.id}-${history.interval}-${dark}`} history={history} dark={dark}/>:null}
+  <p className="chart-disclosure">The chart opens at the trade’s historical period. Markers use imported fills when available; otherwise they show the saved average entry and exit. Reference futures, spot, CFD or perpetual prices can differ from your broker executions.</p>
+  <p className="chart-credit">Historical data: {history?.source?.kind==='hyperliquid'?<a href="https://hyperliquid.xyz" target="_blank" rel="noopener noreferrer">Hyperliquid</a>:history?.source?.kind==='yahoo'?<a href="https://finance.yahoo.com" target="_blank" rel="noopener noreferrer">Yahoo Finance reference feed</a>:'representative preview'}. Chart rendering uses <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts</a>.</p>
  </section>
 }

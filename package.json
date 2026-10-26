@@ -16,6 +16,7 @@
     "chart.js": "^4.4.4",
     "cookie": "^1.0.2",
     "image-size": "^2.0.4",
+    "lightweight-charts": "^5.2.1",
     "next": "^14.2.35",
     "react": "^18",
     "react-chartjs-2": "^5.2.0",

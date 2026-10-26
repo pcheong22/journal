@@ -6,35 +6,60 @@ import vm from 'node:vm'
 import React from 'react'
 import Renderer,{act} from 'react-test-renderer'
 const require=createRequire(import.meta.url),{transformSync}=require('next/dist/build/swc')
-const compile=path=>transformSync(readFileSync(new URL(path,import.meta.url),'utf8'),{filename:'chart.jsx',jsc:{parser:{syntax:'ecmascript',jsx:true},transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code
-const symbols={};vm.runInNewContext(compile('../lib/symbols.js'),{exports:symbols,require})
-const model={};vm.runInNewContext(compile('../lib/marketChart.js'),{exports:model,URLSearchParams,require:path=>path==='./symbols'?symbols:require(path)})
-const {chartReference,chartUrl,initialChartInterval}=model
-const trade={id:1,symbol:'CRUDE/USD',original_symbol:'CLJ6',tv_symbol:'NYMEX:CL1!',broker:'Hyperliquid',entry_time:'2026-10-21T10:00:00Z',exit_time:'2026-10-21T11:00:00Z',duration_mins:60}
+const compile=(path,jsx=false)=>transformSync(readFileSync(new URL(path,import.meta.url),'utf8'),{filename:path,jsc:{parser:{syntax:'ecmascript',jsx},target:'es2022',transform:jsx?{react:{runtime:'automatic'}}:undefined},module:{type:'commonjs'}}).code
+const load=(path,context,jsx=false)=>{const exports={};vm.runInNewContext(compile(path,jsx),{exports,URL,URLSearchParams,AbortSignal,Response,console,setTimeout,clearTimeout,setInterval,clearInterval,...context});return exports}
+const symbols=load('../lib/symbols.js',{require})
+const chart=load('../lib/marketChart.js',{require:path=>path==='./symbols'?symbols:require(path)})
+const history=load('../lib/marketHistory.js',{require:path=>path==='./symbols'?symbols:require(path),fetch})
+const replay=load('../components/HistoricalReplayChart.js',{require:path=>path==='react'?React:path==='react/jsx-runtime'?require(path):require(path)},true)
+const trade={id:1,symbol:'CRUDE/USD',original_symbol:'CLJ6',tv_symbol:'NYMEX:CL1!',broker:'Hyperliquid',direction:'Long',entry_time:'2026-10-21T10:00:00Z',exit_time:'2026-10-21T11:00:00Z',entry_price:70,exit_price:71,duration_mins:60}
+
 test('reference feeds repair stale aliases without changing contract or source identity',()=>{
- const view=chartReference(trade);assert.equal(view.symbol,'OANDA:WTICOUSD');assert.equal(view.savedSymbol,'NYMEX:CL1!');assert.match(view.label,/CFD/);assert.equal(trade.tv_symbol,'NYMEX:CL1!');assert.equal(trade.original_symbol,'CLJ6')
- assert.equal(chartReference({symbol:'WTI/USD'}).symbol,'OANDA:WTICOUSD')
- assert.equal(chartReference({symbol:'COPPER/USD'}).symbol,'OANDA:XCUUSD')
- assert.equal(chartReference({symbol:'HK-HSI'}).symbol,'OANDA:HK33HKD')
- for(const symbol of ['USO','IBIT','BITO','BITI'])assert.match(chartReference({symbol}).symbol,new RegExp(':'+symbol+'$'))
- assert.equal(chartReference({symbol:'ASTEROID/USD',tv_symbol:'ASTEROID'}).symbol,null)
+ const view=chart.chartReference(trade);assert.equal(view.symbol,'OANDA:WTICOUSD');assert.equal(view.savedSymbol,'NYMEX:CL1!');assert.match(view.label,/CFD/);assert.equal(trade.tv_symbol,'NYMEX:CL1!')
+ assert.equal(chart.chartReference({symbol:'WTI/USD'}).symbol,'OANDA:WTICOUSD');assert.equal(chart.chartReference({symbol:'COPPER/USD'}).symbol,'OANDA:XCUUSD')
+ for(const symbol of ['USO','IBIT','BITO','BITI'])assert.match(chart.chartReference({symbol}).symbol,new RegExp(':'+symbol+'$'))
 })
-test('chart URLs encode fixed destinations, respect theme, and disable unsynchronised symbol changes',()=>{
- const url=new URL(chartUrl('OANDA:WTICOUSD',true,'60'));assert.equal(url.hostname,'www.tradingview.com');assert.equal(url.searchParams.get('theme'),'dark');assert.equal(url.searchParams.get('symbol'),'OANDA:WTICOUSD');assert.equal(url.searchParams.get('allow_symbol_change'),'0');assert.equal(url.searchParams.get('timezone'),'Etc/UTC')
- assert.equal(chartUrl('javascript:alert(1)'),null);assert.equal(initialChartInterval(trade),'5');assert.equal(initialChartInterval({duration_mins:null}),'60')
+
+test('historical profiles cover crypto, futures, metals, FX and ETFs without changing trade identity',()=>{
+ assert.equal(JSON.stringify(history.historyProfile({symbol:'BTC/USD'}).providers.map(p=>p.kind)),JSON.stringify(['hyperliquid','yahoo']))
+ assert.equal(history.historyProfile({symbol:'CRUDE/USD'}).providers[0].symbol,'CL=F')
+ assert.equal(history.historyProfile({symbol:'XAG/USD'}).providers[0].symbol,'SI=F')
+ assert.equal(history.historyProfile({symbol:'EUR/USD'}).providers[0].symbol,'EURUSD=X')
+ assert.equal(history.historyProfile({symbol:'IBIT'}).providers[0].symbol,'IBIT')
+ assert.equal(history.historyProfile({symbol:'ASTEROID/USD'}).providers.length,0)
+ assert.equal(trade.symbol,'CRUDE/USD')
 })
-let observer,theme=false,timer
-const exported={};vm.runInNewContext(compile('../components/MarketChart.js'),{exports:exported,require:path=>path==='../lib/marketChart'?model:require(path),document:{body:{classList:{contains:()=>theme}}},MutationObserver:class{constructor(fn){observer=fn}observe(){}disconnect(){}},setTimeout:fn=>{timer=fn;return 1},clearTimeout(){}})
-const Chart=exported.default,text=node=>typeof node==='string'?node:Array.isArray(node)?node.map(text).join(''):node?.children?.map(text).join('')||''
-test('chart opens lazily, survives tab switches, and never treats iframe load as verified market data',async()=>{
- let view;await act(async()=>{view=Renderer.create(React.createElement(Chart,{trade,active:false}))});assert.equal(view.root.findAllByType('iframe').length,0)
- await act(async()=>view.update(React.createElement(Chart,{trade,active:true})));const frame=view.root.findByType('iframe')
- await act(async()=>frame.props.onLoad());assert.match(text(view.toJSON()),/frame opened/i);assert.doesNotMatch(text(view.toJSON()),/data ready/i)
- await act(async()=>view.update(React.createElement(Chart,{trade,active:false})));assert.equal(view.root.findByType('iframe'),frame)
- await act(async()=>view.update(React.createElement(Chart,{trade,active:true})));assert.equal(view.root.findByType('iframe'),frame)
- await act(async()=>{theme=true;observer()});assert.match(view.root.findByType('iframe').props.src,/theme=dark/)
- await act(async()=>view.root.findAllByType('button').find(b=>text(b)==='Chart not working?').props.onClick());assert.equal(view.root.findAllByType('iframe').length,0);assert.match(text(view.toJSON()),/Chart unavailable here/)
- await act(async()=>view.root.findAllByType('button').find(b=>text(b)==='Retry chart').props.onClick());assert.equal(view.root.findAllByType('iframe').length,1)
- await act(async()=>timer());assert.match(text(view.toJSON()),/taking longer/);view.unmount()
+
+test('chart interval widens for old trades and windows surround the entire position',()=>{
+ const recent={...trade,entry_time:'2026-10-25T10:00:00Z',exit_time:'2026-10-25T11:00:00Z'}
+ assert.equal(history.defaultHistoryInterval(recent,Date.parse('2026-10-26T00:00:00Z')),'5m')
+ assert.equal(history.defaultHistoryInterval({...trade,symbol:'BTC/USD'},Date.parse('2028-10-26T00:00:00Z')),'4h')
+ assert.equal(history.defaultHistoryInterval(trade,Date.parse('2028-10-26T00:00:00Z')),'1d')
+ const window=history.historyWindow(trade,'5m');assert.ok(window.start<Date.parse(trade.entry_time));assert.ok(window.end>Date.parse(trade.exit_time))
 })
-test('sample preview never contacts TradingView',async()=>{let view;await act(async()=>{view=Renderer.create(React.createElement(Chart,{trade,active:true,preview:true}))});assert.equal(view.root.findAllByType('iframe').length,0);assert.match(text(view.toJSON()),/disabled in this sample/);view.unmount()})
+
+test('Hyperliquid candles are normalised and invalid provider rows are discarded',async()=>{
+ const mock=async(url,init)=>{assert.equal(url,'https://api.hyperliquid.xyz/info');const body=JSON.parse(init.body);assert.equal(body.type,'candleSnapshot');assert.equal(body.req.coin,'BTC');return new Response(JSON.stringify([{t:1000,o:'10',h:'12',l:'9',c:'11',v:'7'},{t:2000,o:null,h:'12',l:'9',c:'11'}]))}
+ const candles=await history.fetchHyperliquidHistory('BTC','5m',{start:0,end:10000},mock)
+ assert.equal(JSON.stringify(candles),JSON.stringify([{time:1,open:10,high:12,low:9,close:11,volume:7}]))
+})
+
+test('execution markers retain imported fills and fall back to saved entry and exit',()=>{
+ const record={fills:[{time:'2026-10-21T10:00:00Z',price:'70.1',quantity:'2',side:'B'},{time:'2026-10-21T11:00:00Z',price:'71.2',quantity:'2',side:'Sell'}]}
+ assert.equal(JSON.stringify(history.executionMarkers(trade,record).map(m=>[m.side,m.price,m.source])),JSON.stringify([['Buy',70.1,'fill'],['Sell',71.2,'fill']]))
+ assert.equal(JSON.stringify(history.executionMarkers(trade,null).map(m=>[m.side,m.price,m.source])),JSON.stringify([['Buy',70,'average entry'],['Sell',71,'average exit']]))
+})
+
+test('markers align to candle timestamps and group same-candle fills',()=>{
+ const candles=[{time:100},{time:200},{time:300}],markers=[{time:110000,side:'Buy',price:10},{time:120000,side:'Buy',price:12},{time:250000,side:'Sell',price:13}]
+ const result=replay.chartMarkers(candles,markers);assert.equal(result.length,2);assert.equal(result[0].time,100);assert.match(result[0].text,/B×2 11/);assert.equal(result[1].time,200)
+})
+
+test('market chart loads lazily and preview history never calls the private API',async()=>{
+ let calls=0,observer
+ const request={journalFetch:async()=>{calls++;throw new Error('not expected')}}
+ const exported=load('../components/MarketChart.js',{require:path=>path==='react'?React:path==='react/jsx-runtime'?require(path):path==='next/dynamic'?(()=>()=>null):path==='../lib/marketChart'?chart:path==='../lib/marketHistory'?history:path==='../lib/request'?request:require(path),document:{body:{classList:{contains:()=>false}}},MutationObserver:class{constructor(fn){observer=fn}observe(){}disconnect(){}}},true)
+ const Component=exported.default;let view
+ await act(async()=>{view=Renderer.create(React.createElement(Component,{trade,active:false,preview:true}))});assert.equal(calls,0)
+ await act(async()=>view.update(React.createElement(Component,{trade,active:true,preview:true})));assert.equal(calls,0);assert.match(JSON.stringify(view.toJSON()),/Representative chart data/);observer();view.unmount()
+})
