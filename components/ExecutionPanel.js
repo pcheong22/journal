@@ -1,3 +1,4 @@
+import { journalFetch } from '../lib/request'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { executionView } from '../lib/executionUtils'
 const num = value => value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 8 })
@@ -10,7 +11,7 @@ export default function ExecutionPanel({ trade }) {
   useEffect(() => {
     const abort = new AbortController()
     setLoading(true); setRecord(null); setError(''); setRaw(false); setExpanded(new Set())
-    fetch(`/api/executions?tradeId=${encodeURIComponent(trade.id)}`, { signal: abort.signal })
+    journalFetch(`/api/executions?tradeId=${encodeURIComponent(trade.id)}`, { signal: abort.signal })
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error); return data.record })
       .then(data => { if (!abort.signal.aborted) { setRecord(data); setTimezone(data?.source.timezone || 'Asia/Dubai') } })
       .catch(err => { if (!abort.signal.aborted) setError(err.message || 'Execution details could not be loaded.') })

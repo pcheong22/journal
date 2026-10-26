@@ -30,3 +30,11 @@ Run npm ci, npm test, and npm run build with the required environment variables.
 ## Recovery
 
 Keep the previous deploy and an administrator database connection available during the rollout. If owner access fails, repair the email/origin/Auth settings using the administrator dashboard or roll back to a previously verified guarded deployment. Do not restore public policies or redeploy an unauthenticated build to recover access. The migration is idempotent; inspect migration results rather than retrying blindly after a failure.
+
+## Stage 2 data safety
+
+Apply 20261026_stage_two_backup.sql before 20261026_stage_two_notes.sql. The latter records a database checkpoint before adding journal revisions and recomputing R-multiples. Test both migrations in development first. Notes and tag changes use one service-only transaction; omitted tags are preserved, an explicit empty list clears them, and stale revisions return 409. A trigger recomputes R when imported prices, direction or stop change.
+
+Settings → Backup & restore creates a full JSON bundle, stored privately and downloadable through a one-minute signed link. It includes all journal tables, local preferences, screenshots and immutable execution records; authentication credentials and hosting secrets are excluded. Limits are 20 MB of database JSON, 20 MB of source attachments and 50 MB per bundle. Restore uploads go directly to a one-object signed storage URL, avoiding the hosting request-body limit. The file is checked for project/schema compatibility, checksums and referenced screenshots before any restoration.
+
+Restore previews current and backup row counts. It requires RESTORE JOURNAL, saves a complete safety copy, refuses to overwrite an existing file with different contents, and replaces journal tables in one database transaction. Changes made after preview cause a conflict instead of an overwrite. Retained files and managed safety backups remain available; no automatic backup deletion is performed. Recent safety copies can be selected for restoration from Settings. Test restoration in a rolled-back development transaction; never use real production accounts as disposable test data.

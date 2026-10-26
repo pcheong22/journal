@@ -1,3 +1,4 @@
+import { createFullBackup } from '../../lib/backupStore'
 import { createClient } from '@supabase/supabase-js'
 import { requireOwner } from '../../lib/serverAuth'
 import { multipart } from '../../lib/uploadSafety'
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from('trade_images').select('*').eq('id', req.query.id).maybeSingle()
       if (error) throw new Error('Could not find screenshot.')
       if (!data) return res.status(404).json({ error: 'Screenshot not found.' })
+      await createFullBackup(supabase,{},'automatic safety copy before screenshot deletion')
       await removeImage(supabase, data)
       return res.status(200).json({ ok: true })
     }

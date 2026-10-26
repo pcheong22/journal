@@ -123,6 +123,7 @@ test('account deletion requires the exact typed target and reports database fail
   let calls = [], dbError = null
   const handler = compiledModule('../pages/api/clear.js', path => {
     if (path.endsWith('/serverAuth')) return { requireOwner: async () => ({ email: 'owner@example.com' }) }
+    if (path.endsWith('/backupStore')) return { createFullBackup: async () => ({record:{id:'safety'}}) }
     if (path === '@supabase/supabase-js') return { createClient: () => ({ rpc: async (name, args) => { calls.push({ name, args }); return { error: dbError } } }) }
     throw new Error(path)
   }).default
@@ -161,4 +162,17 @@ test('CSV resource limits are enforced during parsing, including LF-only exports
   assert.throws(() => parse('x\n'.repeat(100002)), /rows/)
   assert.throws(() => parse('"' + 'x'.repeat(65537) + '"'), /64 KB/)
   assert.throws(() => parse('"broken'), /unterminated/)
+})
+
+test('a failed safety backup prevents account deletion', async () => {
+ let deleted=false
+ const handler=compiledModule('../pages/api/clear.js',path=>{
+  if(path.endsWith('/serverAuth'))return {requireOwner:async()=>true}
+  if(path.endsWith('/backupStore'))return {createFullBackup:async()=>{throw new Error('Storage down')}}
+  if(path==='@supabase/supabase-js')return {createClient:()=>({rpc:async()=>{deleted=true;return {}}})}
+  throw new Error(path)
+ }).default
+ const res=response()
+ await handler({method:'DELETE',query:{account:'ABC'},headers:{'x-journal-delete':'DELETE ABC'}},res)
+ assert.equal(res.code,503);assert.equal(deleted,false)
 })
