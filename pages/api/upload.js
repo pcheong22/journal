@@ -6,6 +6,7 @@ import { parseHypurrscan, isHypurrscan } from '../../lib/parsers/hypurrscan'
 import { computeStreaks } from '../../lib/parserUtils'
 import { parseHyperliquid } from '../../lib/parsers/hyperliquid'
 import { reconcileHyperliquid } from '../../lib/hyperliquidImport'
+import { changedTxFlowTrade } from '../../lib/txflowImport'
 
 // Proper RFC 4180 CSV parser — handles quoted fields containing commas and newlines
 function parseCSV(text) {
@@ -44,12 +45,14 @@ const BROKER_LABELS  = {
   IBKR:        id => `IBKR ${id}`,
   Extended:    id => `Extended 0x9507...6466`,
   Hyperliquid: id => id && id.length > 10 ? `Hyperliquid ${id.slice(0,6)}....${id.slice(-4)}` : `Hyperliquid ${id || 'unknown'}`,
+  TxFlow: id => { const wallet = id.replace(/^TXFLOW_/, ''); return `TxFlow ${wallet.slice(0,6)}....${wallet.slice(-4).toUpperCase()}` },
   Bybit:       id => id.includes('SPOT') ? 'Bybit Spot' : `Bybit ${id}`,
 }
 const BROKER_DEFAULT_COLORS = {
   IBKR:        '#D92027',
   Extended:    '#23DCA1',
   Hyperliquid: '#97FCE4',
+  TxFlow: '#A78BFA',
   Bybit:       '#F7A600',
 }
 const ACCOUNT_CURRENCY_COLORS = {
@@ -125,7 +128,9 @@ export default async function handler(req, res) {
     }
 
     // Upsert account
-    const { data: existingAccts } = await supabase.from('accounts').select('id').eq('id', accountId)
+    const { data: existingAccts, error: accountReadError } = await supabase.from('accounts').select('id,broker').eq('id', accountId)
+    if (accountReadError) throw new Error(accountReadError.message)
+    if (existingAccts?.some(account => account.broker !== broker)) throw new Error('This account belongs to another broker.')
     if (!existingAccts?.length) {
       const { count }  = await supabase.from('accounts').select('*', { count: 'exact', head: true })
       const colorIdx   = (count || 0) % BROKER_COLORS.length
@@ -133,17 +138,31 @@ export default async function handler(req, res) {
                       || BROKER_DEFAULT_COLORS[broker]
                       || BROKER_COLORS[colorIdx]
       const labelFn    = BROKER_LABELS[broker] || (id => id)
-      await supabase.from('accounts').insert({ id: accountId, broker, label: labelFn(accountId), currency, color })
+      const { error } = await supabase.from('accounts').insert({ id: accountId, broker, label: labelFn(accountId), currency, color })
+      if (error) throw new Error(error.message)
     }
 
     // Deduplicate by position_id
-    let newTrades, dupCount, reconciled = 0, removed = 0
+    let newTrades, dupCount, reconciled = 0, removed = 0, updated = 0
     if (broker === 'Hyperliquid') {
       // Reparse in UTC only to recognise the old, unconverted native timestamps.
       // All saved timestamps still use the timezone selected for this upload.
       const utcTrades = parseHyperliquid(rows, filename, accountId, 'UTC').trades
       const result = await reconcileHyperliquid(supabase, incoming, utcTrades)
       ;({ newTrades, duplicates: dupCount, reconciled, removed } = result)
+    } else if (broker === 'TxFlow') {
+      const existing = []
+      for (let start = 0; ; start += 1000) {
+        const { data, error } = await supabase.from('trades').select('*').eq('account_id', accountId)
+          .order('id').range(start, start + 999)
+        if (error) throw new Error(error.message)
+        existing.push(...(data || []))
+        if (!data || data.length < 1000) break
+      }
+      const byId = new Map(existing.map(trade => [trade.position_id, trade]))
+      newTrades = incoming.filter(trade => changedTxFlowTrade(byId.get(trade.position_id), trade))
+      updated = newTrades.filter(trade => byId.has(trade.position_id)).length
+      dupCount = incoming.length - newTrades.length
     } else {
       const { data: existing, error } = await supabase.from('trades').select('position_id').eq('account_id', accountId)
       if (error) throw new Error(error.message)
@@ -165,8 +184,9 @@ export default async function handler(req, res) {
       .from('trades').select('position_id, pnl, entry_time').eq('account_id', accountId)
       .order('entry_time', { ascending: true })
 
+    const changedIds = new Set(newTrades.map(trade => trade.position_id))
     const combined = [
-      ...(allExisting || []),
+      ...(allExisting || []).filter(trade => !changedIds.has(trade.position_id)),
       ...newTrades.map(t => ({ position_id: t.position_id, pnl: t.pnl, entry_time: t.entry_time }))
     ].sort((a, b) => (a.entry_time || '').localeCompare(b.entry_time || ''))
 
@@ -181,15 +201,16 @@ export default async function handler(req, res) {
       const batch     = tradesToInsert.slice(i, i + 500)
       const { error } = await supabase
         .from('trades')
-        .upsert(batch, { onConflict: 'account_id,position_id', ignoreDuplicates: true })
+        .upsert(batch, { onConflict: 'account_id,position_id', ignoreDuplicates: broker !== 'TxFlow' })
       if (error) throw new Error(`DB insert error: ${error.message}`)
       inserted += batch.length
     }
 
     return res.status(200).json({
-      message: `Imported ${inserted} new trades for account ${accountId}`,
+      message: `Imported ${inserted - updated} new trades${updated ? `; updated ${updated} trades` : ''} for account ${accountId}`,
       imported: inserted, duplicates: dupCount, total: incoming.length, broker, accountId, currency,
-      reconciled, removed,
+      reconciled, removed, updated,
+      ...(parsed.pnlBasis ? { pnlBasis: parsed.pnlBasis } : {}),
     })
 
   } catch (err) {

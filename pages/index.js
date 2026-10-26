@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
+import { isTxFlow } from '../lib/parsers/txflow'
+import TxFlowAccountModal from '../components/TxFlowAccountModal'
 import dynamic from 'next/dynamic'
 
 // Error boundary — catches client-side crashes and shows the error on screen
@@ -74,6 +76,7 @@ function DashboardInner() {
   const [dragOver,       setDragOver]       = useState(false)
   const [hlAccountModal,  setHlAccountModal]  = useState(null) // pending HL native file
   const [hsAccountModal,  setHsAccountModal]  = useState(null) // pending Hypurrscan file
+  const [txAccountModal,  setTxAccountModal]  = useState(null)
   const [selected,       setSelected]       = useState(null)
   const [privacy,        setPrivacy]        = useState(false)
   const [darkMode,       setDarkMode]       = useState(true)
@@ -239,11 +242,16 @@ function DashboardInner() {
   }
   const selectOnly = id => setSelAccounts(new Set([id]))
 
-  const handleFile = async (file, accountIdOverride = null) => {
+  const handleFile = async (file, accountIdOverride = null, timezoneOverride = null) => {
     if (!file) return
     if (!accountIdOverride) {
       const text = await file.text()
       const firstLine = text.split('\n')[0] || ''
+      const header = firstLine.replace(/^\uFEFF/, '').split(',').map(value => value.trim().replace(/^"|"$/g, ''))
+      if (isTxFlow([header])) {
+        setTxAccountModal(file)
+        return
+      }
       if (firstLine.includes('time,coin,dir,px')) {
         setHlAccountModal(file)
         return
@@ -258,13 +266,13 @@ function DashboardInner() {
     const form = new FormData()
     form.append('file', file)
     if (accountIdOverride) form.append('accountId', accountIdOverride)
-    form.append('timezone', settings.hlTimezone || 'Asia/Dubai')
+    form.append('timezone', timezoneOverride || settings.hlTimezone || 'Asia/Dubai')
     try {
       const res  = await fetch('/api/upload', { method:'POST', body:form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       setUpload({ status:'success', message:data.message, broker:data.broker||'', accountId:data.accountId||'' })
-      if (data.imported > 0) await loadTrades(dateFrom, dateTo)
+      if (data.imported > 0 || data.reconciled > 0 || data.removed > 0) await loadTrades(dateFrom, dateTo)
     } catch(e) { setUpload({ status:'error', message:e.message, broker:'', accountId:'' }) }
   }
   const handleDrop  = e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
@@ -533,6 +541,7 @@ function DashboardInner() {
                     <div>· <b style={{color:'var(--tx)'}}>PrimeXBT</b> — orders CSV export</div>
                     <div>· <b style={{color:'var(--tx)'}}>IBKR</b> — Activity Statement CSV</div>
                     <div>· <b style={{color:'var(--tx)'}}>Hyperliquid</b> — native trade CSV</div>
+                    <div>· <b style={{color:'var(--tx)'}}>TxFlow</b> — trade history CSV</div>
                     <div>· <b style={{color:'var(--tx)'}}>Hypurrscan</b> — wallet export CSV</div>
                     <div>· <b style={{color:'var(--tx)'}}>Bybit Perp</b> — bybit_perps_*.csv</div>
                     <div>· <b style={{color:'var(--tx)'}}>Bybit Spot</b> — bybit_spot_*.csv</div>
@@ -579,6 +588,15 @@ function DashboardInner() {
           onSelect={accountId => { setHlAccountModal(null); handleFile(hlAccountModal, accountId) }}
           onClose={() => setHlAccountModal(null)}
           existingAccounts={accounts.filter(a => a.broker === 'Hyperliquid')}
+        />
+      )}
+      {txAccountModal && (
+        <TxFlowAccountModal
+          filename={txAccountModal.name}
+          defaultTimezone={settings.hlTimezone || 'Asia/Dubai'}
+          existingAccounts={accounts.filter(account => account.broker === 'TxFlow')}
+          onSelect={(accountId, timezone) => { setTxAccountModal(null); handleFile(txAccountModal, accountId, timezone) }}
+          onClose={() => setTxAccountModal(null)}
         />
       )}
       {hsAccountModal && (

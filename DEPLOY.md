@@ -174,3 +174,14 @@ REMINDER — PENDING ITEMS
   entry_time and exit_time separated
 - Bybit / Hyperliquid / IBKR: parsers ready to add when needed
 - AI activation: set QWEN_API_KEY in Vercel when you have key
+
+TxFlow trade history imports:
+  - Upload the complete trade-history CSV, including opening fills.
+  - The upload dialog requires choosing a wallet and CSV timezone.
+  - TxFlow wallet accounts use TXFLOW_<lowercase address> internally so the
+    same address can also be used on Hyperliquid or another broker.
+  - Fills are grouped into positions; CL maps to CRUDE. Trade P&L is exported
+    Closed PnL less exported trading fees (including opening fees and rebates).
+    Funding is not in this file and is not included.
+  - Repeated uploads skip unchanged positions; later closes update the same
+    position while preserving journal notes, strategies, tags and images.
