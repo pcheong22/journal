@@ -50,18 +50,20 @@ export default async function handler(req, res) {
 
     const indices = {}
     let executionWarning = null
-    await Promise.all([...new Set(allTrades.filter(trade => ['TxFlow', 'Hyperliquid'].includes(trade.broker)).map(trade => trade.account_id))].map(async account => {
+    const executionSummaries = Promise.all([...new Set(allTrades.filter(trade => ['TxFlow', 'Hyperliquid'].includes(trade.broker)).map(trade => trade.account_id))].map(async account => {
       try { indices[account] = await executionIndex(executionStorage, account) }
       catch (error) { console.error('Execution summary:', error.message); executionWarning = 'Execution counts are temporarily unavailable.' }
     }))
+
+
+    // Independent metadata requests run alongside private execution summaries.
+    const [{ data: accounts, error: accountsError }, { data: tags, error: tagsError }] = await Promise.all([
+      supabase.from('accounts').select('*').order('created_at'),
+      supabase.from('trade_tags').select('*').order('category').order('name'),
+      executionSummaries,
+    ])
+
     const trades = allTrades.map(({ trade_tag_mappings, ...trade }) => ({ ...reportingTrade(trade), tag_ids: (trade_tag_mappings || []).map(item => item.tag_id), execution_count: indices[trade.account_id]?.[trade.id]?.count || null }))
-
-    // Fetch accounts
-    const { data: accounts, error: accountsError } = await supabase.from('accounts').select('*').order('created_at')
-
-    // Fetch tags
-    const { data: tags, error: tagsError } = await supabase.from('trade_tags').select('*').order('category').order('name')
-
     if (accountsError || tagsError) throw new Error('Could not load account or tag data. Please retry.')
     return res.status(200).json({
       trades:   trades   || [],

@@ -4,14 +4,14 @@
 
 import { useState, useMemo, useRef, useCallback } from 'react'
 
-const fU  = (n, d=0) => n == null ? '—' : (n>=0?'+':'') + n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
-const fA  = n => n == null ? '—' : '$' + Math.abs(Math.round(n)).toLocaleString()
+const fU  = (n, d=0) => <span className="private">{n == null ? '—' : (n>=0?'+':'') + n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})}</span>
+const fA  = n => <span className="private">{n == null ? '—' : '$' + Math.abs(Math.round(n)).toLocaleString()}</span>
 const fN  = (n,d=1) => n == null ? '—' : n.toFixed(d)
 
-const TH = { fontSize:8, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
+const TH = { fontSize:11, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
   letterSpacing:'.06em', fontFamily:'var(--font-mono)', padding:'5px 6px',
   borderBottom:'1px solid var(--bd)', whiteSpace:'nowrap' }
-const TD = { fontSize:10, fontFamily:'var(--font-mono)', padding:'5px 6px',
+const TD = { fontSize:12, fontFamily:'var(--font-mono)', padding:'5px 6px',
   borderBottom:'1px solid var(--bd2)', whiteSpace:'nowrap' }
 
 function Card({ children, style }) {
@@ -37,9 +37,9 @@ function DepthBar({ depth, maxDepth }) {
   return (
     <div style={{display:'flex',alignItems:'center',gap:4}}>
       <div style={{flex:1,height:4,background:'var(--sf2)',borderRadius:3,overflow:'hidden',minWidth:40}}>
-        <div style={{height:'100%',width:`${pct}%`,background:'#ff5258',borderRadius:3,transition:'width .3s'}} />
+        <div style={{height:'100%',width:`${pct}%`,background:'var(--ls)',borderRadius:3,transition:'width .3s'}} />
       </div>
-      <span style={{fontSize:10,fontWeight:600,color:'#ff5258',fontFamily:'var(--font-mono)',minWidth:65,textAlign:'right'}}>
+      <span style={{fontSize:10,fontWeight:600,color:'var(--ls)',fontFamily:'var(--font-mono)',minWidth:65,textAlign:'right'}}>
         -{fA(depth)}
       </span>
     </div>
@@ -81,8 +81,8 @@ function DrawdownTimeline({ events, onSelect, selectedIdx }) {
                 onMouseLeave={e=>{ if(selected!==i && selectedIdx!==i) e.currentTarget.style.background='transparent' }}>
                 <td style={{...TD,textAlign:'center',color:'var(--mu)',fontWeight:700}}>{i+1}</td>
                 <td style={{...TD}}>{ev.peak_date || '—'}</td>
-                <td style={{...TD,color:'#ff5258'}}>{ev.trough_date || '—'}</td>
-                <td style={{...TD,color:ev.recovery_date?'#66ffa5':'#f0a500'}}>
+                <td style={{...TD,color:'var(--ls)'}}>{ev.trough_date || '—'}</td>
+                <td style={{...TD,color:ev.recovery_date?'var(--wn)':'#f0a500'}}>
                   {ev.recovery_date || <span style={{color:'#f0a500'}}>Open ⚠</span>}
                 </td>
                 <td style={{...TD,minWidth:180}}>
@@ -91,7 +91,7 @@ function DrawdownTimeline({ events, onSelect, selectedIdx }) {
                 <td style={{...TD}}>
                   <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:3,fontFamily:'var(--font-mono)',
                     background:ev.recovery_date?'rgba(102,255,165,.1)':'rgba(255,165,0,.1)',
-                    color:ev.recovery_date?'#66ffa5':'#f0a500',
+                    color:ev.recovery_date?'var(--wn)':'#f0a500',
                     border:`1px solid ${ev.recovery_date?'rgba(102,255,165,.3)':'rgba(255,165,0,.3)'}`}}>
                     {ev.recovery_date ? 'Recovered' : 'Open'}
                   </span>
@@ -178,9 +178,9 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
         {topN.map((e, i) => (
           <button key={i} onClick={() => setSelectedEvent(i)}
             style={{padding:'5px 10px',borderRadius:6,fontSize:10,fontFamily:'var(--font-mono)',
-              border:`1px solid ${selectedEvent===i?'#ff5258':'var(--bd)'}`,
+              border:`1px solid ${selectedEvent===i?'var(--ls)':'var(--bd)'}`,
               background:selectedEvent===i?'rgba(255,82,88,.1)':'var(--sf2)',
-              color:selectedEvent===i?'#ff5258':'var(--mu)',cursor:'pointer',fontWeight:selectedEvent===i?700:400}}>
+              color:selectedEvent===i?'var(--ls)':'var(--mu)',cursor:'pointer',fontWeight:selectedEvent===i?700:400}}>
             #{i+1} -{fA(e.depth)} {e.peak_date?.slice(0,7)}
           </button>
         ))}
@@ -199,7 +199,7 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
           ['Recovery Time',ev.recovery_days != null ? `${ev.recovery_days} days` : '—'],
         ].map(([l,v]) => (
           <div key={l}>
-            <div style={{fontSize:9,fontWeight:700,color:'#ff5258',opacity:.7,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:'var(--font-mono)',marginBottom:2}}>{l}</div>
+            <div style={{fontSize:9,fontWeight:700,color:'var(--ls)',opacity:.7,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:'var(--font-mono)',marginBottom:2}}>{l}</div>
             <div style={{fontSize:12,fontWeight:600,fontFamily:'var(--font-mono)',color:'var(--tx)'}}>{v}</div>
           </div>
         ))}
@@ -234,16 +234,16 @@ function DrawdownAttrib({ trades, events, attribRef, initialEvent = 0 }) {
                       </span>
                     </td>
                     <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{r.trades}</td>
-                    <td style={{...TD,textAlign:'right',fontWeight:600,color:r.pnl>=0?'#66ffa5':'#ff5258'}}>
+                    <td style={{...TD,textAlign:'right',fontWeight:600,color:r.pnl>=0?'var(--wn)':'var(--ls)'}}>
                       {fU(r.pnl)}
                     </td>
                     <td style={{...TD,textAlign:'right'}}>
                       <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'flex-end'}}>
                         <div style={{width:50,height:4,background:'var(--sf2)',borderRadius:2,overflow:'hidden'}}>
                           <div style={{height:'100%',width:`${Math.min(100,Math.abs(pct))}%`,
-                            background:r.pnl<0?'#ff5258':'#66ffa5',borderRadius:2}} />
+                            background:r.pnl<0?'var(--ls)':'var(--wn)',borderRadius:2}} />
                         </div>
-                        <span style={{color:r.pnl<0?'#ff5258':'#66ffa5',minWidth:40,textAlign:'right'}}>
+                        <span style={{color:r.pnl<0?'var(--ls)':'var(--wn)',minWidth:40,textAlign:'right'}}>
                           {pct.toFixed(0)}%
                         </span>
                       </div>
@@ -351,21 +351,21 @@ function SymbolDragTable({ trades }) {
                 onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                 <td style={{...TD,fontWeight:700,color:'var(--tx)'}}>{r.symbol}</td>
                 <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{r.trades}</td>
-                <td style={{...TD,textAlign:'right',fontWeight:600,color:r.total_pnl>=0?'#66ffa5':'#ff5258'}}>
+                <td style={{...TD,textAlign:'right',fontWeight:600,color:r.total_pnl>=0?'var(--wn)':'var(--ls)'}}>
                   {fU(r.total_pnl)}
                 </td>
                 <td style={{...TD,textAlign:'right',minWidth:120}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}>
                     <div style={{width:60,height:5,background:'var(--sf2)',borderRadius:3,overflow:'hidden'}}>
                       <div style={{height:'100%',width:`${Math.round(r.max_dd/maxDd*100)}%`,
-                        background:'#ff5258',borderRadius:3}} />
+                        background:'var(--ls)',borderRadius:3}} />
                     </div>
-                    <span style={{color:'#ff5258',fontWeight:600}}>{fA(r.max_dd)}</span>
+                    <span style={{color:'var(--ls)',fontWeight:600}}>{fA(r.max_dd)}</span>
                   </div>
                 </td>
                 <td style={{...TD,textAlign:'right'}}>
                   <span style={{fontWeight:700,fontSize:12,fontFamily:'var(--font-mono)',
-                    color: r.drag_score >= 2 ? '#ff5258' : r.drag_score >= 1 ? '#f0a500' : '#66ffa5'}}>
+                    color: r.drag_score >= 2 ? 'var(--ls)' : r.drag_score >= 1 ? '#f0a500' : 'var(--wn)'}}>
                     {r.drag_score >= 99 ? '∞' : r.drag_score.toFixed(2)}
                     {r.drag_score >= 2 && <span style={{fontSize:9,marginLeft:3}}>⚠</span>}
                   </span>

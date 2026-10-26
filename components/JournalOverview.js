@@ -5,7 +5,7 @@ import {money,instrumentContributions} from '../lib/presentation'
 import DataQuality from './DataQuality'
 const ChartComp=dynamic(()=>import('./Charts'),{ssr:false})
 function Metric({label,value,context,tone='',privateValue=false}){return <div className="headline-metric"><div className="metric-label">{label}</div><div className={'metric-value '+tone+(privateValue?' private':'')}>{value}</div><div className="metric-context">{context}</div></div>}
-export default function JournalOverview({stats,trades,tags,privacy,onReview,onInstrument}){
+export default function JournalOverview({stats,trades,tags,privacy,onReview,onInstrument,onSourceCheck}){
  const [ascending,setAscending]=useState(false),[all,setAll]=useState(false)
  const o=stats.overview,reviewed=tags.find(t=>t.name==='Reviewed')?.id,remaining=trades.filter(t=>!t.tag_ids?.includes(reviewed)).length,checks=trades.filter(t=>priceCheck(t)).length
  let rows=instrumentContributions(trades);if(ascending)rows.reverse();const visible=all?rows:rows.slice(0,8)
@@ -22,7 +22,7 @@ export default function JournalOverview({stats,trades,tags,privacy,onReview,onIn
   </section>
   <section className="secondary-facts"><div><span>Long positions</span><strong className="private">{money(o.long_pnl)}</strong><small>{o.long_count} trades · {(o.long_wr*100).toFixed(1)}% win rate</small></div><div><span>Short positions</span><strong className="private">{money(o.short_pnl)}</strong><small>{o.short_count} trades · {(o.short_wr*100).toFixed(1)}% win rate</small></div><div><span>Review queue</span><strong>{remaining.toLocaleString()}</strong><small>Unreviewed in this period</small></div></section>
   <div className="review-callout"><div><h2>Make the next trade more deliberate.</h2><p>{remaining.toLocaleString()} trades await review in this scope. Record one lesson, then mark each reviewed.</p></div><button className="btn btn-p" onClick={onReview}>Open review queue →</button></div>
-  {checks>0&&<div className="data-check-notice" role="status"><strong>{checks} trades need a source check.</strong> Inferred prices conflict with reported P&L. Their price-derived returns and notional estimates are withheld; reported P&L is preserved.</div>}
+  {checks>0&&<div className="data-check-notice" role="status"><strong>{checks} trades need a source check.</strong> The price move and reported outcome have opposite signs; fees, funding or inferred matching may explain it. Price-derived figures are withheld while reported P&L is preserved. <button className="text-button" onClick={onSourceCheck}>Review source checks →</button></div>}
   <DataQuality trades={trades}/>
  </div>
 }
