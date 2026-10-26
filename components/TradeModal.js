@@ -107,14 +107,17 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
 
   // Build notional audit tooltip
   const notionalTooltip = (() => {
-    if (!trade.notional_usd || !trade.entry_price || !trade.exit_price) return null
-    const move = trade.direction === 'Long'
-      ? (trade.exit_price / trade.entry_price - 1) * 100
-      : ((trade.entry_price - trade.exit_price) / trade.entry_price) * 100
+    if (!trade.notional_usd) return null
     if (trade.notional_method === 'backsolve') {
+      if (!trade.entry_price || !trade.exit_price) return null
+      const move = trade.direction === 'Long'
+        ? (trade.exit_price / trade.entry_price - 1) * 100
+        : ((trade.entry_price - trade.exit_price) / trade.entry_price) * 100
       return `Back-solved from price move\nEntry ${trade.entry_price?.toLocaleString()} → Exit ${trade.exit_price?.toLocaleString()}\nMove: ${move>=0?'+':''}${move.toFixed(3)}% · $${Math.abs(Math.round(trade.pnl)).toLocaleString()} ÷ ${Math.abs(move).toFixed(3)}% = ${not}`
     } else if (trade.notional_method === 'price_x_size') {
-      return `Calculated as price × size\nEntry ${trade.entry_price?.toLocaleString()} × ${trade.size?.toLocaleString()} contracts = ${not}`
+      const sourcePrice=trade.entry_price || trade.exit_price
+      if (!sourcePrice || !trade.size) return null
+      return `Calculated from source price × size\n${trade.entry_price?'Entry':'Exit'} ${sourcePrice.toLocaleString()} × ${trade.size.toLocaleString()} contracts = ${not}`
     }
     return null
   })()
