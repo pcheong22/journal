@@ -26,6 +26,7 @@ function database(trades, { tags = [], images = [], failRead = false, failUpdate
     let operation = 'select', payload, filters = [], start = 0, end = Infinity
     const q = {
       select() { return q },
+      single() { return q },
       eq(k, v) { filters.push(row => row[k] === v); return q },
       in(k, values) { filters.push(row => values.includes(row[k])); return q },
       order() { return q },
