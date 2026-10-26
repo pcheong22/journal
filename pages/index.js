@@ -770,7 +770,8 @@ export function JournalWorkspace({previewData=null}) {
 
         {['trades','review'].includes(tab) && (
           <div className="anim trade-log-page"><div className="page-heading"><div><span className="eyebrow">{tab==='review'?'Reflect & improve':'Trade history'}</span><h1>{tab==='review'?'Review queue':'Trades'}</h1><p>{tab==='review'?'A deliberate record of what worked, what changed and what comes next.':'Your positions, with the execution detail behind every result.'}</p></div></div>
-            <ReviewWorkflow trades={selectedTrades} pageTrades={paged} tags={tags} inbox={reviewInbox} setInbox={setReviewInbox} selection={reviewSelection} setSelection={setReviewSelection}
+            <ReviewWorkflow trades={selectedTrades} visibleTrades={filtered} pageTrades={paged} tags={tags} inbox={reviewInbox} setInbox={setReviewInbox} selection={reviewSelection} setSelection={setReviewSelection}
+             onOpen={setSelected}
              onSaved={async updated=>{setAllTrades(prev=>prev.map(t=>{const changed=updated.find(u=>u.id===t.id);return changed?reportingTrade({...t,...changed}):t}));const response=await(await journalFetch('/api/trades?from='+encodeURIComponent(dateFrom+'T00:00:00Z')+'&to='+encodeURIComponent(dateTo+'T23:59:59.999Z'))).json();if(response.tags)setTags(response.tags)}}
              filters={{symbol:fSym,direction:fDir,result:fRes,session:fSess,search,inbox:reviewInbox,accounts:[...selAccounts],from:dateFrom,to:dateTo,sortKey,sortDir}}
              savedViews={settings.savedViews || []} onSaveViews={views=>saveSetting('savedViews',views)}

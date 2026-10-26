@@ -52,6 +52,10 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const [recoveredDraft,setRecoveredDraft]=useState(null),[draftMessage,setDraftMessage]=useState('')
   const dirtyNotes=useRef(false)
   const idx = trades.findIndex(item => item.id === trade.id)
+  const reviewedTagId = tags.find(tag => tag.name === 'Reviewed')?.id
+  const isReviewed = reviewedTagId != null && selectedTags.has(reviewedTagId)
+  const nextUnreviewed = trades.slice(idx + 1).find(item => !item.tag_ids?.includes(reviewedTagId))
+    || trades.slice(0, Math.max(idx, 0)).find(item => item.id !== trade.id && !item.tag_ids?.includes(reviewedTagId))
 
   // Load saved values when trade changes
   useEffect(() => {
@@ -131,27 +135,33 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const computedR = trade.data_check?null:riskMultiple(trade, stopLoss)
   const rDisplay = computedR
 
-  const handleSave = async (section = 'notes') => {
+  const handleSave = async (section = 'notes', advance = false) => {
     if (saving || preview) return
     const id = trade.id
+    const savesNotes = section !== 'tags'
+    const savesReview = section === 'review'
+    const reviewTags = savesReview && reviewedTagId != null ? [...new Set([...selectedTags, reviewedTagId])] : null
     setSaving(true); setSaved(false); setSaveError('')
     try {
       const res = await journalFetch('/api/trade-notes', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ tradeId:id, expectedRevision:revision,
-          ...(section === 'tags' ? { tagIds:[...selectedTags] } : {
+          ...(savesNotes ? {
             notes:noteFree, note_entry_reason:noteEntry, note_management:noteMgmt,
             note_lessons:noteLessons, note_emotional_state:noteEmotion,
             stop_loss:stopLoss === '' ? null : Number(stopLoss),
-          }),
+          } : {}),
+          ...(section === 'tags' ? { tagIds:[...selectedTags] } : {}),
+          ...(savesReview ? { tagIds:reviewTags } : {}),
         }),
       })
       const data = await res.json()
       if (!res.ok || !data.success || !data.trade) throw new Error(data.error || 'Could not save. Please retry.')
-      if(section==='notes'){try{window.localStorage.removeItem(draftKey(trade))}catch{};dirtyNotes.current=false;setRecoveredDraft(null);setDraftMessage('')}
+      if(savesNotes){try{window.localStorage.removeItem(draftKey(trade))}catch{};dirtyNotes.current=false;setRecoveredDraft(null);setDraftMessage('')}
       if (onSaved) onSaved(data.trade)
       if (tradeIdRef.current !== id) return
-      setRevision(data.trade.journal_revision); setSaved(section)
+      setSelectedTags(new Set(data.trade.tag_ids || []));setRevision(data.trade.journal_revision); setSaved(section)
+      if (advance && nextUnreviewed) onNavigate(nextUnreviewed)
     } catch (error) { if (tradeIdRef.current === id) setSaveError(error.message || 'Could not save. Your changes are still here.') }
     finally { if (tradeIdRef.current === id) setSaving(false) }
   }
@@ -191,7 +201,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     {id:'summary',label:'Summary'},
     { id:'executions', label:'Executions' },
     { id:'chart',label:'Market chart' },
-    { id:'notes',  label:'Review notes' },
+    { id:'notes',  label:'Review' },
     { id:'images', label:'Screenshots' },
     { id:'tags',   label:'Tags' },
     { id:'ai',     label:'AI Coach' },
@@ -251,6 +261,11 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
         <div className="trade-detail-body">
 
           <div className="trade-detail-metrics">{[['Reported P&L',fU(trade.pnl),true],['Price move',pct,false],['Risk multiple',rDisplay!=null?rDisplay+'R':'Not recorded',false],['Duration',dur,false]].map(([label,value,priv])=><div key={label}><span>{label}</span><strong className={priv?'private':''}>{value}</strong></div>)}</div>
+          <nav className="review-path" aria-label="Trade review steps">
+            <button onClick={()=>setSection('executions')} aria-current={activeSection==='executions'?'step':undefined}><span>1</span><strong>Inspect executions</strong><small>{trade.execution_count?`${trade.execution_count} fills`:'Summary available'}</small></button>
+            <button onClick={()=>setSection('notes')} aria-current={activeSection==='notes'?'step':undefined}><span>2</span><strong>Record one lesson</strong><small>{noteLessons.trim()?'Lesson drafted':'Not recorded'}</small></button>
+            <button onClick={()=>setSection('notes')} data-complete={isReviewed||undefined}><span>{isReviewed?'✓':'3'}</span><strong>{isReviewed?'Reviewed':'Mark reviewed'}</strong><small>{isReviewed?'Saved in journal':'Saved with lesson'}</small></button>
+          </nav>
           <details className="trade-facts"><summary>Position facts & data coverage</summary><dl><div><dt>Average entry</dt><dd>{trade.entry_price?.toLocaleString()||'Unavailable'}{trade.broker==='PrimeXBT'||trade.broker==='IBKR'?' · matched from export history':''}</dd></div><div><dt>Average exit</dt><dd>{trade.exit_price?.toLocaleString()||'Unavailable'}</dd></div><div><dt>Position size</dt><dd>{trade.size?.toLocaleString()}</dd></div><div><dt>Estimated notional</dt><dd className="private">{not}</dd></div><div><dt>Account</dt><dd>{trade.account_id}</dd></div></dl><p>MAE, MFE and execution-quality scores require observed intratrade prices; this export does not provide them.</p></details>
           {trade.data_check&&<div className="data-check-notice" role="status">{trade.data_check}</div>}
           {preview&&<div className="preview-inline">Sample trade · Editing and external services are disabled in this design preview.</div>}
@@ -265,9 +280,15 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
           {/* ── NOTES SECTION ─────────────────────────────────────────── */}
           {activeSection==='notes' && (
             <div className="review-editor">
+              <header className="review-editor-heading"><p className="eyebrow">Essential review</p><h2>What is the one lesson to carry forward?</h2><p>Write the specific behaviour or decision you want to repeat or change next time.</p></header>
               {recoveredDraft&&<div role="status" style={{padding:12,border:'1px solid var(--wa)',marginBottom:12}}><p>A note draft from {new Date(recoveredDraft.savedAt).toLocaleString()} is available on this browser.{recoveredDraft.revision!==revision?' The saved trade has changed since this draft; compare it before saving.':''}</p><button className="btn" onClick={()=>{applyValues(recoveredDraft.values);setRecoveredDraft(null)}}>Restore draft</button><button className="btn" onClick={()=>{try{window.localStorage.removeItem(draftKey(trade))}catch{}setRecoveredDraft(null)}}>Discard draft</button></div>}
-              <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>{Object.entries(NOTE_TEMPLATES).map(([name,patch])=><button className="btn btn-sm" key={name} onClick={()=>applyValues(Object.fromEntries(Object.entries(patch).map(([key,value])=>[key,values()[key]?values()[key]+'\n\n'+value:value])))}>Add {name.toLowerCase()} prompts</button>)}</div>
               {draftMessage&&<p role="status" style={{fontSize:11,color:'var(--mu)'}}>{draftMessage}</p>}
+              <label className="lesson-field"><span className="notes-label">One lesson for next time</span><textarea aria-label="One lesson for next time" disabled={saving} className="notes-field" maxLength={20000} rows={4} placeholder="Next time I will…" value={noteLessons} onChange={e=>{setNoteLessons(e.target.value);remember({note_lessons:e.target.value})}} /></label>
+              <div className="review-save-row"><button className="btn btn-p" onClick={()=>handleSave('review',true)} disabled={saving||preview||!noteLessons.trim()||reviewedTagId==null}>{saving?'Saving…':isReviewed?'Save changes & continue':nextUnreviewed?'Save, mark reviewed & next':'Save lesson & mark reviewed'}</button>{isReviewed&&<span className="reviewed-confirmation">✓ Already marked reviewed</span>}</div>
+              {!noteLessons.trim()&&<p className="review-requirement">Record one concrete lesson to enable the review action. Your other notes remain optional.</p>}
+              {reviewedTagId==null&&<p role="alert" className="review-requirement">The Reviewed tag is unavailable, so this trade cannot be marked reviewed yet.</p>}
+              <details className="review-more"><summary>More review notes &amp; risk</summary><div className="review-more-body">
+              <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>{Object.entries(NOTE_TEMPLATES).map(([name,patch])=><button className="btn btn-sm" key={name} onClick={()=>applyValues(Object.fromEntries(Object.entries(patch).map(([key,value])=>[key,values()[key]?values()[key]+'\n\n'+value:value])))}>Add {name.toLowerCase()} prompts</button>)}</div>
               {/* Stop loss / R-Multiple */}
               <details className="review-risk"><summary>Stop loss &amp; risk multiple · optional</summary><div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:14}}>
                 <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:10}}>RISK METRICS</div>
@@ -290,7 +311,6 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 {[
                   ['Why did you enter this trade?',noteEntry,setNoteEntry,'note_entry_reason'],
                   ['How did you manage the trade?',noteMgmt,setNoteMgmt,'note_management'],
-                  ['What would you do differently next time?',noteLessons,setNoteLessons,'note_lessons'],
                   ['Emotional state during the trade',noteEmotion,setNoteEmotion,'note_emotional_state'],
                 ].map(([label,val,setter,key])=>(
                   <div key={label}>
@@ -306,6 +326,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               <button className="btn btn-p" onClick={()=>handleSave('notes')} disabled={saving||preview} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
                 {saving ? 'Saving…' : saved === 'notes' ? 'Saved' : 'Save notes & stop loss'}
               </button>
+              </div></details>
             </div>
           )}
 
