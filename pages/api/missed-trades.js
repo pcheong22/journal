@@ -1,3 +1,4 @@
+import { createFullBackup } from '../../lib/backupStore'
 import { removeImage } from '../../lib/privateImages'
 import { requireOwner } from '../../lib/serverAuth'
 import { createClient } from '@supabase/supabase-js'
@@ -99,6 +100,7 @@ export default async function handler(req, res) {
 
   // ── DELETE — delete missed trade ──────────────────────────────────────────
   if (req.method === 'DELETE') {
+    try { await createFullBackup(supabase,{},'automatic safety copy before deletion') } catch { return res.status(503).json({error:'Could not create the safety backup. Nothing was deleted; please retry.'}) }
     const { id } = req.query
     if (!id) return res.status(400).json({ error: 'id required' })
 

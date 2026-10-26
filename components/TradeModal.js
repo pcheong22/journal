@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { journalFetch } from '../lib/request'
+import { riskMultiple } from '../lib/journalNotes'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import ExecutionPanel from './ExecutionPanel'
 import { simulatePnLPath } from '../lib/tradeUtils'
 import { PnlPathChart } from './Charts'
@@ -27,10 +29,14 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const [stopLoss,    setStopLoss]    = useState('')
   const [saving,      setSaving]      = useState(false)
   const [showNotionalTip, setShowNotionalTip] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [revision, setRevision] = useState(trade.journal_revision ?? 0)
+  const tradeIdRef = useRef(trade.id)
+  tradeIdRef.current = trade.id
   const [saved,       setSaved]       = useState(false)
 
   // Tags state
-  const [selectedTags, setSelectedTags] = useState(new Set())
+  const [selectedTags, setSelectedTags] = useState(new Set(trade.tag_ids || []))
   const [tagCat,        setTagCat]      = useState('all')
   const [tagSearch,     setTagSearch]   = useState('')
 
@@ -51,10 +57,11 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     setNoteEmotion(trade.note_emotional_state || '')
     setNoteFree(trade.notes                 || '')
     setStopLoss(trade.stop_loss != null ? String(trade.stop_loss) : '')
-    setSelectedTags(new Set())
+    setSelectedTags(new Set(trade.tag_ids || []))
+    setSaveError(''); setSaving(false); setRevision(trade.journal_revision ?? 0)
     setAiResult(null); setAiError(null); setSaved(false)
     setSection(trade.execution_count ? 'executions' : 'chart')
-  }, [trade])
+  }, [trade.id])
 
   // Keyboard nav
   const handleKey = useCallback(e => {
@@ -107,51 +114,42 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const qC       = v => v>=70?'var(--wn)':v>=40?'var(--wa)':'var(--ls)'
 
   // Computed R-Multiple from live stop loss input
-  const computedR = (() => {
-    const sl = parseFloat(stopLoss)
-    if (!sl || !trade.entry_price || !trade.exit_price) return null
-    const risk   = trade.direction==='Long' ? trade.entry_price - sl : sl - trade.entry_price
-    const reward = trade.direction==='Long' ? trade.exit_price - trade.entry_price : trade.entry_price - trade.exit_price
-    if (risk <= 0) return null
-    return (reward / risk).toFixed(2)
-  })()
+  const computedR = riskMultiple(trade, stopLoss)
+  const rDisplay = computedR
 
-  const rDisplay = trade.r_multiple != null ? trade.r_multiple : computedR
-
-  // Save notes + tags
-  const handleSave = async () => {
-    setSaving(true)
+  const handleSave = async (section = 'notes') => {
+    if (saving) return
+    const id = trade.id
+    setSaving(true); setSaved(false); setSaveError('')
     try {
-      await fetch('/api/trade-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tradeId:             trade.id,
-          notes:               noteFree,
-          note_entry_reason:   noteEntry,
-          note_management:     noteMgmt,
-          note_lessons:        noteLessons,
-          note_emotional_state: noteEmotion,
-          stop_loss:           stopLoss ? parseFloat(stopLoss) : null,
-          tagIds:              [...selectedTags],
-        })
+      const res = await journalFetch('/api/trade-notes', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ tradeId:id, expectedRevision:revision,
+          ...(section === 'tags' ? { tagIds:[...selectedTags] } : {
+            notes:noteFree, note_entry_reason:noteEntry, note_management:noteMgmt,
+            note_lessons:noteLessons, note_emotional_state:noteEmotion,
+            stop_loss:stopLoss === '' ? null : Number(stopLoss),
+          }),
+        }),
       })
-      setSaved(true)
-      if (onSaved) await onSaved()
-      setTimeout(() => setSaved(false), 2000)
-    } catch(e) { console.error(e) }
-    setSaving(false)
+      const data = await res.json()
+      if (!res.ok || !data.success || !data.trade) throw new Error(data.error || 'Could not save. Please retry.')
+      if (onSaved) onSaved(data.trade)
+      if (tradeIdRef.current !== id) return
+      setRevision(data.trade.journal_revision); setSaved(section)
+    } catch (error) { if (tradeIdRef.current === id) setSaveError(error.message || 'Could not save. Your changes are still here.') }
+    finally { if (tradeIdRef.current === id) setSaving(false) }
   }
 
   // AI analysis
   const handleAI = async () => {
     setAiLoading(true); setAiError(null); setAiResult(null)
     try {
-      const res  = await fetch('/api/ai-coach', {
+      const res  = await journalFetch('/api/ai-coach', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          trade: { ...trade, r_multiple: rDisplay, stop_loss: stopLoss || trade.stop_loss },
+          trade: { ...trade, r_multiple: rDisplay, stop_loss: stopLoss === '' ? null : Number(stopLoss) },
           notes: { note_entry_reason: noteEntry, note_management: noteMgmt, note_lessons: noteLessons, note_emotional_state: noteEmotion, notes: noteFree },
           stats: null,
           rules: [],
@@ -199,7 +197,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 <span style={{color:'var(--bd2)'}}>·</span>
                 <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:15,fontWeight:700,color:pnlC}}>{fU(trade.pnl)}</span>
                 <span className={`pill ${pnlPos?'pb':'pr'}`}>{pnlPos?'WIN':'LOSS'}</span>
-                {rDisplay && <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:parseFloat(rDisplay)>=1?'var(--wn)':'var(--ls)',fontWeight:600,background:'var(--sf3)',padding:'2px 7px',borderRadius:4}}>{rDisplay}R</span>}
+                {rDisplay != null && <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:parseFloat(rDisplay)>=1?'var(--wn)':'var(--ls)',fontWeight:600,background:'var(--sf3)',padding:'2px 7px',borderRadius:4}}>{rDisplay}R</span>}
               </div>
               <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
                 {trade.entry_time?.slice(0,16).replace('T',' ')} → {trade.exit_time?.slice(0,16).replace('T',' ')} GMT
@@ -356,8 +354,8 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                   <div>
                     <div className="notes-label">Stop Loss Price (optional)</div>
-                    <input className="inp" style={{width:'100%',fontFamily:'var(--font-mono)'}} type="number" placeholder={`e.g. ${trade.direction==='Long'?(trade.entry_price*0.99).toFixed(2):(trade.entry_price*1.01).toFixed(2)}`}
-                      value={stopLoss} onChange={e=>setStopLoss(e.target.value)} />
+                    <input disabled={saving} className="inp" style={{width:'100%',fontFamily:'var(--font-mono)'}} type="number" placeholder={`e.g. ${trade.direction==='Long'?(trade.entry_price*0.99).toFixed(2):(trade.entry_price*1.01).toFixed(2)}`}
+                      value={stopLoss} onChange={e=>{ setStopLoss(e.target.value); setSaved(false) }} />
                   </div>
                   <div>
                     <div className="notes-label">R-Multiple (auto-calculated)</div>
@@ -377,16 +375,16 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 ].map(([label,val,setter])=>(
                   <div key={label}>
                     <div className="notes-label">{label}</div>
-                    <textarea className="notes-field" rows={2} placeholder="Type your notes…" value={val} onChange={e=>setter(e.target.value)} />
+                    <textarea disabled={saving} className="notes-field" rows={2} placeholder="Type your notes…" value={val} onChange={e=>{ setter(e.target.value); setSaved(false) }} />
                   </div>
                 ))}
                 <div>
                   <div className="notes-label">Free-form notes (anything else)</div>
-                  <textarea className="notes-field" rows={3} placeholder="Additional observations, market context, screenshots description…" value={noteFree} onChange={e=>setNoteFree(e.target.value)} />
+                  <textarea disabled={saving} className="notes-field" rows={3} placeholder="Additional observations, market context, screenshots description…" value={noteFree} onChange={e=>{ setNoteFree(e.target.value); setSaved(false) }} />
                 </div>
               </div>
-              <button className="btn btn-p" onClick={handleSave} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
-                {saving ? '💾 Saving…' : saved ? '✅ Saved!' : '💾 Save Notes & Stop Loss'}
+              <button className="btn btn-p" onClick={()=>handleSave('notes')} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
+                {saving ? '💾 Saving…' : saved === 'notes' ? '✅ Saved!' : '💾 Save Notes & Stop Loss'}
               </button>
             </div>
           )}
@@ -417,13 +415,13 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 ))}
               </div>
               {/* Search */}
-              <input className="inp" style={{width:'100%',marginBottom:12}} placeholder="🔍 Search tags…" value={tagSearch} onChange={e=>setTagSearch(e.target.value)} />
+              <input disabled={saving} className="inp" style={{width:'100%',marginBottom:12}} placeholder="🔍 Search tags…" value={tagSearch} onChange={e=>setTagSearch(e.target.value)} />
               {/* Tag grid */}
               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
                 {filteredTags.map(tag => {
                   const isSelected = selectedTags.has(tag.id)
                   return (
-                    <button key={tag.id} onClick={()=>setSelectedTags(prev => { const n=new Set(prev); isSelected?n.delete(tag.id):n.add(tag.id); return n })}
+                    <button disabled={saving} key={tag.id} onClick={()=>{ setSaved(false); setSelectedTags(prev => { const n=new Set(prev); isSelected?n.delete(tag.id):n.add(tag.id); return n }) }}
                       title={tag.description}
                       style={{padding:'5px 10px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',border:`1px solid ${isSelected?tag.color:tag.color+'40'}`,transition:'all .15s',
                         background:isSelected?tag.color+'20':'var(--sf)',color:isSelected?tag.color:'var(--tx2)',
@@ -444,11 +442,13 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                   </div>
                 </div>
               )}
-              <button className="btn btn-p" onClick={handleSave} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
-                {saving ? '💾 Saving…' : saved ? '✅ Saved!' : '💾 Save Tags'}
+              <button className="btn btn-p" onClick={()=>handleSave('tags')} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
+                {saving ? '💾 Saving…' : saved === 'tags' ? '✅ Saved!' : '💾 Save Tags'}
               </button>
             </div>
           )}
+
+          {saveError && <div role="alert" style={{color:'var(--ls)',padding:'12px 0',fontSize:12}}>{saveError}</div>}
 
           {/* ── AI COACH SECTION ──────────────────────────────────────── */}
           {activeSection==='ai' && (

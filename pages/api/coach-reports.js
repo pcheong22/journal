@@ -1,3 +1,4 @@
+import { createFullBackup } from '../../lib/backupStore'
 import { requireOwner } from '../../lib/serverAuth'
 // pages/api/coach-reports.js
 // CRUD for saved AI coaching reports
@@ -50,6 +51,7 @@ export default async function handler(req, res) {
 
   // DELETE — remove a saved report by id
   if (req.method === 'DELETE') {
+    try { await createFullBackup(supabase,{},'automatic safety copy before deletion') } catch { return res.status(503).json({error:'Could not create the safety backup. Nothing was deleted; please retry.'}) }
     const { id } = req.query
     if (!id) return res.status(400).json({ error: 'id required' })
     const { error } = await supabase.from('coach_reports').delete().eq('id', id)

@@ -4,6 +4,7 @@ export default function JournalAccess({ children }) {
   const [status, setStatus] = useState('loading')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [requestError, setRequestError] = useState('')
   const [sending, setSending] = useState(false)
   useEffect(() => {
     const originalFetch = window.fetch.bind(window)
@@ -20,11 +21,13 @@ export default function JournalAccess({ children }) {
       }
       return originalFetch(input, init)
     }
+    const onRequestError = event => setRequestError(event.detail || 'Could not complete the request.')
+    window.addEventListener('journal-request-error', onRequestError)
     window.fetch = guardedFetch
     let alive = true
     guardedFetch('/api/auth/session').then(r => { if (alive) setStatus(r.ok ? 'signedIn' : 'signedOut') }).catch(() => { if (alive) { setStatus('signedOut'); setMessage('Could not connect. Please try again.') } })
     if (new URLSearchParams(window.location.search).has('signInError')) setMessage('The link expired or was opened in another browser. Request a new link and open it in this browser.')
-    return () => { alive = false; if (window.fetch === guardedFetch) window.fetch = originalFetch }
+    return () => { window.removeEventListener('journal-request-error', onRequestError); alive = false; if (window.fetch === guardedFetch) window.fetch = originalFetch }
   }, [])
   const signIn = async e => {
     e.preventDefault(); setSending(true); setMessage('')
@@ -40,7 +43,7 @@ export default function JournalAccess({ children }) {
     if (res.ok) { setStatus('signedOut'); setMessage('Signed out.') }
     else alert('Could not sign out. Please try again.')
   }
-  if (status === 'signedIn') return <><button onClick={signOut} style={{ position: 'fixed', right: 20, bottom: 12, zIndex: 1000, background: 'var(--sf, #172031)', color: 'var(--tx, #fff)', border: '1px solid var(--bd, #334155)', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>Sign out</button>{children}</>
+  if (status === 'signedIn') return <>{requestError && <div role="alert" style={{position:'fixed',bottom:16,left:16,zIndex:10001,maxWidth:'min(480px,calc(100vw - 32px))',padding:16,borderRadius:8,background:'#4b1924',color:'#fff',boxShadow:'0 4px 20px #0005'}}>{requestError}<button aria-label="Dismiss error" onClick={()=>setRequestError('')} style={{marginLeft:12,background:'none',border:0,color:'#fff',cursor:'pointer'}}>×</button></div>}<button onClick={signOut} style={{ position: 'fixed', right: 20, bottom: 12, zIndex: 1000, background: 'var(--sf, #172031)', color: 'var(--tx, #fff)', border: '1px solid var(--bd, #334155)', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>Sign out</button>{children}</>
   return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#0c1220', color: '#e8edf5', padding: 24 }}>
     <section style={{ width: '100%', maxWidth: 420, background: '#151f30', border: '1px solid #2b3b53', borderRadius: 16, padding: 32 }}>
       <div style={{ color: '#8fa3be', fontSize: 12, letterSpacing: 2 }}>TRADEINTEL</div>

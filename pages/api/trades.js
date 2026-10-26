@@ -25,9 +25,10 @@ export default async function handler(req, res) {
     while (true) {
       let q = supabase
         .from('trades')
-        .select('*')
+        .select('*,trade_tag_mappings(tag_id)')
         .order('exit_time',  { ascending: false, nullsFirst: false })
         .order('entry_time', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: true })
         .range(from_idx, from_idx + BATCH - 1)
 
       if (accountIds?.length) q = q.in('account_id', accountIds)
@@ -53,14 +54,15 @@ export default async function handler(req, res) {
       try { indices[account] = await executionIndex(executionStorage, account) }
       catch (error) { console.error('Execution summary:', error.message); executionWarning = 'Execution counts are temporarily unavailable.' }
     }))
-    const trades = allTrades.map(trade => ({ ...reportingTrade(trade), execution_count: indices[trade.account_id]?.[trade.id]?.count || null }))
+    const trades = allTrades.map(({ trade_tag_mappings, ...trade }) => ({ ...reportingTrade(trade), tag_ids: (trade_tag_mappings || []).map(item => item.tag_id), execution_count: indices[trade.account_id]?.[trade.id]?.count || null }))
 
     // Fetch accounts
-    const { data: accounts } = await supabase.from('accounts').select('*').order('created_at')
+    const { data: accounts, error: accountsError } = await supabase.from('accounts').select('*').order('created_at')
 
     // Fetch tags
-    const { data: tags } = await supabase.from('trade_tags').select('*').order('category, name')
+    const { data: tags, error: tagsError } = await supabase.from('trade_tags').select('*').order('category').order('name')
 
+    if (accountsError || tagsError) throw new Error('Could not load account or tag data. Please retry.')
     return res.status(200).json({
       trades:   trades   || [],
       accounts: accounts || [],

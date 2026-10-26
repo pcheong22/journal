@@ -1,3 +1,4 @@
+import { journalFetch } from '../lib/request'
 import { useState, useEffect, useRef } from 'react'
 
 // Reusable image gallery + uploader
@@ -24,7 +25,7 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
   const loadImages = async () => {
     setLoading(true)
     try {
-      const res  = await fetch(`/api/images?entity_type=${entityType}&entity_id=${entityId}`)
+      const res  = await journalFetch(`/api/images?entity_type=${entityType}&entity_id=${entityId}`)
       const data = await res.json()
       setImages(data.images || [])
     } catch(e) { console.error(e) }
@@ -41,7 +42,7 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
       form.append('entity_type', entityType)
       form.append('entity_id', String(entityId))
       try {
-        const res  = await fetch('/api/images', { method:'POST', body:form })
+        const res  = await journalFetch('/api/images', { method:'POST', body:form })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Upload failed')
         if (data.image) setImages(prev => [...prev, data.image])
@@ -54,7 +55,7 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
     if (!url.trim() || !entityId) return
     setUrlRows(prev => prev.map(r => r.id===rowId ? {...r, status:'loading', message:'Fetching…'} : r))
     try {
-      const res  = await fetch('/api/fetch-image', {
+      const res  = await journalFetch('/api/fetch-image', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ url:url.trim(), entity_type:entityType, entity_id:String(entityId) }),
       })
@@ -77,7 +78,7 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
   const deleteImage  = async img => {
     if (!confirm('Delete this image?')) return
     try {
-      const res = await fetch(`/api/images?id=${encodeURIComponent(img.id)}`, {method:'DELETE'})
+      const res = await journalFetch(`/api/images?id=${encodeURIComponent(img.id)}`, {method:'DELETE'})
       if (!res.ok) throw new Error('Could not delete screenshot. Please try again.')
       setImages(prev => prev.filter(i => i.id !== img.id))
       if (lightbox === img.url) setLightbox(null)

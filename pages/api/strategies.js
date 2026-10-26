@@ -1,3 +1,4 @@
+import { createFullBackup } from '../../lib/backupStore'
 import { requireOwner } from '../../lib/serverAuth'
 // pages/api/strategies.js
 // CRUD for strategy groups + tagging trades
@@ -107,6 +108,7 @@ export default async function handler(req, res) {
   // ── DELETE /api/strategies?id=<uuid> ─────────────────────────────────────
   // Delete strategy (trades get strategy_id set to null via ON DELETE SET NULL)
   if (method === 'DELETE' && query.id) {
+    try { await createFullBackup(supabase,{},'automatic safety copy before deletion') } catch { return res.status(503).json({error:'Could not create the safety backup. Nothing was deleted; please retry.'}) }
     const { error } = await supabase.from('strategies').delete().eq('id', query.id)
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ success: true })

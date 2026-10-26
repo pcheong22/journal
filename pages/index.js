@@ -1,3 +1,5 @@
+import BackupPanel from '../components/BackupPanel'
+import { journalFetch } from '../lib/request'
 import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
@@ -73,6 +75,7 @@ function DashboardInner() {
   const [strategyMgrOpen,  setStrategyMgrOpen]  = useState(false)
   const [tags,           setTags]           = useState([])
   const [stats,          setStats]          = useState(null)
+  const [loadError, setLoadError] = useState('')
   const [loading,        setLoading]        = useState(true)
   const [upload,         setUpload]         = useState({ status:'idle', message:'', broker:'', accountId:'' })
   const [dragOver,       setDragOver]       = useState(false)
@@ -200,18 +203,18 @@ function DashboardInner() {
   }, [allTrades, selAccounts, fSym, fDir, fRes, fSess, search, sortKey, sortDir])
 
   const loadTrades = useCallback(async (from, to) => {
-    setLoading(true)
+    setLoading(true); setLoadError('')
     try {
       const params = new URLSearchParams()
       if (from && from !== '2000-01-01') params.set('from', from + 'T00:00:00Z')
       if (to)   params.set('to', to + 'T23:59:59Z')
-      const res  = await fetch(`/api/trades?${params}`)
+      const res  = await journalFetch(`/api/trades?${params}`)
       const data = await res.json()
       if (data.trades)   setAllTrades(data.trades.map(reportingTrade))
       if (data.accounts) {
         setAccounts(data.accounts)
         // Also refresh strategies
-        fetch('/api/strategies').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setStrategies(d) })
+        journalFetch('/api/strategies').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setStrategies(d) }).catch(()=>{})
         setAccountOrder(prev => {
           const existing = prev.filter(id => data.accounts.find(a => a.id === id))
           const newIds   = data.accounts.filter(a => !prev.includes(a.id)).map(a => a.id)
@@ -219,7 +222,7 @@ function DashboardInner() {
         })
       }
       if (data.tags)     setTags(data.tags)
-    } catch(e) { console.error(e) }
+    } catch(e) { setLoadError(e.message || 'Could not load your journal. Please retry.') }
     setLoading(false)
   }, [])
 
@@ -270,7 +273,7 @@ function DashboardInner() {
     if (accountIdOverride) form.append('accountId', accountIdOverride)
     form.append('timezone', timezoneOverride || settings.hlTimezone || 'Asia/Dubai')
     try {
-      const res  = await fetch('/api/upload', { method:'POST', body:form })
+      const res  = await journalFetch('/api/upload', { method:'POST', body:form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       setUpload({ status:'success', message:data.message, broker:data.broker||'', accountId:data.accountId||'' })
@@ -283,7 +286,7 @@ function DashboardInner() {
     const typed = prompt(`${accountId ? 'Delete this account and all its trades?' : 'Delete ALL accounts and their trades?'} This cannot be undone.\n\nType ${expected} to confirm.`)
     if (typed !== expected) return
     try {
-      const res = await fetch(accountId ? `/api/clear?account=${encodeURIComponent(accountId)}` : '/api/clear', { method:'DELETE', headers: { 'X-Journal-Delete': typed } })
+      const res = await journalFetch(accountId ? `/api/clear?account=${encodeURIComponent(accountId)}` : '/api/clear', { method:'DELETE', headers: { 'X-Journal-Delete': typed } })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Deletion failed.')
       await loadTrades(dateFrom, dateTo)
@@ -292,7 +295,7 @@ function DashboardInner() {
   }
 
   const saveAccountLabel = async (id, label, color) => {
-    await fetch('/api/accounts', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, label, color }) })
+    await journalFetch('/api/accounts', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, label, color }) })
     await loadTrades(dateFrom, dateTo)
     setEditingAccount(null)
   }
@@ -621,14 +624,14 @@ function DashboardInner() {
           onTagged={async (tradeId, strategyId, newStrategy) => {
             // If new strategy created, refresh strategies list
             if (newStrategy) {
-              const r = await fetch('/api/strategies', {
+              const r = await journalFetch('/api/strategies', {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ name: newStrategy.name, type: newStrategy.type, trade_ids: [tradeId] })
               })
               const d = await r.json()
               setStrategies(prev => [...prev, d.strategy])
             } else {
-              await fetch(`/api/strategies?id=${strategyId}`, {
+              await journalFetch(`/api/strategies?id=${strategyId}`, {
                 method:'PATCH', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ add_trade_ids: [tradeId] })
               })
@@ -640,7 +643,7 @@ function DashboardInner() {
             setStrategyModal(null)
           }}
           onUntagged={async (tradeId) => {
-            await fetch(`/api/strategies?id=untag`, {
+            await journalFetch(`/api/strategies?id=untag`, {
               method:'PATCH', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ remove_trade_ids: [tradeId] })
             })
@@ -654,11 +657,11 @@ function DashboardInner() {
           strategies={strategies}
           onClose={() => setStrategyMgrOpen(false)}
           onDeleted={async (id) => {
-            await fetch(`/api/strategies?id=${id}`, { method:'DELETE' })
+            await journalFetch(`/api/strategies?id=${id}`, { method:'DELETE' })
             setStrategies(prev => prev.filter(s => s.id !== id))
           }}
           onCreated={async (name, type) => {
-            const r = await fetch('/api/strategies', {
+            const r = await journalFetch('/api/strategies', {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ name, type })
             })
@@ -669,6 +672,7 @@ function DashboardInner() {
       )}
 
       <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}>
+        {loadError && <div role="alert" style={{padding:14,marginBottom:14,border:'1px solid var(--ls)',borderRadius:8,color:'var(--ls)'}}>{loadError} <button className="btn btn-sm" onClick={()=>loadTrades(dateFrom,dateTo)}>Retry loading</button></div>}
 
         {tab==='overview' && stats && (
           <div className="anim">
@@ -1175,7 +1179,7 @@ function DashboardInner() {
           trades={visibleTrades}
           onNavigate={t=>setSelected(t)}
           tags={tags}
-          onSaved={async () => { await loadTrades(dateFrom, dateTo) }}
+          onSaved={updated => { setAllTrades(prev => prev.map(t => t.id === updated.id ? reportingTrade({ ...t, ...updated }) : t)); setSelected(prev => prev?.id === updated.id ? reportingTrade({ ...prev, ...updated }) : prev) }}
         />
       )}
     </>
@@ -1373,21 +1377,18 @@ function StrategyTagModal({ trade, strategies, onClose, onTagged, onUntagged }) 
 
   const handle = async (strategyId) => {
     setBusy(true)
-    await onTagged(trade.id, strategyId, null)
-    setBusy(false)
+    try { await onTagged(trade.id, strategyId, null) } catch(e) { alert(e.message) } finally { setBusy(false) }
   }
 
   const handleNew = async () => {
     if (!name.trim()) return
     setBusy(true)
-    await onTagged(trade.id, null, { name: name.trim(), type })
-    setBusy(false)
+    try { await onTagged(trade.id, null, { name: name.trim(), type }) } catch(e) { alert(e.message) } finally { setBusy(false) }
   }
 
   const handleUntag = async () => {
     setBusy(true)
-    await onUntagged(trade.id)
-    setBusy(false)
+    try { await onUntagged(trade.id) } catch(e) { alert(e.message) } finally { setBusy(false) }
   }
 
   const TYPES = ['delta_neutral','carry','arb','basket','other']
@@ -1522,7 +1523,7 @@ function StrategyManagerModal({ strategies, onClose, onDeleted, onCreated }) {
               {confirm === s.id && (
                 <div style={{marginTop:8,display:'flex',gap:6,alignItems:'center'}}>
                   <span style={{fontSize:10,color:'var(--mu)'}}>Delete and untag all trades?</span>
-                  <button onClick={async()=>{setBusy(true);await onDeleted(s.id);setConfirm(null);setBusy(false)}}
+                  <button onClick={async()=>{setBusy(true);try{await onDeleted(s.id);setConfirm(null)}catch(e){alert(e.message)}finally{setBusy(false)}}}
                     disabled={busy}
                     style={{fontSize:10,background:'rgba(255,82,88,.1)',border:'1px solid #ff5258',borderRadius:4,color:'#ff5258',cursor:'pointer',padding:'2px 8px'}}>
                     Confirm
@@ -1548,7 +1549,7 @@ function StrategyManagerModal({ strategies, onClose, onDeleted, onCreated }) {
             </select>
           </div>
           <div style={{display:'flex',justifyContent:'space-between'}}>
-            <button onClick={async()=>{if(!newName.trim())return;setBusy(true);await onCreated(newName.trim(),newType);setNewName('');setBusy(false)}}
+            <button onClick={async()=>{if(!newName.trim())return;setBusy(true);try{await onCreated(newName.trim(),newType);setNewName('')}catch(e){alert(e.message)}finally{setBusy(false)}}}
               disabled={!newName.trim()||busy} className="btn btn-p btn-sm">
               {busy?'Creating…':'Create'}
             </button>
@@ -1694,6 +1695,7 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
         </div>
         <div style={{padding:'0 24px 24px'}}>
+          <BackupPanel settings={settings} />
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
           <Row label="Dark mode" sub="Default theme on load">
             <Toggle value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />
@@ -1849,7 +1851,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
       const params = new URLSearchParams()
       if (activeFrom) params.set('from', activeFrom + 'T00:00:00Z')
       if (activeTo)   params.set('to',   activeTo   + 'T23:59:59Z')
-      const res  = await fetch('/api/missed-trades?' + params)
+      const res  = await journalFetch('/api/missed-trades?' + params)
       const data = await res.json()
       setMissed(data.missed_trades || [])
     } catch(e) { console.error(e) }
@@ -1884,8 +1886,9 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
         temp_id:           tempId || null,
       }
       if (editingId) body.id = editingId
-      const res  = await fetch('/api/missed-trades', { method: editingId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      const res  = await journalFetch('/api/missed-trades', { method: editingId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
       const data = await res.json()
+      if (!data.missed_trade) throw new Error('The saved passed trade could not be confirmed. Please retry.')
       if (data.missed_trade) {
         const saved = data.missed_trade
         if (editingId) {
@@ -1904,7 +1907,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
     if (!confirm('Delete this passed trade?')) return
     setDeleting(id)
     try {
-      await fetch('/api/missed-trades?id=' + id, { method:'DELETE' })
+      await journalFetch('/api/missed-trades?id=' + id, { method:'DELETE' })
       setMissed(prev => prev.filter(m => m.id !== id))
       if (expandedId === id) setExpandedId(null)
     } catch(e) { console.error(e) }
@@ -1928,7 +1931,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
     if (!missed.length) return
     setAiLoading(true); setAiError(null)
     try {
-      const res  = await fetch('/api/ai-coach', {
+      const res  = await journalFetch('/api/ai-coach', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ mode:'passed_portfolio', passed: missed, actual: visibleTrades }),
       })
@@ -1942,7 +1945,7 @@ function MissedTab({ dateFrom, dateTo, datePreset, visibleTrades }) {
   const generateEntryAI = async (m) => {
     setEntryAI(prev => ({...prev, [m.id]: {loading:true, result:null, error:null}}))
     try {
-      const res  = await fetch('/api/ai-coach', {
+      const res  = await journalFetch('/api/ai-coach', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ mode:'passed_entry', passed: m, actual_wr: visibleTrades.length ? visibleTrades.filter(t=>t.pnl>0).length/visibleTrades.length : null }),
       })
@@ -2327,7 +2330,7 @@ function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
     if (!stats) return
     setLoading(true); setError(null); setSavedOk(false)
     try {
-      const res  = await fetch('/api/ai-coach', {
+      const res  = await journalFetch('/api/ai-coach', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ mode:'portfolio', stats:{ overview:stats.overview, symbols:stats.symbols, sessions:stats.sessions, daily_dow:stats.daily_dow, hourly:stats.hourly, duration:stats.duration, streaks:stats.streaks } }),
       })
@@ -2343,7 +2346,7 @@ function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
     if (!report) return
     setSaving(true)
     try {
-      const res = await fetch('/api/coach-reports', { method:'POST', headers:{'Content-Type':'application/json'},
+      const res = await journalFetch('/api/coach-reports', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ period:periodLabel, date_from:dateFrom, date_to:dateTo, trade_count:tradeCount, score:report.score, archetype:report.archetype, core_edge:report.core_edge, core_weakness:report.core_weakness, coaching_tip:report.coaching_tip, insights:report.insights, provider:report.provider }) })
       if (res.ok) { setSavedOk(true); setTimeout(()=>setSavedOk(false), 3000) }
       else setError('Failed to save report.')
@@ -2353,11 +2356,11 @@ function CoachTab({ stats, tradeCount, datePreset, dateFrom, dateTo }) {
 
   const loadHistory = async () => {
     setHistLoad(true)
-    try { const res=await fetch('/api/coach-reports'); const data=await res.json(); setHistory(data.reports||[]) } catch(e) { console.error(e) }
+    try { const res=await journalFetch('/api/coach-reports'); const data=await res.json(); setHistory(data.reports||[]) } catch(e) { console.error(e) }
     setHistLoad(false)
   }
   const toggleHistory = () => { if (!showHist) loadHistory(); setShowHist(h=>!h) }
-  const deleteReport  = async (id) => { if (!confirm('Delete this saved report?')) return; await fetch(`/api/coach-reports?id=${id}`,{method:'DELETE'}); setHistory(h=>h.filter(r=>r.id!==id)) }
+  const deleteReport  = async (id) => { if (!confirm('Delete this saved report?')) return; try { await journalFetch(`/api/coach-reports?id=${id}`,{method:'DELETE'}); setHistory(h=>h.filter(r=>r.id!==id)) } catch(e) { setError(e.message) } }
   const loadSavedReport = (saved) => { setReport({...saved, insights:typeof saved.insights==='string'?JSON.parse(saved.insights):saved.insights}); setGenerated(true); setShowHist(false); setLastRun(null) }
 
   const exportPDF = () => {
