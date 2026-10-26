@@ -1553,7 +1553,7 @@ function DashboardOrderList({ order, onChange }) {
 function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
   const TABS         = ['overview','edge','coach','streaks','calendar','symbols','timing','trades','missed']
-  const TAB_LABELS   = { overview:'Overview', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log', missed:'Passed' }
+  const TAB_LABELS   = { overview:'Overview', edge:'Edge', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log', missed:'Passed' }
   const PAGE_SIZES   = [50, 100, 200]
 
   const Row = ({ label, sub, children }) => (
@@ -1577,7 +1577,7 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
   const Select = ({ value, options, onChange }) => (
     <select value={value} onChange={e=>onChange(e.target.value)} className="inp"
       style={{padding:'4px 8px',fontSize:11,fontFamily:'var(--font-mono)',minWidth:90}}>
-      {options.map(o => <option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}
+      {options.map(o => <option key={o.value||o} value={o.value||o}>{typeof o==='object'?(o.label||String(o.value)):o}</option>)}
     </select>
   )
 
