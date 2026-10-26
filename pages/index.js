@@ -1008,7 +1008,7 @@ function DashboardInner() {
 
         {tab==='symbols' && stats && (
           <SymbolAnalysis trades={visibleTrades} privacy={privacy}
-            onSelect={(symbol, family) => { setFSym(family ? `family:${symbol}` : symbol); setSearch(''); setPage(0); setTab('trades') }} />
+            onSelect={(symbol, family) => { setFSym(family ? `family:${symbol}` : symbol); setFDir(''); setFRes(''); setFSess(''); setSearch(''); setPage(0); setTab('trades') }} />
         )}
 
         {tab==='timing' && stats && (

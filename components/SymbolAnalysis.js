@@ -12,6 +12,7 @@ export default function SymbolAnalysis({trades,privacy,onSelect}) {
     <td>{row.count}</td><td className={`${row.total_pnl>=0?'pos':'neg'} private`}>{privacy?'***':money(row.total_pnl)}</td>
     <td>{percent(row.win_rate)}</td><td className="private">{privacy?'***':money(row.avg_pnl)}</td>
     <td style={{whiteSpace:'nowrap',fontSize:11}}><span className="pos">{row.bullish} bullish</span> · <span className="neg">{row.bearish} bearish</span></td>
+    <td>{!row.comparable ? 'Review currency' : row.total_pnl>10000&&row.win_rate>.65 ? <span className="pill pb">KEEP</span> : row.total_pnl < -10000 ? <span className="pill pr">REDUCE</span> : <span className="pill pn">MONITOR</span>}</td>
   </>
   return <div className="anim">
     <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:14}}>
@@ -28,7 +29,7 @@ export default function SymbolAnalysis({trades,privacy,onSelect}) {
         Exposure describes the underlying market: a long BITI trade is bearish Bitcoin exposure. Trade direction is retained in the Trade Log.
       </div>
       <div className="tw"><table style={{minWidth:820,width:'100%'}}>
-        <thead><tr>{[mode==='family'?'Family / product':'Market / product','Trades','Journal P&L','Win rate','Avg P&L','Underlying exposure','Details'].map(label=><th key={label}>{label}</th>)}</tr></thead>
+        <thead><tr>{[mode==='family'?'Family / product':'Market / product','Trades','Journal P&L','Win rate','Avg P&L','Underlying exposure','Assessment','Details'].map(label=><th key={label}>{label}</th>)}</tr></thead>
         <tbody>{rows.map(row=><Fragment key={row.symbol}>
           <tr><td className="sym-c">{mode==='family'&&row.products.length>1?<button className="btn btn-sm" aria-label={`${expanded.has(row.symbol)?'Collapse':'Expand'} ${row.symbol}`} aria-expanded={expanded.has(row.symbol)} onClick={()=>toggle(row.symbol)}>{expanded.has(row.symbol)?'▾':'▸'} {row.symbol}</button>:row.symbol}{row.products.length===1&&row.products[0].inverse&&<span className="pill" style={{color:'var(--wa)',marginLeft:6}}>Daily inverse</span>}</td>
             {metrics(row)}<td><button className="btn btn-sm" onClick={()=>onSelect(row.symbol,mode==='family' && ['Crude oil','Bitcoin'].includes(row.symbol))}>View trades</button></td></tr>
