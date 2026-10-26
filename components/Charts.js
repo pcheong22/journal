@@ -87,7 +87,7 @@ export default function ChartComp(props) {
       values={allMonths.map(d => d.pnl)}
       yearBands={yearBands} multiYear={multiYear}
       height={220} cardHeight={320} stretch
-      tickRotation={35} privacy={privacy} />
+      tickRotation={35} privacy={privacy} wholeTicks />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} cardHeight={320} stretch privacy={privacy} tickRotation={35} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
@@ -415,7 +415,7 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy, stretch=false, tickRotation=0, yearBands=[], multiYear=false }) {
+function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy, stretch=false, tickRotation=0, yearBands=[], multiYear=false, wholeTicks=false }) {
   const ref     = useRef()
   const chartRef = useRef()
   useEffect(() => {
@@ -435,14 +435,16 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
           label: ctx => privacy ? '  ***' : '  ' + fU(ctx.parsed.y)
         }} },
         scales:{
-          y:{ grid:GRID, ticks:{...TICK, callback:privTick(privacy) } },
+          y:{ grid:GRID, ticks:{...TICK, callback:privacy
+            ? () => '•••'
+            : v => money(v,{compact:true,signed:false,wholeCompact:wholeTicks}) } },
           x:{ grid:{display:false}, ticks:{...TICK, maxRotation:tickRotation, minRotation:tickRotation, autoSkip:false} }
         }
       }
     })
     chartRef.current = ch
     return () => ch.destroy()
-  }, [JSON.stringify(values), privacy])
+  }, [JSON.stringify(values), privacy, wholeTicks])
   return (
     <div className="card" style={{height:cardHeight,boxSizing:'border-box',...(stretch?{display:'flex',flexDirection:'column'}:{})}}>
       <div className="ct"><span className="ind" />{title}</div>
