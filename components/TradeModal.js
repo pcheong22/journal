@@ -39,7 +39,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const [aiResult,    setAiResult]    = useState(null)
   const [aiError,     setAiError]     = useState(null)
 
-  const idx = trades.indexOf(trade)
+  const idx = trades.findIndex(item => item.id === trade.id)
 
   // Load saved values when trade changes
   useEffect(() => {

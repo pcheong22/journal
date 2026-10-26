@@ -23,8 +23,9 @@ export default function ExecutionPanel({ trade }) {
   if (error) return <div role="alert" style={{padding:20}}>{error} <button className="btn btn-sm" onClick={() => setRetry(value => value + 1)}>Retry</button></div>
   if (!record) return <div style={{background:'var(--sf2)',padding:22,border:'1px solid var(--bd)',borderRadius:8}}>
     <div style={{fontWeight:600,marginBottom:8}}>No execution history attached yet</div>
-    <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.7}}>The consolidated trade is saved. Re-upload its original TxFlow or Hyperliquid history CSV to attach individual fills. Notes, tags and the trade count are preserved.</div>
-    {!['TxFlow','Hyperliquid'].includes(trade.broker) && <div style={{fontSize:12,color:'var(--mu)',marginTop:8}}>Execution imports for this broker are not available yet.</div>}
+    <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.7}}>{['TxFlow','Hyperliquid'].includes(trade.broker)
+      ? 'Re-upload the original history CSV to attach individual fills. Notes, tags and the trade count are preserved.'
+      : `The consolidated summary is saved. Execution imports for ${trade.broker} are not available yet.`}</div>
   </div>
   const toggle = index => setExpanded(old => { const next = new Set(old); next.has(index) ? next.delete(index) : next.add(index); return next })
   const rawTable = fills => <table style={{width:'100%',minWidth:670}}>
