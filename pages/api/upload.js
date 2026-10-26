@@ -207,7 +207,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({
-      message: `Imported ${inserted - updated} new trades${updated ? `; updated ${updated} trades` : ''} for account ${accountId}`,
+      message: `Imported ${inserted - updated} new trade${inserted - updated === 1 ? '' : 's'}${updated ? `; updated ${updated} trades` : ''} for ${broker === 'TxFlow' ? BROKER_LABELS.TxFlow(accountId) : `account ${accountId}`}`,
       imported: inserted, duplicates: dupCount, total: incoming.length, broker, accountId, currency,
       reconciled, removed, updated,
       ...(parsed.pnlBasis ? { pnlBasis: parsed.pnlBasis } : {}),
