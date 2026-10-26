@@ -1,3 +1,5 @@
+import { removeImage } from '../../lib/privateImages'
+import { requireOwner } from '../../lib/serverAuth'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -6,6 +8,7 @@ const supabase = createClient(
 )
 
 export default async function handler(req, res) {
+  if (!await requireOwner(req, res)) return
   // ── GET — list missed trades ──────────────────────────────────────────────
   if (req.method === 'GET') {
     const { data, error } = await supabase
@@ -102,15 +105,13 @@ export default async function handler(req, res) {
     // Also delete associated images from storage
     const { data: images } = await supabase
       .from('trade_images')
-      .select('filename')
+      .select('*')
       .eq('entity_type', 'missed_trade')
       .eq('entity_id', id)
 
     if (images?.length) {
-      const paths = images.map(img => `missed/${id}/${img.filename}`)
-      await supabase.storage.from('trade-images').remove(paths)
-      await supabase.from('trade_images').delete()
-        .eq('entity_type', 'missed_trade').eq('entity_id', id)
+      try { for (const image of images) await removeImage(supabase, image) }
+      catch { return res.status(503).json({ error: 'Could not delete attached screenshots. Please try again.' }) }
     }
 
     const { error } = await supabase.from('missed_trades').delete().eq('id', id)

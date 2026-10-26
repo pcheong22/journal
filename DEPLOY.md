@@ -1,220 +1,32 @@
-# Trading Journal v4 — Deployment Guide
-# PrimeXBT · Phase 1 Features · AI Stub Ready
+# Secure journal deployment
 
-============================================================
-WHAT'S NEW IN V4
-============================================================
+Stage 1 uses Supabase email links and a single approved owner. Every data API verifies the Supabase user on the server; database and storage access use the private service-role key. The browser receives HttpOnly, Secure, SameSite=Lax session cookies. All mutations require a custom header and the exact configured origin.
 
-✓ Supabase schema v3 — tags, notes, stop_loss, R-Multiple, streaks
-✓ Trade tagging system — Setup / Psychology / Execution (21 default tags)
-✓ Per-trade notes — structured template + free-text
-✓ R-Multiple — optional, auto-calculates when stop loss entered
-✓ Win/Loss Streaks — dedicated Streaks tab with visualisation
-✓ Date range filter — YTD default, presets + custom picker (server-side)
-✓ Privacy toggle — eye icon blurs all P&L values + chart Y-axis
-✓ AI coach stub — /api/ai-coach.js ready, activate with QWEN_API_KEY
-✓ Modular broker parsers — lib/parsers/primexbt.js (easily add more)
-✓ Unified parseDate() — handles all date formats across brokers
+## Hosting configuration
 
-============================================================
-STEP 1 — SUPABASE SCHEMA (run once)
-============================================================
+Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY for each environment. Never use the public key as a fallback for server database access.
 
-1. Go to supabase.com → your project → SQL Editor
+Set JOURNAL_OWNER_EMAIL privately in Vercel. Set JOURNAL_APP_URL to the exact HTTPS origin used to open that deployment (no trailing path). Missing owner/origin configuration blocks access. Preview and production must use separate Supabase projects and matching origins.
 
-2. If upgrading from a previous version, clear old tables first:
+## Supabase setup and rollout
 
-     DROP TABLE IF EXISTS trade_tag_mappings CASCADE;
-     DROP TABLE IF EXISTS trade_tags CASCADE;
-     DROP TABLE IF EXISTS missed_trades CASCADE;
-     DROP TABLE IF EXISTS trades CASCADE;
-     DROP TABLE IF EXISTS accounts CASCADE;
+1. Inspect the target project, tables, views, functions, storage policies, counts and existing users. This migration assumes a dedicated journal project. Retain a recoverable database and storage backup before changing production settings.
+2. Provision the approved owner through Supabase Authentication. Email sign-in is enabled; public signups are disabled after the owner exists. Configure the Site URL and allowed redirect URL to JOURNAL_APP_URL and JOURNAL_APP_URL/auth/callback. Use the standard Supabase confirmation-link email template; the server uses PKCE. Verify email delivery (Supabase default mail is restricted; configure SMTP if necessary). No password is required.
+3. Deploy and test the guarded APIs in development first, with service-role credentials. Open the email link in the browser that requested it. Verify owner access and refresh; other emails, anonymous reads/writes, and cross-origin mutations must fail.
+4. Apply migrations/20261026_stage_one_access.sql in development, then verify table/view/RPC/storage access is denied for both anon and authenticated roles. Check owner workflows and counts again. API image URLs proxy private storage; historical image URL values remain locators so existing attachments and temporary missed-trade attachments are retained.
+5. Deploy the guarded application to production and verify owner sign-in before applying the same production migration. Validate the 1,902-trade / 12-account baseline against current counts (allow for intentional intervening imports). Check attachments, execution drilldowns and a repeated CSV import. Do not test deletion on real accounts.
+6. Retire or protect older deployments that still expose the previous unauthenticated APIs and service-role credentials. Revoking anon access does not protect an old server route that uses the service role. This is a production completion gate.
 
-3. Open supabase-schema.sql from this zip.
-   Copy all contents → paste into SQL Editor → click Run.
+The SQL migration changes grants, policies, bucket privacy and adds a service-only transactional account deletion function. It does not delete journal rows. Never run supabase-reset.sql or drop/recreate tables as an upgrade.
 
-4. The schema creates:
-   - accounts         (one row per broker sub-account)
-   - trades           (all trade data + notes + stop_loss)
-   - trade_tags       (21 default tags pre-seeded)
-   - trade_tag_mappings (many-to-many trades ↔ tags)
-   - missed_trades    (manually logged missed opportunities)
+## Resource limits
 
-5. Verify: click Table Editor — you should see all 5 tables.
+Trade uploads allow one CSV/XLS/XLSX file up to 20 MB, 100,000 data rows and 300 columns. XLSX archives are checked before parsing with a 40 MB expansion limit. Screenshots allow PNG/JPG/WEBP/GIF up to 10 MB and 40 million pixels. Remote image fetching accepts only fixed HTTPS TradingView snapshot paths, refuses redirects and times out after ten seconds. Other screenshots can be uploaded as files.
 
-6. Get your API keys:
-   Settings → API:
-   - Project URL         → NEXT_PUBLIC_SUPABASE_URL
-   - anon/public key     → NEXT_PUBLIC_SUPABASE_ANON_KEY
-   - service_role key    → SUPABASE_SERVICE_ROLE_KEY
+## Validation
 
-============================================================
-STEP 2 — GITHUB (upload files)
-============================================================
+Run npm ci, npm test, and npm run build with the required environment variables. .env.example contains placeholders only. The lockfile pins deployments. SheetJS uses its official patched distribution because the npm registry version is obsolete. Next.js stays on the latest 14.2 patch for this stage; the unused image optimizer is disabled. The remaining major framework/toolchain upgrade and dependency advisories require a separate reviewed change; this stage does not claim a clean dependency audit.
 
-Go to your GitHub repo, click Add file → Upload files.
-Open this zip, open the trading-journal folder inside,
-select ALL contents and drag onto GitHub. Commit.
+## Recovery
 
-Key new/changed files:
-  supabase-schema.sql              ← v3 schema (run in Supabase first)
-  lib/tradeUtils.js                ← master router + stats + simulation
-  lib/parserUtils.js               ← shared date/symbol/session utils
-  lib/parsers/primexbt.js          ← PrimeXBT-specific parser
-  pages/api/upload.js              ← upload with streak computation
-  pages/api/trades.js              ← server-side date + account filter
-  pages/api/trade-notes.js         ← save notes, tags, stop loss
-  pages/api/ai-coach.js            ← AI stub (activate with QWEN_API_KEY)
-  pages/index.js                   ← full dashboard with Phase 1 features
-  components/Charts.js             ← all charts incl. streaks
-  components/TradeModal.js         ← trade detail with notes + tags
-  styles/globals.css               ← privacy mode + tag + streak styles
-
-Vercel auto-deploys within ~30 seconds of any GitHub push.
-
-============================================================
-STEP 3 — VERCEL ENVIRONMENT VARIABLES
-============================================================
-
-In Vercel → your project → Settings → Environment Variables:
-
-  NEXT_PUBLIC_SUPABASE_URL      = https://xxxxx.supabase.co
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJhbGci...
-  SUPABASE_SERVICE_ROLE_KEY     = eyJhbGci...
-  QWEN_API_KEY                  = (leave blank for stub mode)
-
-If you already had these set, no change needed.
-Add QWEN_API_KEY when you're ready to activate AI coaching.
-
-============================================================
-STEP 4 — UPLOADING TRADES
-============================================================
-
-PrimeXBT:
-  Orders → Closed Orders → Export CSV
-  Filename: DATE_ACCOUNTID_CURRENCY_orders.csv
-  e.g. 2026-05-08_L259832_USDC_orders.csv
-
-Each upload:
-  - Auto-detects PrimeXBT format from filename + headers
-  - Extracts account ID and currency from filename
-  - Deduplicates by position_id per account
-  - Computes win/loss streaks across all trades on import
-  - Creates account entry automatically if new
-
-============================================================
-PHASE 1 FEATURES — HOW TO USE
-============================================================
-
-DATE RANGE FILTER (bar below header):
-  Defaults to YTD (Jan 1 of current year → today)
-  Presets: 7D · 30D · 3M · 6M · YTD · 1Y · All
-  Custom: pick any start and end date
-  All charts + stats update instantly, server-side filtering
-
-PRIVACY TOGGLE (eye icon in header):
-  Click 👁 to blur all P&L values and chart Y-axes
-  Click again to reveal
-  Useful for screenshots or sharing screen
-
-TRADE TAGGING (in trade detail modal):
-  Click any trade row → Tags section at bottom
-  Select from 21 pre-built tags across Setup / Psychology / Execution
-  Tags are colour-coded and saved to database
-  Filter trade log by tag (coming in filter bar)
-  Upload your own tag reference list to extend defaults
-
-PER-TRADE NOTES (in trade detail modal):
-  Structured template:
-    - Why did you enter this trade?
-    - How did you manage it?
-    - What would you do differently?
-    - Emotional state during trade
-  Plus free-text notes field below
-  All saved to Supabase, visible on next load
-
-R-MULTIPLE (in trade detail modal):
-  Enter your stop loss price → R-Multiple auto-calculates
-  Formula: (exit - entry) / (entry - stop) for Long
-           (entry - exit) / (stop - entry) for Short
-  Optional — only shown when stop loss is entered
-  Saved to database
-
-WIN/LOSS STREAKS (Streaks tab):
-  Visual timeline of consecutive wins/losses
-  Shows current streak, max win streak, max loss streak
-  Computed on upload, updated on each import
-
-AI COACH (stub mode):
-  Trade detail modal → "Get AI Analysis" button
-  Returns stub message until QWEN_API_KEY is set
-  When activated: analyses trade + notes and returns
-  insights, coaching tip, pattern flags, rule compliance
-
-============================================================
-ADDING MORE BROKERS LATER
-============================================================
-
-1. Create lib/parsers/yourbroker.js
-   Export: parseBroker(rows, accountId) → trade[]
-   Export: extractBrokerMeta(filename) → { accountId, currency }
-
-2. Add detection logic in lib/parserUtils.js → detectBroker()
-
-3. Add routing in lib/tradeUtils.js → parseTradeFile()
-
-That's it. Each parser is fully isolated.
-
-============================================================
-REMINDER — PENDING ITEMS
-============================================================
-
-- Tag list screenshots: upload when ready to extend default tags
-- Extended/Generic format: add when you have the file with
-  entry_time and exit_time separated
-- Bybit / Hyperliquid / IBKR: parsers ready to add when needed
-- AI activation: set QWEN_API_KEY in Vercel when you have key
-
-TxFlow trade history imports:
-  - Upload the complete trade-history CSV, including opening fills.
-  - The upload dialog requires choosing a wallet and CSV timezone.
-  - TxFlow wallet accounts use TXFLOW_<lowercase address> internally so the
-    same address can also be used on Hyperliquid or another broker.
-  - Fills are grouped into positions; CL maps to CRUDE. Trade P&L is exported
-    Closed PnL less exported trading fees (including opening fees and rebates).
-    Funding is not in this file and is not included.
-  - Repeated uploads skip unchanged positions; later closes update the same
-    position while preserving journal notes, strategies, tags and images.
-
-Execution drilldown:
-  - TxFlow and native Hyperliquid imports preserve original fill rows alongside
-    existing consolidated trades. Re-uploading an already-imported history also
-    backfills execution details without creating another trade.
-  - Execution records are immutable JSON snapshots in the PRIVATE Supabase
-    Storage bucket trade-executions, provisioned on first supported upload using
-    the server service-role key. No SQL migration or public bucket is required.
-    Do not make this bucket public. Reads go through /api/executions?tradeId=…
-    after checking that the journal trade exists.
-  - Trade Log shows fill counts. The Executions tab shows timestamp batches,
-    expandable fills, original CSV row references, weighted prices and running
-    position costs. Timestamp batches are explicitly not claimed to be orders.
-  - Other brokers retain their saved summaries; execution import support for
-    their export formats can be added independently.
-  - Older snapshots remain private for audit. The current view selects the
-    latest fill timestamp, then the most complete fill count. Missing opening
-    history is flagged rather than inventing an average cost.
-
-Symbol reporting:
-  - The shared symbol registry resolves known exchange aliases, case and quote
-    suffix variants idempotently, including WTI/CL/CRUDE and the index aliases.
-  - /api/trades adds canonical symbols, saved tickers, known dated CL contracts,
-    underlying families, product type and underlying exposure direction at read
-    time. Existing stored trade rows, IDs and execution snapshots are preserved.
-  - Symbols defaults to underlying families, with expandable product rows and
-    a Markets / products view. Crude oil includes CRUDE and USO; Bitcoin includes
-    BTC/USD, IBIT, BITO and BITI when present. Inverse BITI flips underlying
-    exposure direction without changing the actual long/short trade direction.
-  - Reports aggregate journal P&L and individual trade outcomes, never average
-    ETF prices/quantities with contracts. Unsupported currencies are flagged
-    instead of being silently totalled as USD. The existing USD/USDC/USDT basis
-    is retained; no live FX conversion is introduced.
+Keep the previous deploy and an administrator database connection available during the rollout. If owner access fails, repair the email/origin/Auth settings using the administrator dashboard or roll back to a previously verified guarded deployment. Do not restore public policies or redeploy an unauthenticated build to recover access. The migration is idempotent; inspect migration results rather than retrying blindly after a failure.

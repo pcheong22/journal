@@ -1,3 +1,4 @@
+import { requireOwner } from '../../lib/serverAuth'
 // pages/api/ai-coach.js
 // Two modes: "trade" (single trade) | "portfolio" (full history)
 // Providers: Qwen-Plus (QWEN_API_KEY) | Claude (CLAUDE_API_KEY)
@@ -8,6 +9,7 @@ export const config = {
 }
 
 export default async function handler(req, res) {
+  if (!await requireOwner(req, res)) return
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const claudeKey  = process.env.CLAUDE_API_KEY

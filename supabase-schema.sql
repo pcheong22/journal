@@ -1,5 +1,7 @@
 -- ============================================================
 -- Trading Journal — Supabase Schema v3
+-- NEW DATABASES ONLY. Existing databases: use migrations/; never drop live tables.
+-- Apply migrations/20261026_stage_one_access.sql before exposing the app.
 -- Full tag library: ~100 tags across 5 categories
 -- Sourced from post-trade journaling preset screenshots
 --
@@ -109,11 +111,11 @@ ALTER TABLE trade_tags         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trade_tag_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE missed_trades      ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow all on trades"             ON trades             FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on accounts"           ON accounts           FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on trade_tags"         ON trade_tags         FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on trade_tag_mappings" ON trade_tag_mappings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on missed_trades"      ON missed_trades      FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Deny direct access to trades"             ON trades             AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "Deny direct access to accounts"           ON accounts           AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "Deny direct access to trade_tags"         ON trade_tags         AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "Deny direct access to trade_tag_mappings" ON trade_tag_mappings AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "Deny direct access to missed_trades"      ON missed_trades      AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
 
 -- ── SEED TAGS ─────────────────────────────────────────────
 -- ~100 tags from post-trade journaling presets
