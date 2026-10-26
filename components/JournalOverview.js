@@ -23,7 +23,7 @@ export default function JournalOverview({stats,trades,tags,privacy,onReview,onIn
   </section>
   <section className="secondary-facts"><div><span>Long positions</span><strong className="private">{money(o.long_pnl)}</strong><small>{o.long_count} trades · {(o.long_wr*100).toFixed(1)}% win rate</small></div><div><span>Short positions</span><strong className="private">{money(o.short_pnl)}</strong><small>{o.short_count} trades · {(o.short_wr*100).toFixed(1)}% win rate</small></div><div><span>Review queue</span><strong>{remaining.toLocaleString()}</strong><small>Unreviewed in this period</small></div></section>
   <div className="review-callout"><div><h2>Make the next trade more deliberate.</h2><p>{remaining.toLocaleString()} trades await review in this scope. Record one lesson, then mark each reviewed.</p></div><button className="btn btn-p" onClick={onReview}>Open review queue →</button></div>
-  {checks>0&&<div className="data-check-notice" role="status"><strong>{checks} trades need a source check.</strong> The price move and reported outcome have opposite signs; fees, funding or inferred matching may explain it. Price-derived figures are withheld while reported P&L is preserved. <button className="text-button" onClick={onSourceCheck}>Review source checks →</button></div>}
+  {checks>0&&<div className="data-check-notice" role="status"><strong>{checks} trades need a source check.</strong> Their reported P&amp;L conflicts with prices inferred or consolidated by an older import. Re-import complete original exports where available; price-derived figures stay withheld while reported P&amp;L is preserved. <button className="text-button" onClick={onSourceCheck}>Review source checks →</button></div>}
   <DataQuality trades={trades}/>
  </div>
 }
