@@ -11,7 +11,8 @@ export default function JournalOverview({stats,trades,tags,privacy,onReview,onIn
  let rows=instrumentContributions(trades);if(ascending)rows.reverse();const visible=all?rows:rows.slice(0,8)
  return <div className="ledger-overview"><div className="page-heading"><div><span className="eyebrow">Performance journal</span><h1>Overview</h1><p>Understand the outcome. Review the decisions.</p></div><button className="btn" onClick={onReview}>Review trades <span aria-hidden="true">↗</span></button></div>
   <section className="headline-strip" aria-label="Performance summary"><Metric label="Reported realised P&L" value={money(o.total_pnl)} context="Closed trades · broker-reported basis" tone={o.total_pnl>=0?'positive':'negative'} privateValue/>
-   <Metric label="Profit factor" value={o.profit_factor==null?'—':o.profit_factor.toFixed(2)+'×'} context={<><span>{(o.win_rate*100).toFixed(1)}% win rate</span> · <span className="private">{money(o.avg_win,{signed:false})} avg win / {money(Math.abs(o.avg_loss),{signed:false})} avg loss</span></>}/>
+   <Metric label="Win rate" value={(o.win_rate*100).toFixed(1)+'%'} context={`${o.winning_count.toLocaleString()} wins · ${o.losing_count.toLocaleString()} losses`}/>
+   <Metric label="Profit factor" value={o.profit_factor==null?'—':o.profit_factor.toFixed(2)+'×'} context={<span className="private">{money(o.avg_win,{signed:false})} avg win / {money(Math.abs(o.avg_loss),{signed:false})} avg loss</span>}/>
    <Metric label="Closed-trade drawdown" value={money(-o.max_drawdown)} context="Largest decline from a realised P&L peak" privateValue/>
    <Metric label="Average P&L per trade" value={money(o.total_pnl/o.total_trades)} context={`${o.total_trades.toLocaleString()} closes · ${o.breakeven_count} breakeven`} privateValue/>
   </section>
