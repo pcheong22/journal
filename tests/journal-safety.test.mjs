@@ -8,6 +8,7 @@ import Renderer, { act } from 'react-test-renderer'
 const require=createRequire(import.meta.url)
 const { transformSync }=require('next/dist/build/swc')
 const pure=async path=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL(path,import.meta.url),'utf8')).toString('base64'))
+const presentation=await pure('../lib/presentation.js')
 const draft=await pure('../lib/noteDraft.js')
 const notes=await pure('../lib/journalNotes.js'),backup=await pure('../lib/backupFormat.js'),request=await pure('../lib/request.js')
 const code=transformSync(readFileSync(new URL('../components/TradeModal.js',import.meta.url),'utf8'),{filename:'TradeModal.js',jsc:{parser:{syntax:'ecmascript',jsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code
@@ -15,6 +16,7 @@ const exports={}
 vm.runInNewContext(code,{exports,console,document:{addEventListener(){},removeEventListener(){}},require:path=>{
   if(path==='react')return React
   if(path==='react/jsx-runtime')return require(path)
+  if(path.endsWith('/presentation'))return presentation
   if(path.endsWith('/noteDraft'))return draft
   if(path.endsWith('/journalNotes'))return notes
   if(path.endsWith('/request'))return request
@@ -26,7 +28,7 @@ const TradeModal=exports.default
 const trade={id:1,account_id:'A',position_id:'P',symbol:'BTC',direction:'Long',pnl:10,entry_price:100,exit_price:110,stop_loss:90,size:1,currency:'USD',duration_mins:60,tag_ids:[7],journal_revision:3,notes:'Original'}
 const tags=[{id:7,name:'Patient',category:'Psychology',color:'#123456'}]
 const text=node=>typeof node==='string'?node:Array.isArray(node)?node.map(text).join(''):node?.children?node.children.map(text).join(''):''
-const button=(root,term)=>root.findAllByType('button').find(node=>text(node).includes(term))
+const button=(root,term)=>root.findAllByType('button').find(node=>text(node).toLowerCase().includes(term.toLowerCase()))
 
 test('notes patch distinguishes untouched tags, clear tags and invalid stops',()=>{
  assert.equal(notes.noteRequest({tradeId:1,expectedRevision:0,notes:'x'}).p_tag_ids,null)

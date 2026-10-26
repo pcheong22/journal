@@ -11,7 +11,8 @@ const source = await readFile(new URL('../components/Charts.js', import.meta.url
 const { code } = await transform(source, { filename:'Charts.jsx',
   jsc:{ parser:{syntax:'ecmascript',jsx:true},transform:{react:{runtime:'automatic'}} }, module:{type:'commonjs'} })
 const module = {exports:{}}
-vm.runInNewContext(code, {require,module,exports:module.exports,console})
+const presentation=await import('data:text/javascript;base64,'+Buffer.from(await readFile(new URL('../lib/presentation.js',import.meta.url),'utf8')).toString('base64'))
+vm.runInNewContext(code, {require:path=>path==='./LedgerEquity'?(()=>null):path==='../lib/presentation'?presentation:require(path),module,exports:module.exports,console})
 const ChartComp = module.exports.default
 const render = trades => renderToStaticMarkup(React.createElement(ChartComp, {
  type:'streaks',trades,stats:{overview:{max_win_streak:2,max_loss_streak:2}},privacy:false,

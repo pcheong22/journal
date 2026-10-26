@@ -1,0 +1,10 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
+const pure=async path=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL(path,import.meta.url),'utf8')).toString('base64'))
+const {money,durationLabel,instrumentContributions}=await pure('../lib/presentation.js'),{priceCheck,reportingTrade}=await pure('../lib/symbols.js')
+test('money has one sign convention for metrics and chart axes',()=>{assert.equal(money(-16000,{compact:true}),'−$16.0k');assert.equal(money(153400,{signed:false}),'$153,400');assert.equal(money(null),'—');assert.equal(money(0),'$0')})
+test('durations retain minutes and distinguish unknown from zero',()=>{assert.equal(durationLabel(1225),'20h 25m');assert.equal(durationLabel(0),'0m');assert.equal(durationLabel(null),'Unknown')})
+test('instrument bars retain a true zero and common denominator',()=>{const rows=instrumentContributions([{symbol:'A',pnl:-100},{symbol:'B',pnl:-10},{symbol:'C',pnl:50}]);assert.equal(rows.find(r=>r.symbol==='A').width,100);assert.equal(rows.find(r=>r.symbol==='B').width,10);assert.equal(rows.find(r=>r.symbol==='C').width,50)})
+test('conflicting inferred entry data is flagged without changing reported source values',()=>{const source={symbol:'NASDAQ',direction:'Short',entry_price:28100.34,exit_price:29666.7074,pnl:2424.38,notional_method:'backsolve',notional_usd:43493};const view=reportingTrade(source);assert.ok(priceCheck(source));assert.ok(view.data_check);assert.equal(view.notional_usd,null);assert.equal(view.pnl,source.pnl);assert.equal(view.entry_price,source.entry_price);assert.equal(source.notional_usd,43493);assert.deepEqual(reportingTrade(view),view)})
+test('reported execution prices are not marked inferred merely because fees alter an outcome',()=>{assert.equal(priceCheck({direction:'Long',entry_price:100,exit_price:101,pnl:-1,notional_method:'price_x_size'}),null)})

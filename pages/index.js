@@ -1,5 +1,7 @@
+import JournalShell from '../components/JournalShell'
+import JournalOverview from '../components/JournalOverview'
+import {money,durationLabel} from '../lib/presentation'
 import ReviewWorkflow from '../components/ReviewWorkflow'
-import DataQuality from '../components/DataQuality'
 import {escapeHTML} from '../lib/reportSafety'
 import ImportReview, {importRequest} from '../components/ImportReview'
 import ImportHistory from '../components/ImportHistory'
@@ -23,7 +25,6 @@ class ErrorBoundary extends Component {
   }
 }
 const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
-const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
 const TradeModal      = dynamic(() => import('../components/TradeModal'),   { ssr: false })
 const SymbolAnalysis = dynamic(() => import('../components/SymbolAnalysis'), { ssr: false })
 const EdgeDiscovery   = dynamic(() => import('../components/EdgeDiscovery'),  { ssr: false })
@@ -55,7 +56,8 @@ const DATE_PRESETS = [
   { label: 'All', from: () => '2000-01-01',  to: today },
 ]
 
-function DashboardInner() {
+export function JournalWorkspace({previewData=null}) {
+  const preview=!!previewData
   const [tab,            setTab]            = useState('overview')
   const [allTrades,      setAllTrades]      = useState([])
   const [accounts,         setAccounts]         = useState([])
@@ -67,6 +69,7 @@ function DashboardInner() {
   const [strategyMgrOpen,  setStrategyMgrOpen]  = useState(false)
   const [tags,           setTags]           = useState([])
   const [stats,          setStats]          = useState(null)
+  const requestSequence=useRef(0)
   const [loadError, setLoadError] = useState('')
   const [loading,        setLoading]        = useState(true)
   const [importPreview,setImportPreview]=useState(null)
@@ -90,6 +93,8 @@ function DashboardInner() {
   const [page,           setPage]           = useState(0)
   const [sortKey,        setSortKey]        = useState('entry_time')
   const [sortDir,        setSortDir]        = useState(-1)
+  const [logDetails,setLogDetails]=useState(false)
+  const [logFiltersOpen,setLogFiltersOpen]=useState(false)
   const [reviewInbox,setReviewInbox]=useState(false)
   const [reviewSelection,setReviewSelection]=useState(new Set())
   const [fSym,           setFSym]           = useState('')
@@ -135,11 +140,11 @@ function DashboardInner() {
       const saved = localStorage.getItem('ti_settings')
       if (saved) {
         const s = JSON.parse(saved)
-        setSettings(s)
+        setSettings(prev=>({...prev,...s}))
         if (s.defaultPrivacy  !== undefined) setPrivacy(s.defaultPrivacy)
         if (s.defaultDark     !== undefined) setDarkMode(s.defaultDark)
         if (s.acctStatsDefault !== undefined) setAcctStatsOpen(s.acctStatsDefault)
-        if (s.defaultTab)      setTab(s.defaultTab)
+        if (s.defaultTab) setTab(s.defaultTab==='tradelog'?'trades':s.defaultTab)
         if (s.defaultDatePreset && s.defaultDatePreset !== 'YTD') {
           const p = DATE_PRESETS.find(p => p.label === s.defaultDatePreset)
           if (p) { setDatePreset(s.defaultDatePreset); setDateFrom(p.from()); setDateTo(p.to()) }
@@ -172,7 +177,7 @@ function DashboardInner() {
   useEffect(() => {
     const enriched = selectedTrades.map(t => {
       let price_pct = null
-      if (t.entry_price && t.exit_price && t.entry_price > 0) {
+      if (!t.data_check && t.entry_price && t.exit_price && t.entry_price > 0) {
         price_pct = t.direction === 'Long'
           ? (t.exit_price / t.entry_price - 1) * 100
           : ((t.entry_price - t.exit_price) / t.entry_price) * 100
@@ -203,6 +208,8 @@ function DashboardInner() {
   }, [allTrades, selAccounts, fSym, fDir, fRes, fSess, search, sortKey, sortDir,reviewInbox,tags])
 
   const loadTrades = useCallback(async (from, to) => {
+    if(previewData){setAllTrades(previewData.trades.filter(t=>(!from||t.exit_time.slice(0,10)>=from)&&(!to||t.exit_time.slice(0,10)<=to)).map(reportingTrade));setAccounts(previewData.accounts);setTags(previewData.tags);setLoading(false);return}
+    const requestId=++requestSequence.current
     setLoading(true); setLoadError('')
     try {
       const params = new URLSearchParams()
@@ -210,6 +217,7 @@ function DashboardInner() {
       if (to)   params.set('to', to + 'T23:59:59.999Z')
       const res  = await journalFetch(`/api/trades?${params}`)
       const data = await res.json()
+      if(requestId!==requestSequence.current)return
       if (data.trades)   setAllTrades(data.trades.map(reportingTrade))
       if (data.accounts) {
         setAccounts(data.accounts)
@@ -222,8 +230,8 @@ function DashboardInner() {
         })
       }
       if (data.tags)     setTags(data.tags)
-    } catch(e) { setLoadError(e.message || 'Could not load your journal. Please retry.') }
-    setLoading(false)
+    } catch(e) {if(requestId===requestSequence.current)setLoadError(e.message || 'Could not load your journal. Please retry.')}
+    if(requestId===requestSequence.current)setLoading(false)
   }, [])
 
   useEffect(() => {let from=dateFrom,to=dateTo;try{const saved=JSON.parse(localStorage.getItem('ti_settings')||'{}'),preset=DATE_PRESETS.find(p=>p.label===saved.defaultDatePreset);if(preset){from=preset.from();to=preset.to()}}catch{}loadTrades(from,to)}, [])
@@ -235,7 +243,7 @@ function DashboardInner() {
     setDatePreset(preset); setDateFrom(from); setDateTo(to); setShowCustom(false)
     loadTrades(from, to)
   }
-  const applyCustom = () => { setDatePreset(''); loadTrades(dateFrom, dateTo) }
+  const applyCustom = () => { setDatePreset('');setShowCustom(false); loadTrades(dateFrom, dateTo) }
 
   const toggleAccount = id => {
     setSelAccounts(prev => {
@@ -387,7 +395,7 @@ function DashboardInner() {
     </>)
   }
 
-  if (!isClient || loading) return (
+  if (!isClient || loading&&!allTrades.length) return (
     <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
       <div style={{width:28,height:28,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',animation:'spin 1s linear infinite'}} />
       <div style={{color:'var(--mu)',fontFamily:'var(--font-mono)',fontSize:11,letterSpacing:'.04em'}}>LOADING…</div>
@@ -400,191 +408,14 @@ function DashboardInner() {
         <title>Trading Journal · Performance Intelligence</title>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
-      <header className="page-hdr">
-        <div style={{display:'flex',alignItems:'center',gap:14,fontFamily:'var(--font-mono)',fontSize:11}}>
-          {ov ? (<>
-            <span style={{color:'var(--mu)'}}><span style={{color:'var(--tx)',fontWeight:600}}>{ov.total_trades.toLocaleString()}</span> TRADES</span>
-            <span style={{color:'var(--mu)'}}>P&L <span className="private" style={{color:ov.total_pnl>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(Math.round(ov.total_pnl))}</span></span>
-            <span style={{color:'var(--mu)'}}>WR <span style={{color:'var(--ac)',fontWeight:600}}>{(ov.win_rate*100).toFixed(1)}%</span></span>
-          </>) : <span style={{color:'var(--mu)'}}>NO DATA</span>}
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>setShowSettings(s=>!s)} title="Settings"
-            style={{background:showSettings?'var(--ac-bg)':'var(--sf2)',border:`1px solid ${showSettings?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={showSettings?'var(--ac2)':'var(--tx2)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </button>
-          <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?'Light mode':'Dark mode'}
-            style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:14,transition:'all .15s',color:'var(--tx)'}}>
-            {darkMode ? '☀️' : '🌙'}
-          </button>
-          <button onClick={()=>setPrivacy(p=>!p)} title={privacy?'Show values':'Hide values'}
-            style={{background:privacy?'var(--ac-bg)':'var(--sf)',border:`1px solid ${privacy?'var(--ac-bd)':'var(--bd)'}`,borderRadius:6,padding:'5px 8px',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            {privacy ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ac2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <ellipse cx="12" cy="12" rx="9" ry="5.5" stroke="var(--ac2)"/>
-                <circle cx="12" cy="12" r="3" fill="var(--ac2)" stroke="none"/>
-                <line x1="3" y1="3" x2="21" y2="21"/>
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <ellipse cx="12" cy="12" rx="9" ry="5.5"/>
-                <circle cx="12" cy="12" r="3" fill="var(--tx2)" stroke="none"/>
-              </svg>
-            )}
-          </button>
-          <span style={{display:'inline-flex',alignItems:'center',gap:5,color:'var(--mu)',fontSize:10}}>
-            <span style={{width:6,height:6,borderRadius:'50%',background:'var(--wn)',display:'inline-block',animation:'pulse 2s infinite'}} />LIVE
-          </span>
-        </div>
-      </header>
-
-      {accounts.length > 0 && (
-        <div style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)',padding:'8px 16px'}}>
-          {/* Header row */}
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:acctFilterOpen?10:0}}>
-            <span style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)'}}>ACCOUNTS</span>
-            <button onClick={()=>setSelAccounts(new Set())}
-              style={{padding:'3px 10px',borderRadius:4,border:'1px solid',fontSize:10,fontFamily:'var(--font-mono)',cursor:'pointer',fontWeight:700,transition:'all .15s',
-                background:selAccounts.size===0?'var(--ac)':'transparent',borderColor:selAccounts.size===0?'var(--ac)':'var(--bd)',color:selAccounts.size===0?'#0c1117':'var(--tx2)'}}>
-              ALL ({allTrades.length.toLocaleString()})
-            </button>
-            <button onClick={()=>setAcctFilterOpen(o=>!o)}
-              style={{fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,color:'var(--mu)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>
-              {acctFilterOpen ? '▲ hide' : '▼ filter'}
-            </button>
-            <button className="btn btn-d btn-sm" style={{marginLeft:'auto'}} onClick={()=>handleClear(null)}>🗑 Clear all</button>
-          </div>
-          {/* 2-col grid — collapsible */}
-          {acctFilterOpen && (
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
-              {orderedAccounts.map(acc => {
-                const isActive  = selAccounts.size===0 || selAccounts.has(acc.id)
-                const isDragging = dragAccId === acc.id
-                return (
-                  <div key={acc.id}
-                    draggable
-                    onDragStart={()=>setDragAccId(acc.id)}
-                    onDragOver={e=>e.preventDefault()}
-                    onDrop={()=>{
-                      if (!dragAccId || dragAccId===acc.id) return
-                      setAccountOrder(prev => {
-                        const next = [...prev]
-                        const from = next.indexOf(dragAccId)
-                        const to   = next.indexOf(acc.id)
-                        next.splice(from,1); next.splice(to,0,dragAccId)
-                        return next
-                      })
-                      setDragAccId(null)
-                    }}
-                    onDragEnd={()=>setDragAccId(null)}
-                    style={{display:'flex',alignItems:'center',gap:0,borderRadius:6,overflow:'hidden',minWidth:0,
-                      border:`1px solid ${isActive&&selAccounts.size>0?acc.color+'60':'var(--bd)'}`,
-                      background:isActive&&selAccounts.size>0?acc.color+'12':'var(--sf2)',
-                      opacity:isDragging?0.4:1,cursor:'grab',transition:'all .15s'}}>
-                    <button onClick={()=>toggleAccount(acc.id)}
-                      style={{flex:1,minWidth:0,padding:'5px 8px',border:'none',background:'transparent',
-                        cursor:'pointer',display:'flex',alignItems:'center',gap:6,
-                        fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600,
-                        color:isActive?'var(--tx)':'var(--mu)',textAlign:'left'}}>
-                      <span style={{width:7,height:7,borderRadius:'50%',background:acc.color,flexShrink:0,opacity:isActive?1:.4}} />
-                      <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acc.label||acc.id}</span>
-                    </button>
-                    <div style={{borderLeft:'1px solid var(--bd)',display:'flex',flexShrink:0}}>
-                      <button onClick={()=>selectOnly(acc.id)} title="View only" style={{padding:'5px 6px',border:'none',background:'transparent',cursor:'pointer',fontSize:9,color:'var(--mu)'}}>⊙</button>
-                      <button onClick={()=>setEditingAccount(acc)} title="Edit" style={{padding:'5px 6px',border:'none',background:'transparent',cursor:'pointer',fontSize:9,color:'var(--mu)'}}>✎</button>
-                      <button onClick={()=>handleClear(acc.id)} title="Delete" style={{padding:'5px 6px',border:'none',background:'transparent',cursor:'pointer',fontSize:9,color:'var(--ls)'}}>✕</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-      <div className="date-range-bar">
-        <span style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)'}}>RANGE</span>
-        <span style={{fontSize:10,color:'var(--mu)'}}>Reporting dates: UTC</span>
-        {DATE_PRESETS.map(p => (
-          <button key={p.label} className={`preset-btn ${datePreset===p.label?'active':''}`} onClick={()=>applyPreset(p.label)}>{p.label}</button>
-        ))}
-        <button className={`preset-btn ${showCustom?'active':''}`} onClick={()=>setShowCustom(s=>!s)}>Custom ▾</button>
-        {showCustom && (
-          <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:4}}>
-            <input type="date" className="inp date-input" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:'3px 8px'}} />
-            <span style={{color:'var(--mu)',fontSize:11}}>→</span>
-            <input type="date" className="inp date-input" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:'3px 8px'}} />
-            <button className="btn btn-p btn-sm" onClick={applyCustom}>Apply</button>
-          </div>
-        )}
-        <span style={{marginLeft:'auto',fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
-          {visibleTrades.length.toLocaleString()} trades
-          {datePreset !== 'All' && <span className="date-range-text" style={{marginLeft:6,color:'var(--bd2)'}}>· {dateFrom} → {dateTo}</span>}
-        </span>
-      </div>
-
-      <div style={{background:'var(--sf2)',borderBottom:'1px solid var(--bd)',padding:'8px 24px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-        <div className={`dz ${dragOver?'dov':''}`} style={{flex:1,minWidth:260,padding:'8px 14px'}}
-          onClick={()=>fileRef.current?.click()}
-          onDragOver={e=>{e.preventDefault();setDragOver(true)}}
-          onDragLeave={()=>setDragOver(false)}
-          onDrop={handleDrop}>
-          <span style={{fontSize:15}}>📂</span>
-          <div style={{minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:600}}>Upload trade history</div>
-            <div style={{fontSize:11,color:'var(--mu)',display:'flex',alignItems:'center',gap:5}}>
-              Auto-detects format · duplicates skipped
-              <span style={{position:'relative',display:'inline-flex',alignItems:'center',cursor:'help'}}
-                onMouseEnter={e=>e.currentTarget.querySelector('.upl-tip').style.display='block'}
-                onMouseLeave={e=>e.currentTarget.querySelector('.upl-tip').style.display='none'}>
-                <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:13,height:13,
-                  borderRadius:'50%',border:'1px solid var(--bd)',fontSize:8,color:'var(--mu)',fontWeight:700,lineHeight:1}}>i</span>
-                <span className="upl-tip" style={{display:'none',position:'absolute',bottom:'130%',left:'50%',
-                  transform:'translateX(-50%)',background:'var(--sf2)',border:'1px solid var(--bd)',
-                  borderRadius:7,padding:'10px 12px',fontSize:10,color:'var(--tx)',width:210,
-                  lineHeight:1.6,zIndex:99,boxShadow:'0 4px 20px rgba(0,0,0,.5)',whiteSpace:'normal',
-                  fontWeight:400,pointerEvents:'none'}}>
-                  <div style={{fontWeight:700,marginBottom:5,color:'var(--ac)',fontSize:9,textTransform:'uppercase',letterSpacing:'.06em'}}>Supported formats</div>
-                  <div style={{color:'var(--mu)',fontSize:10}}>
-                    <div>· <b style={{color:'var(--tx)'}}>PrimeXBT</b> — orders CSV export</div>
-                    <div>· <b style={{color:'var(--tx)'}}>IBKR</b> — Activity Statement CSV</div>
-                    <div>· <b style={{color:'var(--tx)'}}>Hyperliquid</b> — native trade CSV</div>
-                    <div>· <b style={{color:'var(--tx)'}}>TxFlow</b> — trade history CSV</div>
-                    <div>· <b style={{color:'var(--tx)'}}>Hypurrscan</b> — wallet export CSV</div>
-                    <div>· <b style={{color:'var(--tx)'}}>Bybit Perp</b> — bybit_perps_*.csv</div>
-                    <div>· <b style={{color:'var(--tx)'}}>Bybit Spot</b> — bybit_spot_*.csv</div>
-                    <div>· <b style={{color:'var(--tx)'}}>Extended</b> — realized_pnl.csv</div>
-                  </div>
-                </span>
-              </span>
-            </div>
-          </div>
-          <span className="btn btn-p btn-sm" style={{pointerEvents:'none',marginLeft:'auto',flexShrink:0}}>Browse</span>
-        </div>
-        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])} />
-        {upload.status !== 'idle' && (
-          <div className={`pill ${upload.status==='success'?'pb':upload.status==='error'?'pr':'pa'}`}
-            style={{fontSize:11,padding:'6px 12px',borderRadius:6,display:'flex',alignItems:'center',gap:6,maxWidth:'100%',wordBreak:'break-word',flexWrap:'wrap'}}>
-            {upload.status==='uploading' && <span style={{width:10,height:10,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite',flexShrink:0}} />}
-            <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{upload.message}</span>
-            {upload.broker && <span style={{opacity:.7,flexShrink:0}}>· {upload.broker}</span>}
-          </div>
-        )}
-      </div>
-
-      <nav style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)'}}>
-        <div style={{display:'flex',padding:'0 24px',gap:0,overflowX:'auto'}}>
-          {[['overview','📈 Overview'],['edge','🔬 Edge'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','⏭ Passed']].map(([id,label])=>(
-            <button key={id} className={`nt ${tab===id?'active':''}`} aria-current={tab===id?'page':undefined} style={{background:'transparent',borderTop:0,borderLeft:0,borderRight:0,cursor:'pointer',whiteSpace:'nowrap'}} onClick={()=>setTab(id)}>{label}</button>
-          ))}
-        </div>
-      </nav>
-
+      <JournalShell tab={tab} onTab={id=>{setTab(id);if(id==='review')setReviewInbox(true);if(id==='trades')setReviewInbox(false)}} accounts={accounts} selectedAccounts={selAccounts} onAccounts={setSelAccounts}
+        datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} onPreset={applyPreset} onCustom={(from,to)=>{setDateFrom(from);setDateTo(to);setDatePreset('');loadTrades(from,to)}} count={selectedTrades.length}
+        privacy={privacy} onPrivacy={()=>setPrivacy(p=>!p)} dark={darkMode} onTheme={()=>setDarkMode(d=>!d)} onSettings={()=>setShowSettings(true)} onImport={()=>fileRef.current?.click()} preview={preview}/>
+      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={e=>{handleFile(e.target.files?.[0]);e.target.value=''}}/>
+      {upload.status!=='idle'&&<div role="status" className="import-status">{upload.message}<button className="text-button" onClick={()=>setUpload({status:'idle',message:''})}>Dismiss</button></div>}
       {editingAccount && <AccountRenameModal account={editingAccount} onSave={saveAccountLabel} onClose={()=>setEditingAccount(null)} />}
       {showSettings && (
         <SettingsPanel
@@ -594,6 +425,7 @@ function DashboardInner() {
           darkMode={darkMode}         setDarkMode={setDarkMode}
           acctStatsOpen={acctStatsOpen} setAcctStatsOpen={setAcctStatsOpen}
           onClose={()=>setShowSettings(false)}
+          accounts={accounts} onEditAccount={account=>{setShowSettings(false);setEditingAccount(account)}} onDeleteAccount={handleClear} preview={preview}
         />
       )}
       {importPreview && <ImportReview preview={importPreview} onClose={()=>setImportPreview(null)} onComplete={async result=>{setImportPreview(null);setUpload({status:'success',message:result.warning || `Import complete: ${result.inserted} new, ${result.updated} updated, ${result.removed} duplicates removed, ${result.skipped} unchanged.`,broker:result.broker,accountId:result.accountId});await loadTrades(dateFrom,dateTo)}} />}
@@ -675,79 +507,17 @@ function DashboardInner() {
       )}
 
       <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}><ErrorBoundary key={tab}>
+        {loading&&<p role="status" className="loading-scope">Updating this period…</p>}
+        {tab==='overview'&&!stats&&!loading&&<div className="empty-ledger"><h1>No closed trades in this period</h1><p>Choose another reporting period or import an export to get started.</p><button className="btn" onClick={()=>applyPreset('All')}>Show all history</button></div>}
         {loadError && <div role="alert" style={{padding:14,marginBottom:14,border:'1px solid var(--ls)',borderRadius:8,color:'var(--ls)'}}>{loadError} <button className="btn btn-sm" onClick={()=>loadTrades(dateFrom,dateTo)}>Retry loading</button></div>}
 
-        {tab==='overview' && stats && (
+        {['overview','portfolio'].includes(tab) && stats && (
           <div className="anim">
-          {selectedTrades.length>visibleTrades.length&&<p role="status">{selectedTrades.length-visibleTrades.length} trades in other currencies are excluded from dollar analytics. They remain in the Trade Log.</p>}<DataQuality trades={visibleTrades} />
-          {(settings.dashboardOrder || ['kpis', 'equity', 'risk', 'rolling', 'accounts', 'charts']).map(section => {
-            // Variables needed by kpis case
-            const wins   = Math.round(ov.win_rate * ov.total_trades)
-            const losses = ov.losing_count
-            const exp    = (losses > 0 && ov.avg_loss) ? (wins * ov.avg_win) / (losses * Math.abs(ov.avg_loss)) : null
-            const expVal = fU(ov.total_pnl/ov.total_trades)
-            const expC = ov.total_pnl>=0?'pos':'neg'
-            const vol = visibleTrades.reduce((s, t) => {
-              const n = t.notional_usd
-              if (!n) return s
-              if (t.entry_price && t.exit_price && t.exit_price > 0) {
-                const ratio = t.exit_price / t.entry_price
-                return s + n + (n * ratio)
-              }
-              return s + n * 2
-            }, 0)
-            const fmtVol = v => {
-              if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + ' billion'
-              if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' million'
-              return '$' + Math.round(v).toLocaleString()
-            }
+          {tab==='overview'&&selectedTrades.length>visibleTrades.length&&<p className="data-check-notice">{selectedTrades.length-visibleTrades.length} trades in other currencies are excluded from dollar analytics and remain available in Trades.</p>}
+          {tab==='overview'&&<JournalOverview key={darkMode?'dark':'light'} stats={stats} trades={visibleTrades} tags={tags} privacy={privacy} onReview={()=>{setTab('review');setReviewInbox(true)}} onInstrument={symbol=>{setFSym(symbol);setFDir('');setFRes('');setFSess('');setSearch('');setReviewInbox(false);setTab('trades')}}/>}
+          {tab==='portfolio'&&<div className="page-heading"><div><span className="eyebrow">Analysis</span><h1>Portfolio detail</h1><p>Explore closed-trade statistics and account contributions.</p></div></div>}
+          {(tab==='portfolio'?['risk','rolling','accounts']:[]).map(section => {
             switch(section) {
-              case 'kpis': return (
-                <div key='kpis'>
-                  <div className="kpi-grid-overview" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(138px,1fr))',gap:8,marginBottom:14}}>
-                  <div className="kpi">
-                    <div className="kl">TOTAL P&L</div>
-                    <div className={`kv ${ov.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.total_pnl))}</div>
-                    <div className="ks">Reported realised</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="kl">WIN RATE</div>
-                    <div className="kv acc">{(ov.win_rate*100).toFixed(1)}%</div>
-                    <div className="ks">{ov.winning_count} W / {ov.losing_count} L / {ov.breakeven_count} B</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="kl">TOTAL TRADES</div>
-                    <div className="kv neu">{ov.total_trades.toLocaleString()}</div>
-                    <div className="ks">All instruments</div>
-                  </div>
-                  <RiskRewardCard rr={ov.avg_loss ? Math.abs(ov.avg_win/ov.avg_loss) : null} avgWin={ov.avg_win} avgLoss={ov.avg_loss} />
-                  <ExpectancyCard expVal={expVal} expC={expC} />
-                  <div className="kpi"><div className="kl">CLOSED-TRADE DRAWDOWN</div><div className="kv neg private">{fU(-ov.max_drawdown)}</div><div className="ks">From cumulative realised P&amp;L</div></div>
-                  <div className="kpi">
-                    <div className="kl">LONG P&L</div>
-                    <div className="kv pos private">{fU(Math.round(ov.long_pnl))}</div>
-                    <div className="ks">{(ov.long_wr*100).toFixed(1)}% WR · {ov.long_count}</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="kl">SHORT P&L</div>
-                    <div className={`kv ${ov.short_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(ov.short_pnl))}</div>
-                    <div className="ks">{(ov.short_wr*100).toFixed(1)}% WR · {ov.short_count}</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="kl">ESTIMATED TURNOVER</div>
-                    <div className="kv neu private">{vol > 0 ? fmtVol(vol) : '—'}</div>
-                    <div className="ks">Entry + exit notional estimates</div>
-                  </div>
-                  </div>
-                </div>
-              )
-              case 'equity': return (
-                <div key='equity'>
-
-            {/* ── EQUITY CURVE — dateFrom passed so chart can pad from range start ── */}
-            <ChartComp type="equity" data={stats.cumulative} privacy={privacy} dateFrom={dateFrom} />
-                </div>
-              )
               case 'risk': return (
                 <div key='risk'>
 
@@ -910,24 +680,6 @@ function DashboardInner() {
             )}
                 </div>
               )
-              case 'charts': return (
-                <div key='charts'>
-
-            {/* Row 1: Monthly P&L — full width spotlight */}
-            <ChartComp type="monthly" data={stats.monthly} privacy={privacy} />
-            {/* Row 2: Three equal supporting charts */}
-            <div className="overview-supporting-grid">
-              <ChartComp type="duration"     data={stats.duration} privacy={privacy} />
-              <ChartComp type="direction"    longPnl={ov.long_pnl} shortPnl={ov.short_pnl} privacy={privacy} />
-              <ChartComp type="distribution" trades={visibleTrades} privacy={privacy} />
-            </div>
-            {/* Row 3: Top 5 instruments */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
-              <Top5PnlChart trades={visibleTrades} mode="positive" privacy={privacy} darkMode={darkMode} />
-              <Top5PnlChart trades={visibleTrades} mode="negative" privacy={privacy} darkMode={darkMode} />
-            </div>
-                </div>
-              )
               default: return null
             }
           })}
@@ -1015,24 +767,26 @@ function DashboardInner() {
           </div>
         )}
 
-        {tab==='trades' && (
-          <div className="anim">
+        {['trades','review'].includes(tab) && (
+          <div className="anim trade-log-page"><div className="page-heading"><div><span className="eyebrow">{tab==='review'?'Reflect & improve':'Trade history'}</span><h1>{tab==='review'?'Review queue':'Trades'}</h1><p>{tab==='review'?'A deliberate record of what worked, what changed and what comes next.':'Your positions, with the execution detail behind every result.'}</p></div></div>
             <ReviewWorkflow trades={selectedTrades} pageTrades={paged} tags={tags} inbox={reviewInbox} setInbox={setReviewInbox} selection={reviewSelection} setSelection={setReviewSelection}
              onSaved={async updated=>{setAllTrades(prev=>prev.map(t=>{const changed=updated.find(u=>u.id===t.id);return changed?reportingTrade({...t,...changed}):t}));const response=await(await journalFetch('/api/trades?from='+encodeURIComponent(dateFrom+'T00:00:00Z')+'&to='+encodeURIComponent(dateTo+'T23:59:59.999Z'))).json();if(response.tags)setTags(response.tags)}}
              filters={{symbol:fSym,direction:fDir,result:fRes,session:fSess,search,inbox:reviewInbox,accounts:[...selAccounts],from:dateFrom,to:dateTo,sortKey,sortDir}}
              savedViews={settings.savedViews || []} onSaveViews={views=>saveSetting('savedViews',views)}
              onApply={v=>{setFSym(v.symbol||'');setFDir(v.direction||'');setFRes(v.result||'');setFSess(v.session||'');setSearch(v.search||'');setReviewInbox(!!v.inbox);setSelAccounts(new Set(v.accounts||[]));setDateFrom(v.from);setDateTo(v.to);setDatePreset('');setSortKey(v.sortKey||'exit_time');setSortDir(v.sortDir===1?1:-1);setReviewSelection(new Set());loadTrades(v.from,v.to)}}
-             onWeekly={()=>{const from=daysAgo(7),to=today();setDateFrom(from);setDateTo(to);setDatePreset('');setFSym('');setFDir('');setFRes('');setFSess('');setSearch('');setReviewInbox(true);setReviewSelection(new Set());loadTrades(from,to)}} />
-            <div style={{fontSize:11,color:'var(--mu)',marginBottom:10,fontFamily:'var(--font-mono)'}}>Click any row to open · ← → keys to navigate · notes and tags saved per trade</div>
-            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap',background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'10px 14px',boxShadow:'var(--sh-sm)'}}>
-              <input className="inp" style={{width:160}} placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)} />
+             preview={preview} onWeekly={()=>{const from=daysAgo(7),to=today();setDateFrom(from);setDateTo(to);setDatePreset('');setFSym('');setFDir('');setFRes('');setFSess('');setSearch('');setReviewInbox(true);setReviewSelection(new Set());loadTrades(from,to)}} />
+            <div className="log-hint">Open a trade to inspect executions and record a lesson.</div>
+            <div className="log-searchbar"><input aria-label="Search trades" className="inp" placeholder="Search instruments, accounts…" value={search} onChange={e=>setSearch(e.target.value)}/><button className="btn" aria-expanded={logFiltersOpen} onClick={()=>setLogFiltersOpen(v=>!v)}>Filters {fSym||fDir||fRes||fSess?'· active':''}</button><button className="btn columns-button" onClick={()=>setLogDetails(v=>!v)}>{logDetails?'Essential columns':'More columns'}</button><span>{filtered.length.toLocaleString()} trades</span></div>
+            {logFiltersOpen&&<>            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap',background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'10px 14px',boxShadow:'var(--sh-sm)'}}>
+              <button className="text-button" onClick={()=>{setFSym('');setFDir('');setFRes('');setFSess('');setSearch('')}}>Reset filters</button>
+
               <select className="inp" aria-label="Market or underlying family" value={fSym} onChange={event=>setFSym(event.target.value)}>
                 <option value="">All symbols and families</option>
                 <optgroup label="Underlying families">{['Crude oil','Bitcoin'].filter(family=>visibleTrades.some(trade=>trade.underlying===family)).map(family=><option key={family} value={`family:${family}`}>{family} — all products</option>)}</optgroup>
                 <optgroup label="Markets / products">{symbols.map(symbol=><option key={symbol}>{symbol}</option>)}</optgroup>
               </select>
               {[[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['All outcomes','win','loss','breakeven']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
-                <select key={i} className="inp" value={val} onChange={e=>setter(e.target.value)}>
+                <select key={i} aria-label={['Direction','Outcome','Trading session'][i]} className="inp" value={val} onChange={e=>setter(e.target.value)}>
                   {opts.map((o,j)=><option key={o} value={j===0?'':o}>{o}</option>)}
                 </select>
               ))}
@@ -1040,11 +794,13 @@ function DashboardInner() {
                 <strong style={{color:'var(--tx)'}}>{filtered.length.toLocaleString()}</strong> trades
               </span>
             </div>
+</>}
+            <div className="mobile-trade-list">{paged.map(t=><div className="mobile-trade-row" key={t.id}><input type="checkbox" aria-label={`Select ${t.symbol} mobile trade ${t.id}`} checked={reviewSelection.has(t.id)} onChange={e=>setReviewSelection(prev=>{const next=new Set(prev);if(e.target.checked&&next.size<200)next.add(t.id);else next.delete(t.id);return next})}/><button className="mobile-trade" onClick={()=>setSelected(t)}><span><strong>{t.symbol}</strong><small>{t.direction} · {t.entry_time?.slice(0,10)||'Unknown date'}</small></span><span><strong className={'private '+(t.pnl>=0?'positive':'negative')}>{['USD','USDC','USDT'].includes(t.currency)?money(t.pnl):`${t.pnl.toLocaleString()} ${t.currency||'unknown currency'}`}</strong><small>{t.data_check?'Source check':durationLabel(t.duration_mins)} · Open ↗</small></span></button></div>)}</div>
             <div className="card" style={{padding:0,overflow:'hidden'}}>
-              <div className="tw trade-tbl-wrap">
-                <table style={{minWidth:1020}}>
+              <div className="tw trade-tbl-wrap ledger-trades">
+                <table style={{minWidth:850}}>
                   <thead><tr><th scope="col">Select</th>
-                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Avg entry'],['exit_price','Avg exit'],['execution_count','Executions'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_strategy','Strategy'],['_r','Result']].map(([k,l])=>(
+                    {[['symbol','Instrument'],['pnl','Reported P&L'],['entry_time','Opened · UTC'],['account_id','Account'],['duration_mins','Duration'],['pct_gain','Price move'],['execution_count','Fills'],['_notes','Review'],...(logDetails?[['exit_time','Closed · UTC'],['entry_price','Avg entry'],['exit_price','Avg exit'],['notional_usd','Estimated notional'],['session','Session'],['_strategy','Strategy']]:[])].map(([k,l])=>(
                       <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
                         {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
                       </th>
@@ -1060,28 +816,16 @@ function DashboardInner() {
                       return (
                         <tr key={t.id||i} className="clk" tabIndex={0} onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelected(t)}}} onClick={()=>setSelected(t)}>
                           <td onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={`Select ${t.symbol} trade ${t.id}`} checked={reviewSelection.has(t.id)} onChange={e=>setReviewSelection(prev=>{const next=new Set(prev);if(e.target.checked&&next.size<200)next.add(t.id);else next.delete(t.id);return next})}/></td>
-                          <td className="mu">{t.entry_time?.slice(0,16).replace('T',' ')}</td>
-                          <td className="mu">{t.exit_time?.slice(0,16).replace('T',' ')}</td>
-                          <td className="mu">{dur}</td>
-                          <td className="sym-c" title={`Saved ticker: ${t.original_symbol || t.symbol} · Family: ${t.underlying || t.symbol}`}>{t.symbol}{t.inverse && <div style={{fontSize:9,color:'var(--wa)',fontWeight:400}}>{t.exposure_direction} BTC exposure</div>}</td>
-                          <td>{acc&&<span style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 6px',borderRadius:4,background:acc.color+'15',border:`1px solid ${acc.color}30`,fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600}}><span style={{width:5,height:5,borderRadius:'50%',background:acc.color}} />{acc.label||acc.id}</span>}</td>
-                          <td><span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:t.direction==='Long'?'#00b5a3':'#ffb300',background:t.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${t.direction==='Long'?'#00b5a3':'#ffb300'}`}}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
-                          <td>{t.entry_price?.toLocaleString()||'—'}</td>
-                          <td>{t.exit_price?.toLocaleString()||'—'}</td>
-                          <td style={{color:'var(--ac)',whiteSpace:'nowrap'}} title={t.execution_count ? 'Open this trade to inspect execution batches and individual fills' : 'Re-upload the original supported CSV to add execution details'}>{t.execution_count ? `${t.execution_count} fills ↗` : '—'}</td>
-                          <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? '$'+Math.round(t.notional_usd).toLocaleString() : '—'}</td>
-                          <td className={`${t.pnl>=0?'pos':'neg'} private`}>{['USD','USDC','USDT'].includes(t.currency)?fU(t.pnl):`${t.pnl.toLocaleString()} ${t.currency || 'currency unknown'}`}</td>
-                          <td className={pct!=null?(pct>=0?'pos':'neg'):''}>{pctStr}</td>
-                          <td><span className={`pill ${SESSION_CLASS[t.session]||'pn'}`}>{t.session}</span></td>
-                          <td style={{textAlign:'center'}}>{hasNotes ? '📝' : <span style={{color:'var(--bd2)'}}>—</span>}</td>
-                          <td onClick={e=>{e.stopPropagation();setStrategyModal(t)}} style={{cursor:'pointer'}}>
-                            {t.strategy_id
-                              ? <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:4,background:'rgba(102,255,165,.1)',border:'1px solid rgba(102,255,165,.3)',color:'#66ffa5',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>
-                                  {strategies.find(s=>s.id===t.strategy_id)?.name?.slice(0,18)||'Tagged'}
-                                </span>
-                              : <span style={{color:'var(--bd2)',fontSize:10}}>—</span>}
-                          </td>
-                          <td><span className={`pill ${t.pnl>=0?'pb':'pr'}`}>{t.pnl>0?'WIN':t.pnl<0?'LOSS':'BREAKEVEN'}</span></td>
+                          <td className="instrument-cell"><strong>{t.symbol}</strong><span>{t.direction}{t.data_check&&<span className="data-check-label" title={t.data_check}> · Source check</span>}</span></td>
+                          <td className={'numeric private '+(t.pnl>=0?'positive':'negative')}>{['USD','USDC','USDT'].includes(t.currency)?money(t.pnl):`${t.pnl.toLocaleString()} ${t.currency || 'unknown currency'}`}</td>
+                          <td className="date-cell">{t.entry_time?.slice(0,10)||'Unknown'}<small>{t.entry_time?.slice(11,16)}</small></td>
+                          <td className="account-cell" title={t.account_id}>{acc?.label||t.broker}<small>{t.broker}</small></td>
+                          <td className="numeric">{durationLabel(t.duration_mins)}</td>
+                          <td className="numeric">{t.data_check?<span title={t.data_check}>Check source</span>:pctStr}</td>
+                          <td className="numeric">{t.execution_count?<span className="fill-link">{t.execution_count} ↗</span>:'—'}</td>
+                          <td><span className={'review-state '+(t.tag_ids?.includes(tags.find(tag=>tag.name==='Reviewed')?.id)?'complete':'')}>{t.tag_ids?.includes(tags.find(tag=>tag.name==='Reviewed')?.id)?'Reviewed':hasNotes?'Draft notes':'To review'}</span></td>
+                          {logDetails&&<><td>{t.exit_time?.slice(0,16).replace('T',' ')||'Unknown'}</td><td className="numeric">{t.entry_price?.toLocaleString()||'—'}</td><td className="numeric">{t.exit_price?.toLocaleString()||'—'}</td><td className="numeric private">{t.notional_usd?money(t.notional_usd,{signed:false}):'—'}</td><td>{t.session}</td><td><button className="text-button" onClick={e=>{e.stopPropagation();if(!preview)setStrategyModal(t)}}>{strategies.find(strategy=>strategy.id===t.strategy_id)?.name || 'Assign strategy'}</button></td></>}
+
                         </tr>
                       )
                     })}
@@ -1112,7 +856,7 @@ function DashboardInner() {
 
       {selected && (
         <TradeModal
-          trade={selected}
+          trade={selected} preview={preview}
           onClose={()=>setSelected(null)}
           trades={filtered}
           onNavigate={t=>setSelected(t)}
@@ -1125,93 +869,8 @@ function DashboardInner() {
 }
 
 export default function Dashboard() {
-  return <ErrorBoundary><DashboardInner /></ErrorBoundary>
+  return <ErrorBoundary><JournalWorkspace /></ErrorBoundary>
 }
-
-function RiskRewardCard({ rr, avgWin, avgLoss }) {
-  const [show, setShow] = useState(false)
-  const fA = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
-  const c  = rr == null ? 'neu' : rr >= 2 ? 'pos' : rr >= 1 ? 'wa' : rr >= 0.5 ? 'wa' : 'neg'
-  return (
-    <div className="kpi" style={{position:'relative'}}>
-      <div style={{display:'flex',alignItems:'center',gap:4}}>
-        <div className="kl">WIN/LOSS RATIO</div>
-        <span
-          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
-          onClick={()=>setShow(s=>!s)}
-          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
-      </div>
-      <div className="kv acc">{rr != null ? rr.toFixed(2)+'×' : '—'}</div>
-      <div className="ks">{avgLoss ? `AvgW ${fA(avgWin)} · AvgL ${fA(avgLoss)}` : '—'}</div>
-      {show && (
-        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:280,pointerEvents:'none'}}>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>WIN/LOSS RATIO</div>
-          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
-            Average winning trade divided by average losing trade. Measures how much you make on winners relative to what you lose on losers.
-          </div>
-          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: Avg Win ÷ Avg Loss</div>
-          <div style={{display:'grid',gap:5,marginBottom:10}}>
-            {[
-              ['Below 0.5×', 'Poor. Losses are more than double your wins — requires a very high win rate to be profitable.', 'var(--ls)'],
-              ['0.5× – 1.0×', 'Marginal. Can still be profitable with a sufficiently high win rate, but edge is thin.', 'var(--wa)'],
-              ['1.0× – 2.0×', 'Good. Winners exceed losers — a sustainable foundation for a trading system.', 'var(--wn)'],
-              ['Above 2.0×',  'Strong. Each win more than doubles each loss — high-quality edge.', 'var(--wn)'],
-            ].map(([range, desc, col]) => (
-              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
-                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:70}}>{range}</span>
-                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{padding:'8px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:10,color:'var(--ac2)',lineHeight:1.6}}>
-            <span style={{fontWeight:700}}>⚠ Do not read in isolation.</span> A 0.7× R/R with a 72% win rate is highly profitable. A 2.0× R/R with a 30% win rate may not be. Always consider R/R alongside win rate and expectancy together.
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CalmarCard({ calmar, maxDrawdown }) {
-  const [show, setShow] = useState(false)
-  const c = calmar == null ? 'neu' : calmar >= 3 ? 'pos' : calmar >= 1 ? 'wa' : 'neg'
-  return (
-    <div className="kpi" style={{position:'relative'}}>
-      <div style={{display:'flex',alignItems:'center',gap:4}}>
-        <div className="kl">CALMAR RATIO</div>
-        <span
-          onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
-          onClick={()=>setShow(s=>!s)}
-          style={{fontSize:9,color:'var(--ac)',cursor:'pointer',lineHeight:1,userSelect:'none',marginBottom:2}}>ⓘ</span>
-      </div>
-      <div className={`kv ${c}`}>{calmar != null ? calmar.toFixed(2)+'×' : '—'}</div>
-      <div className="ks">{calmar != null ? `Max DD $${Math.round(maxDrawdown).toLocaleString()}` : 'Min 20 trades'}</div>
-      {show && (
-        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:200,background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px',boxShadow:'var(--sh-lg)',width:272,pointerEvents:'none'}}>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:8}}>CALMAR RATIO</div>
-          <div style={{fontSize:11,color:'var(--tx2)',lineHeight:1.7,marginBottom:10}}>
-            Annualised P&L divided by maximum drawdown. Measures how much return you generate per dollar of peak-to-trough loss — the higher the better.
-          </div>
-          <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:8}}>Formula: (P&L × 365 / days) ÷ Max Drawdown</div>
-          <div style={{display:'grid',gap:5}}>
-            {[
-              ['Below 1×', 'Return is less than your worst drawdown. Risk is not being rewarded.', 'var(--ls)'],
-              ['1× – 3×',  'Moderate edge. You are earning more than you draw down, but there is room to tighten risk.', 'var(--wa)'],
-              ['Above 3×', 'Exceptional. Annual return significantly exceeds max drawdown — the hallmark of disciplined risk management.', 'var(--wn)'],
-            ].map(([range, desc, col]) => (
-              <div key={range} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
-                <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:col,fontWeight:700,flexShrink:0,minWidth:60}}>{range}</span>
-                <span style={{fontSize:10,color:'var(--mu)',lineHeight:1.5}}>{desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ExpectancyCard({expVal,expC}) {return <div className="kpi" title="Average reported realised P&L per closed trade, including breakeven trades. Describes this sample; not a forecast."><div className="kl">AVG P&amp;L / TRADE</div><div className={`kv ${expC} private`}>{expVal}</div><div className="ks">Total P&amp;L ÷ all closes</div></div>}
 
 const HL_ACCOUNTS = [
   { id:'0xffbB07326634300D7ef131E2B5826Dcb49c0C8E0', label:'Hyperliquid 0xffbB....C8E0' },
@@ -1503,57 +1162,10 @@ function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
 
 // ── DASHBOARD ORDER LIST ──────────────────────────────────────────────────────
 // Drag-to-reorder list for Overview sections in Settings
-function DashboardOrderList({ order, onChange }) {
-  const [dragId, setDragId] = useState(null)
-
-  const SECTION_LABELS = {
-    kpis:     '📊 KPI Cards',
-    equity:   '📈 Equity Curve',
-    risk:     '🛡 Risk Analytics',
-    rolling:  '🔄 Rolling Analytics',
-    accounts: '🏦 Account Breakdown',
-    charts:   '📉 Charts',
-  }
-
-  const handleDrop = (targetId) => {
-    if (!dragId || dragId === targetId) return
-    const next = [...order]
-    const from = next.indexOf(dragId)
-    const to   = next.indexOf(targetId)
-    next.splice(from, 1)
-    next.splice(to, 0, dragId)
-    onChange(next)
-    setDragId(null)
-  }
-
-  return (
-    <div style={{display:'grid',gap:5}}>
-      {order.map((id, i) => (
-        <div key={id}
-          draggable
-          onDragStart={() => setDragId(id)}
-          onDragOver={e => e.preventDefault()}
-          onDrop={() => handleDrop(id)}
-          onDragEnd={() => setDragId(null)}
-          style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',
-            borderRadius:6,border:`1px solid ${dragId===id?'var(--ac)':'var(--bd)'}`,
-            background:dragId===id?'var(--ac-bg)':'var(--sf2)',
-            cursor:'grab',transition:'all .15s',opacity:dragId===id?0.5:1,
-            userSelect:'none'}}>
-          <span style={{color:'var(--bd2)',fontSize:14}}>⠿</span>
-          <span style={{fontSize:11,color:'var(--tx)',fontWeight:500,flex:1}}>{SECTION_LABELS[id] || id}</span>
-          <span style={{fontSize:9,color:'var(--bd2)',fontFamily:'var(--font-mono)',
-            background:'var(--sf)',padding:'1px 6px',borderRadius:3,border:'1px solid var(--bd)'}}>{i+1}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
+function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false, settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
-  const TABS         = ['overview','edge','coach','streaks','calendar','symbols','timing','trades','missed']
-  const TAB_LABELS   = { overview:'Overview', edge:'Edge', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log', missed:'Passed' }
+  const TABS         = ['overview','edge','coach','streaks','calendar','symbols','timing','trades','review','missed']
+  const TAB_LABELS   = { overview:'Overview', edge:'Edge', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log',review:'Review queue', missed:'Passed' }
   const PAGE_SIZES   = [50, 100, 200]
 
   const Row = ({ label, sub, children }) => (
@@ -1592,7 +1204,7 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
           <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
         </div>
         <div style={{padding:'0 24px 24px'}}>
-          <BackupPanel settings={settings} /><ImportHistory />
+          <BackupPanel settings={settings} /><ImportHistory /><details className="account-administration"><summary>Account administration</summary><p>Renaming keeps trades attached. Deletion requires typing the account ID and saves a safety backup.</p>{accounts.map(a=><div key={a.id}><span>{a.label||a.id}<small>{a.broker}</small></span><button className="btn btn-sm" disabled={preview} onClick={()=>onEditAccount(a)}>Rename</button><button className="btn btn-sm btn-d" disabled={preview} onClick={()=>onDeleteAccount(a.id)}>Delete account</button></div>)}<button className="btn btn-d" disabled={preview} onClick={()=>onDeleteAccount(null)}>Delete all accounts and trades…</button></details>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
           <Row label="Dark mode" sub="Default theme on load">
             <Toggle value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />
@@ -1627,18 +1239,6 @@ function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, s
               ]}
               onChange={v => saveSetting('hlTimezone', v)} />
           </Row>
-          <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>DASHBOARD LAYOUT</div>
-          <div style={{padding:'8px 0 4px'}}>
-            <div style={{fontSize:11,color:'var(--mu)',marginBottom:10}}>Drag to reorder Overview sections</div>
-            <DashboardOrderList
-              order={settings.dashboardOrder || ['kpis','equity','risk','rolling','accounts','charts']}
-              onChange={order => saveSetting('dashboardOrder', order)}
-            />
-            <button style={{marginTop:8,fontSize:10,color:'var(--mu)',background:'none',border:'none',cursor:'pointer',padding:'4px 0',fontFamily:'var(--font-mono)'}}
-              onClick={() => saveSetting('dashboardOrder', ['kpis','equity','risk','rolling','accounts','charts'])}>
-              Reset to default order
-            </button>
-          </div>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
           <Row label="Rows per page" sub="Number of trades shown per page">
             <Select value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
