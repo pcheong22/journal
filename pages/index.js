@@ -1311,7 +1311,7 @@ function ExpectancyCard({ expVal, expC }) {
 
 const HL_ACCOUNTS = [
   { id:'0xffbB07326634300D7ef131E2B5826Dcb49c0C8E0', label:'Hyperliquid 0xffbB....C8E0' },
-  { id:'0x2A8F7F1682B629b16f5309182DA8920dAF72D0F9', label:'Hyperliquid 0x2A8F....D0F9' },
+  { id:'0x68e68A0355f80145Fb745A1419002db7ba7f7d8e', label:'Hyperliquid 0x68e6....7d8e' },
   { id:'0x950793403DFaA533c7ef84E81272bf94f5b46466', label:'Hyperliquid 0x9507....6466' },
 ]
 

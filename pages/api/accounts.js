@@ -24,6 +24,23 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true })
   }
 
+  // Register a Hyperliquid wallet before its first trade-history upload.
+  if (req.method === 'POST') {
+    const { id } = req.body || {}
+    if (typeof id !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(id)) {
+      return res.status(400).json({ error: 'A valid Hyperliquid wallet address is required' })
+    }
+    const { error } = await supabase.from('accounts').upsert({
+      id,
+      broker: 'Hyperliquid',
+      label: `Hyperliquid ${id.slice(0, 6)}....${id.slice(-4)}`,
+      currency: 'USDC',
+      color: '#97FCE4',
+    }, { onConflict: 'id', ignoreDuplicates: true })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ success: true })
+  }
+
   if (req.method === 'DELETE') {
     const { id } = req.query
     if (!id) return res.status(400).json({ error: 'Account ID required' })
