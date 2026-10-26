@@ -7,7 +7,7 @@ import { simulatePnLPath } from '../lib/tradeUtils'
 import { PnlPathChart } from './Charts'
 import ImageGallery from './ImageGallery'
 
-const fU   = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
+const usdFormat = (n,d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fPct = (n,d=3) => (n>=0?'+':'')+n.toFixed(d)+'%'
 const SESSION_CLASS = { Asia:'pill-asia', London:'p-lon', 'London/NY Overlap':'p-ov', 'New York':'p-ny' }
 
@@ -86,6 +86,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
 
   if (!trade) return null
 
+  const fU=(n,d=0)=>['USD','USDC','USDT'].includes(trade.currency)?usdFormat(n,d):`${Number(n).toFixed(d)} ${trade.currency || 'currency unknown'}`
   const pnlPos = trade.pnl >= 0
   const pnlC   = pnlPos ? 'var(--wn)' : 'var(--ls)'
   const tvSym  = trade.tv_symbol || trade.symbol
@@ -112,7 +113,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     if (trade.notional_method === 'backsolve') {
       return `Back-solved from price move\nEntry ${trade.entry_price?.toLocaleString()} → Exit ${trade.exit_price?.toLocaleString()}\nMove: ${move>=0?'+':''}${move.toFixed(3)}% · $${Math.abs(Math.round(trade.pnl)).toLocaleString()} ÷ ${Math.abs(move).toFixed(3)}% = ${not}`
     } else if (trade.notional_method === 'price_x_size') {
-      return `Calculated as price × size\nExit ${trade.exit_price?.toLocaleString()} × ${trade.size?.toLocaleString()} contracts = ${not}`
+      return `Calculated as price × size\nEntry ${trade.entry_price?.toLocaleString()} × ${trade.size?.toLocaleString()} contracts = ${not}`
     }
     return null
   })()
@@ -247,7 +248,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
           {/* Trade stat grid — always visible */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8,marginBottom:16}}>
             {[
-              ['P&L',       fU(trade.pnl),                    pnlC,             'Net realised',     true],
+              ['P&L',       fU(trade.pnl),                    pnlC,             'Reported realised',     true],
               ['% RETURN',  pct,                               pnlPos?'var(--wn)':'var(--ls)','P&L / Notional', false],
               ['AVG ENTRY', trade.entry_price?.toLocaleString()||'—','var(--tx)','Saved average price', false],
               ['AVG EXIT',  trade.exit_price?.toLocaleString()||'—', 'var(--tx)','Saved average price', false],
@@ -346,12 +347,12 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 ].map(([label,val,setter,key])=>(
                   <div key={label}>
                     <div className="notes-label">{label}</div>
-                    <textarea disabled={saving} className="notes-field" rows={2} placeholder="Type your notes…" value={val} onChange={e=>{ setter(e.target.value); remember({[key]:e.target.value}) }} />
+                    <textarea disabled={saving} className="notes-field" maxLength={20000} rows={2} placeholder="Type your notes…" value={val} onChange={e=>{ setter(e.target.value); remember({[key]:e.target.value}) }} />
                   </div>
                 ))}
                 <div>
                   <div className="notes-label">Free-form notes (anything else)</div>
-                  <textarea disabled={saving} className="notes-field" rows={3} placeholder="Additional observations, market context, screenshots description…" value={noteFree} onChange={e=>{ setNoteFree(e.target.value); remember({notes:e.target.value}) }} />
+                  <textarea disabled={saving} className="notes-field" maxLength={20000} rows={3} placeholder="Additional observations, market context, screenshots description…" value={noteFree} onChange={e=>{ setNoteFree(e.target.value); remember({notes:e.target.value}) }} />
                 </div>
               </div>
               <button className="btn btn-p" onClick={()=>handleSave('notes')} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>

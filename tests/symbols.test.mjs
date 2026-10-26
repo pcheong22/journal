@@ -56,3 +56,5 @@ test('unknown currency amounts are not silently summed as dollars',()=>{
  const [group]=symbolReport([{symbol:'BTC/USD',pnl:1,currency:'BTC',direction:'Long'},{symbol:'IBIT',pnl:10,currency:'USD',direction:'Long'}])
  assert.equal(group.total_pnl,null);assert.equal(group.comparable,false)
 })
+
+test('historical back-solved short notional uses entry-denominated returns without mutating source rows',()=>{const trade={symbol:'BTC',direction:'Short',pnl:10,entry_price:100,exit_price:90,notional_method:'backsolve',notional_usd:90};const view=reportingTrade(trade);assert.equal(view.notional_usd,100);assert.equal(trade.notional_usd,90);assert.deepEqual(reportingTrade(view),view)})

@@ -691,9 +691,7 @@ function DashboardInner() {
               const n = t.notional_usd
               if (!n) return s
               if (t.entry_price && t.exit_price && t.exit_price > 0) {
-                const ratio = t.direction === 'Short'
-                  ? t.exit_price / t.entry_price
-                  : t.entry_price / t.exit_price
+                const ratio = t.exit_price / t.entry_price
                 return s + n + (n * ratio)
               }
               return s + n * 2
@@ -1072,7 +1070,7 @@ function DashboardInner() {
                           <td>{t.exit_price?.toLocaleString()||'—'}</td>
                           <td style={{color:'var(--ac)',whiteSpace:'nowrap'}} title={t.execution_count ? 'Open this trade to inspect execution batches and individual fills' : 'Re-upload the original supported CSV to add execution details'}>{t.execution_count ? `${t.execution_count} fills ↗` : '—'}</td>
                           <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? '$'+Math.round(t.notional_usd).toLocaleString() : '—'}</td>
-                          <td className={`${t.pnl>=0?'pos':'neg'} private`}>{fU(t.pnl)}</td>
+                          <td className={`${t.pnl>=0?'pos':'neg'} private`}>{['USD','USDC','USDT'].includes(t.currency)?fU(t.pnl):`${t.pnl.toLocaleString()} ${t.currency || 'currency unknown'}`}</td>
                           <td className={pct!=null?(pct>=0?'pos':'neg'):''}>{pctStr}</td>
                           <td><span className={`pill ${SESSION_CLASS[t.session]||'pn'}`}>{t.session}</span></td>
                           <td style={{textAlign:'center'}}>{hasNotes ? '📝' : <span style={{color:'var(--bd2)'}}>—</span>}</td>
