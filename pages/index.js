@@ -1,3 +1,4 @@
+import CoachReportHeader from '../components/CoachReportHeader'
 import JournalLoading from '../components/JournalLoading'
 import {useDialogFocus} from '../lib/useDialogFocus'
 import JournalShell from '../components/JournalShell'
@@ -1895,8 +1896,7 @@ ${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Fo
   return (
     <div className="anim coach-workspace"><div className="page-heading"><div><span className="eyebrow">Review</span><h1>Trading coach</h1><p>Reflect on a period, then choose one thing to improve.</p></div></div>
       <div className="card" style={{marginBottom:14}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
-          <div style={{flex:1}}>
+        <CoachReportHeader report={report}>
             <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>Period review</div>
             <div style={{fontSize:15,fontWeight:700,marginBottom:2}}>Performance Analysis · {tradeCount?.toLocaleString()||0} Trades</div>
             <div style={{fontSize:11,color:'var(--ac)',fontFamily:'var(--font-mono)',fontWeight:600,marginBottom:8}}>Period: {periodLabel}</div>
@@ -1913,16 +1913,8 @@ ${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Fo
             </div>
             {lastRun&&!loading&&<div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginTop:8}}>Generated: {lastRun} · via {providerLabel} · period: {periodLabel}</div>}
             {!stats&&<div style={{fontSize:11,color:'var(--mu)',marginTop:8}}>Upload trades first to enable AI analysis.</div>}
-          </div>
-          {report&&(
-            <div style={{textAlign:'center',padding:'12px 24px',borderLeft:'1px solid var(--bd)',flexShrink:0}}>
-              <div style={{fontFamily:'var(--font-mono)',fontSize:52,fontWeight:700,color:'var(--ac)',lineHeight:1}}>{report.score??'—'}</div>
-              <div style={{fontSize:10,fontWeight:600,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',marginTop:2}}>CONSISTENCY</div>
-              {report.archetype&&<div style={{marginTop:10,padding:'4px 10px',background:'var(--ac-bg)',border:'1px solid var(--ac-bd)',borderRadius:5,fontSize:11,color:'var(--ac2)',fontWeight:600}}>{report.archetype}</div>}
-              {report.score_rationale&&<div style={{fontSize:10,color:'var(--mu)',marginTop:6,maxWidth:140,lineHeight:1.4}}>{report.score_rationale}</div>}
-            </div>
-          )}
-        </div>
+
+        </CoachReportHeader>
         {report?.core_edge&&(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:14,paddingTop:14,borderTop:'1px solid var(--bd)'}} className="g2">
             <div style={{background:'var(--wn-bg)',border:'1px solid var(--wn-bd)',borderRadius:7,padding:'10px 14px'}}>
