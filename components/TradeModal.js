@@ -1,3 +1,4 @@
+import MarketChart from './MarketChart'
 import {durationLabel,money as amountLabel} from '../lib/presentation'
 import {draftKey,readNoteDraft,writeNoteDraft,NOTE_TEMPLATES} from '../lib/noteDraft'
 import { journalFetch } from '../lib/request'
@@ -20,7 +21,6 @@ const CAT_COLORS = {
 export default function TradeModal({ trade, onClose, trades, onNavigate, tags = [], onSaved,preview=false }) {
   const panelRef=useRef(null)
   useEffect(()=>{const panel=panelRef.current;if(!panel)return;const previous=document.activeElement,overflow=document.body.style.overflow;document.body.style.overflow='hidden';panel.querySelector('[aria-label="Close trade"]')?.focus();const trap=e=>{if(e.key!=='Tab')return;const items=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),summary')].filter(el=>el.getClientRects().length);if(!items.length)return;const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}};panel.addEventListener('keydown',trap);return()=>{document.body.style.overflow=overflow;panel.removeEventListener('keydown',trap);previous?.focus?.()}},[])
-  const [tf,          setTf]          = useState('1')
   const [sim,         setSim]         = useState(null)
   const [activeSection, setSection]   = useState(trade?.execution_count ? 'executions' : 'summary')
 
@@ -92,9 +92,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const fU=(n,d=0)=>['USD','USDC','USDT'].includes(trade.currency)?usdFormat(n,d):`${Number(n).toFixed(d)} ${trade.currency || 'currency unknown'}`
   const pnlPos = trade.pnl >= 0
   const pnlC   = pnlPos ? 'var(--wn)' : 'var(--ls)'
-  const tvSym  = trade.tv_symbol || trade.symbol
-  const tvUrl  = `https://www.tradingview.com/widgetembed/?frameElementId=tv&symbol=${encodeURIComponent(tvSym)}&interval=${tf}&theme=light&style=1&timezone=UTC&withdateranges=1&allow_symbol_change=1&toolbarbg=f8f9fa&hidesidetoolbar=0`
-  const tvFull = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSym)}&interval=${tf}`
+
 
   const priceMove = trade.exit_price && trade.entry_price ? trade.exit_price - trade.entry_price : null
   const pts       = priceMove != null ? (trade.direction==='Long' ? priceMove : -priceMove) : null
@@ -256,28 +254,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
           {activeSection==='summary'&&<section className="trade-summary"><h2>Review the position</h2><p>The reported outcome is shown above. Inspect the recorded fills, then capture the reasoning behind your decisions.</p><div className="summary-actions"><button className="btn btn-p" onClick={()=>setSection('notes')}>Write a review</button><button className="btn" onClick={()=>setSection('executions')}>Inspect executions</button></div>{trade.notes&&<blockquote>{trade.notes}</blockquote>}</section>}
           {activeSection==='executions' && (preview?<div className="sample-executions"><h2>Execution breakdown</h2><p>Representative sample · entries, additions and reductions</p><table><thead><tr><th>Action</th><th>Quantity</th><th>Price</th></tr></thead><tbody>{[['Entry','2',trade.entry_price],['Add','3',trade.entry_price],['Close','5',trade.exit_price]].map(([action,q,p])=><tr key={action}><td>{action}</td><td>{q}</td><td>{p.toLocaleString()}</td></tr>)}</tbody></table></div>:<ExecutionPanel trade={trade}/>)}
           {/* ── CHART SECTION ─────────────────────────────────────────── */}
-          {activeSection==='chart' && (
-            <div>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:6}}>
-                <div className="ct" style={{marginBottom:0}}><span className="ind" />TRADINGVIEW CHART</div>
-                <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
-                  <span style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>TF:</span>
-                  {[['1','1m'],['5','5m'],['15','15m'],['60','1H'],['D','1D']].map(([v,l])=>(
-                    <button key={v} onClick={()=>setTf(v)}
-                      style={{padding:'3px 9px',borderRadius:5,border:'1px solid',fontSize:11,fontFamily:'var(--font-mono)',cursor:'pointer',transition:'all .15s',
-                        background:tf===v?'var(--ac)':'var(--sf)',borderColor:tf===v?'var(--ac)':'var(--bd)',color:tf===v?'#fff':'var(--tx2)',fontWeight:tf===v?600:400}}>
-                      {l}
-                    </button>
-                  ))}
-                  <a href={tvFull} target="_blank" rel="noreferrer" style={{fontSize:11,color:'var(--ac)',textDecoration:'none',fontFamily:'var(--font-mono)',marginLeft:4}}>Open full ↗</a>
-                </div>
-              </div>
-              <div style={{borderRadius:8,overflow:'hidden',border:'1px solid var(--bd)',boxShadow:'var(--sh-sm)'}}>
-                <iframe title="TradingView market chart" key={`${tvSym}-${tf}`} src={preview?'about:blank':tvUrl} style={{width:'100%',height:400,border:'none',display:'block'}} allowTransparency scrolling="no" frameBorder="0" />
-              </div>
-              <div style={{marginTop:6,fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',textAlign:'center'}}>Market chart unavailable here? Use “Open full” to view the symbol on TradingView.</div>
-            </div>
-          )}
+          <MarketChart key={trade.id} trade={trade} active={activeSection==='chart'} preview={preview}/>
 
           {/* ── P&L PATH SECTION ──────────────────────────────────────── */}
           {activeSection==='pnl' && <div style={{padding:24,lineHeight:1.7}}><h3>Intratrade price history unavailable</h3><p>Your exports include executions and realised P&amp;L, but no continuous market-price history. MAE, MFE, capture rate and entry/exit quality cannot be measured from these files.</p><p>Open Execution details to inspect the recorded fills and average cost where available.</p></div>}
