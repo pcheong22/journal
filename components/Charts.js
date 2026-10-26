@@ -778,7 +778,10 @@ function StreaksView({ trades, stats, privacy }) {
   )
 
   const ov      = stats.overview
-  const sorted  = [...trades].sort((a,b) => a.entry_time.localeCompare(b.entry_time))
+  // Match computeStats: outcomes become realised at exit, and some exports
+  // have no entry timestamp. Missing dates must never crash this view.
+  const sorted  = [...trades].sort((a,b) =>
+    (a.exit_time || a.entry_time || '').localeCompare(b.exit_time || b.entry_time || ''))
 
   const segments = []
   let cur = null
@@ -786,7 +789,7 @@ function StreaksView({ trades, stats, privacy }) {
     const type = t.pnl >= 0 ? 'W' : 'L'
     if (!cur || cur.type !== type) {
       if (cur) segments.push(cur)
-      cur = { type, count:1, pnl:t.pnl, trades:[t], start:t.entry_time }
+      cur = { type, count:1, pnl:t.pnl, trades:[t], start:t.exit_time || t.entry_time }
     } else {
       cur.count++; cur.pnl += t.pnl; cur.trades.push(t)
     }
@@ -822,7 +825,7 @@ function StreaksView({ trades, stats, privacy }) {
           {sorted.slice(-120).map((t,i) => {
             const isW = t.pnl >= 0
             return (
-              <div key={i} title={`${t.symbol} ${isW?'+':''} ${privacy?'***':fU(t.pnl)} · ${t.entry_time?.slice(0,10)}`}
+              <div key={i} title={`${t.symbol} ${isW?'+':''} ${privacy?'***':fU(t.pnl)} · ${(t.exit_time || t.entry_time)?.slice(0,10) || 'Unknown date'}`}
                 style={{width:14,height:14,borderRadius:3,background:isW?'var(--wn)':'var(--ls)',opacity:.85,cursor:'default',flexShrink:0,transition:'transform .1s'}}
                 onMouseEnter={e=>e.target.style.transform='scale(1.3)'}
                 onMouseLeave={e=>e.target.style.transform='scale(1)'} />
@@ -866,7 +869,7 @@ function StreaksView({ trades, stats, privacy }) {
                   <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:13,fontWeight:700,color:'var(--wn)'}}>{s.count}×</td>
                   <td className="private" style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:11,color:'var(--wn)'}}>{privacy?'***':fU(Math.round(s.pnl))}</td>
                   <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:10,color:'var(--mu)'}}>{s.start?.slice(0,10)}</td>
-                  <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:10,color:'var(--mu)'}}>{s.trades[s.trades.length-1]?.entry_time?.slice(0,10)}</td>
+                  <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:10,color:'var(--mu)'}}>{(s.trades[s.trades.length-1]?.exit_time || s.trades[s.trades.length-1]?.entry_time)?.slice(0,10)}</td>
                 </tr>
               ))}
             </tbody>
@@ -884,7 +887,7 @@ function StreaksView({ trades, stats, privacy }) {
                   <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:13,fontWeight:700,color:'var(--ls)'}}>{s.count}×</td>
                   <td className="private" style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:11,color:'var(--ls)'}}>{privacy?'***':fU(Math.round(s.pnl))}</td>
                   <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:10,color:'var(--mu)'}}>{s.start?.slice(0,10)}</td>
-                  <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:10,color:'var(--mu)'}}>{s.trades[s.trades.length-1]?.entry_time?.slice(0,10)}</td>
+                  <td style={{padding:'6px 8px',borderBottom:'1px solid var(--bd)',fontSize:10,color:'var(--mu)'}}>{(s.trades[s.trades.length-1]?.exit_time || s.trades[s.trades.length-1]?.entry_time)?.slice(0,10)}</td>
                 </tr>
               ))}
             </tbody>
