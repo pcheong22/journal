@@ -1010,7 +1010,7 @@ function DashboardInner() {
                           <td className={`${d.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(d.total_pnl))}</td>
                           <td className={d.win_rate>=.65?'pos':d.win_rate<.55?'neg':'wa'}>{(d.win_rate*100).toFixed(1)}%</td>
                           <td className={`${d.avg_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(d.avg_pnl))}</td>
-                          <td><span className={`pill ${d.win_rate>=.65?'pb':d.win_rate<.55?'pr':'pw'}`}>{d.win_rate>=.65?'▲ TRADE FULL':d.win_rate<.55?'▼ AVOID':'→ HALF SIZE'}</span></td>
+                          <td><span className={`pill ${d.win_rate>=.65?'pb':d.win_rate<.55?'pr':'pw'}`}>{d.win_rate>=.65?'Higher historical WR':d.win_rate<.55?'Lower historical WR':'Middle historical WR'}</span></td>
                         </tr>
                       ))}
                     </tbody>
