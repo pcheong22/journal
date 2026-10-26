@@ -6,7 +6,8 @@ const {canonicalSymbol,symbolIdentity,reportingTrade,symbolReport}=await import(
 
 test('oil aliases, case, quote suffixes and dated contracts share CRUDE',()=>{
  for(const alias of ['CRUDE','crude/usd','CRUDE/USDT','WTI/USD','WTI-USDC','CL','CLJ6','CLZ2026','CL1!','USOIL'])assert.equal(canonicalSymbol(alias),'CRUDE',alias)
- assert.equal(canonicalSymbol('BRENT'),'BRENT/USD')
+ assert.equal(canonicalSymbol('BRENT'),'BRENT')
+ assert.equal(canonicalSymbol('AAPL'),'AAPL')
  assert.equal(canonicalSymbol('USO'),'USO')
 })
 
