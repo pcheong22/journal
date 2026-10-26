@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     if (entry_price && exit_price && entry_price > 0 && position_size_usd) {
       const pct = direction === 'Long'
         ? (exit_price / entry_price - 1)
-        : (entry_price / exit_price - 1)
+        : ((entry_price-exit_price)/entry_price)
       hypothetical_pct     = pct * 100
       hypothetical_pnl_usd = pct * position_size_usd
     }

@@ -50,7 +50,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   // Load saved values when trade changes
   useEffect(() => {
     if (!trade) return
-    setSim(simulatePnLPath(trade))
+    setSim(null)
     setNoteEntry(trade.note_entry_reason    || '')
     setNoteMgmt(trade.note_management       || '')
     setNoteLessons(trade.note_lessons       || '')
@@ -88,7 +88,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const pctVal = (trade.entry_price && trade.exit_price && trade.entry_price > 0)
     ? (trade.direction === 'Long'
         ? (trade.exit_price / trade.entry_price - 1) * 100
-        : (trade.entry_price / trade.exit_price - 1) * 100)
+        : ((trade.entry_price - trade.exit_price) / trade.entry_price) * 100)
     : trade.pct_gain
   const pct = pctVal != null ? fPct(pctVal) : '—'
   const dur       = trade.duration_mins ? (trade.duration_mins/60).toFixed(1)+'h' : '—'
@@ -99,7 +99,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     if (!trade.notional_usd || !trade.entry_price || !trade.exit_price) return null
     const move = trade.direction === 'Long'
       ? (trade.exit_price / trade.entry_price - 1) * 100
-      : (trade.entry_price / trade.exit_price - 1) * 100
+      : ((trade.entry_price - trade.exit_price) / trade.entry_price) * 100
     if (trade.notional_method === 'backsolve') {
       return `Back-solved from price move\nEntry ${trade.entry_price?.toLocaleString()} → Exit ${trade.exit_price?.toLocaleString()}\nMove: ${move>=0?'+':''}${move.toFixed(3)}% · $${Math.abs(Math.round(trade.pnl)).toLocaleString()} ÷ ${Math.abs(move).toFixed(3)}% = ${not}`
     } else if (trade.notional_method === 'price_x_size') {
@@ -301,49 +301,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
           )}
 
           {/* ── P&L PATH SECTION ──────────────────────────────────────── */}
-          {activeSection==='pnl' && sim && (
-            <div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}}>
-                {[
-                  ['MAE',     fU(Math.round(sim.mae)),  sim.mae<0?'var(--ls)':'var(--wn)', 'Max adverse'],
-                  ['MFE',     fU(Math.round(sim.mfe)),  'var(--wn)',                        'Max favorable'],
-                  ['ACTUAL',  fU(Math.round(trade.pnl)),pnlC,                              'Exit result'],
-                  ['CAPTURE', capture!=null?capture.toFixed(1)+'%':'N/A', qC(capture??50),'% of MFE'],
-                ].map(([l,v,c,s])=>(
-                  <div key={l} style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:7,padding:'10px 12px',textAlign:'center'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:3}}>{l}</div>
-                    <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:15,fontWeight:700,color:c}}>{v}</div>
-                    <div style={{fontSize:9,color:'var(--mu)',marginTop:2}}>{s}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:12,boxShadow:'var(--sh-sm)'}}>
-                <PnlPathChart sim={sim} trade={trade} />
-                <div style={{marginTop:6,fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',textAlign:'center',lineHeight:1.5}}>
-                  ⚠ P&L path is simulated using a random walk — real intrabar tick data is not available. MAE/MFE are estimates only.
-                </div>
-              </div>
-              {/* Quality bars */}
-              <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:12}}>
-                <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:12}}>ENTRY & EXIT QUALITY</div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-                  {[['Entry Quality',entryQ],['Exit Quality',exitQ]].map(([label,score])=>{
-                    const c=qC(score)
-                    return (
-                      <div key={label}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                          <span style={{fontSize:11,color:'var(--tx2)',fontWeight:500}}>{label}</span>
-                          <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:c,background:'var(--sf3)',padding:'2px 8px',borderRadius:4}}>{score.toFixed(0)}%</span>
-                        </div>
-                        <div className="qt"><div className="qf" style={{width:score+'%',background:c}} /><div className="qk" style={{left:score+'%',background:c}} /></div>
-                        <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',marginTop:4}}><span>POOR</span><span>OPTIMAL</span></div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+          {activeSection==='pnl' && <div style={{padding:24,lineHeight:1.7}}><h3>Intratrade price history unavailable</h3><p>Your exports include executions and realised P&amp;L, but no continuous market-price history. MAE, MFE, capture rate and entry/exit quality cannot be measured from these files.</p><p>Open Execution details to inspect the recorded fills and average cost where available.</p></div>}
 
           {/* ── NOTES SECTION ─────────────────────────────────────────── */}
           {activeSection==='notes' && (
