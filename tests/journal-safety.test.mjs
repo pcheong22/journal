@@ -26,7 +26,7 @@ vm.runInNewContext(code,{exports,console,document:{addEventListener(){},removeEv
 }})
 const TradeModal=exports.default
 const trade={id:1,account_id:'A',position_id:'P',symbol:'BTC',direction:'Long',pnl:10,entry_price:100,exit_price:110,stop_loss:90,size:1,currency:'USD',duration_mins:60,tag_ids:[7],journal_revision:3,notes:'Original'}
-const tags=[{id:7,name:'Patient',category:'Psychology',color:'#123456'}]
+const tags=[{id:7,name:'Patient',category:'Psychology',color:'#123456'},{id:9,name:'Reviewed',category:'Journal',color:'#059669'}]
 const text=node=>typeof node==='string'?node:Array.isArray(node)?node.map(text).join(''):node?.children?node.children.map(text).join(''):''
 const button=(root,term)=>root.findAllByType('button').find(node=>text(node).toLowerCase().includes(term.toLowerCase()))
 
@@ -34,6 +34,8 @@ test('notes patch distinguishes untouched tags, clear tags and invalid stops',()
  assert.equal(notes.noteRequest({tradeId:1,expectedRevision:0,notes:'x'}).p_tag_ids,null)
  assert.deepEqual(notes.noteRequest({tradeId:1,expectedRevision:0,tagIds:[]}).p_tag_ids,[])
  assert.deepEqual(notes.noteRequest({tradeId:1,expectedRevision:0,tagIds:[7,7]}).p_tag_ids,[7])
+ const combined=notes.noteRequest({tradeId:1,expectedRevision:0,note_lessons:'Wait for confirmation.',tagIds:[7,9]})
+ assert.equal(combined.p_patch.note_lessons,'Wait for confirmation.');assert.deepEqual(combined.p_tag_ids,[7,9])
  for(const bad of [0,-1,Infinity,'10'])assert.throws(()=>notes.noteRequest({tradeId:1,expectedRevision:0,stop_loss:bad}))
  assert.throws(()=>notes.noteRequest({tradeId:1,notes:'x'}),/Reload/)
  assert.equal(notes.noteRequest({tradeId:1,expectedRevision:0,stop_loss:null}).p_patch.stop_loss,null)
@@ -52,7 +54,7 @@ test('opening a tagged trade and saving notes preserves tags; clearing tags is e
  let view
  try{
   await act(async()=>{view=Renderer.create(React.createElement(TradeModal,{trade,trades:[trade],tags,onClose(){},onNavigate(){},onSaved:t=>{saved=t}}))})
-  await act(async()=>button(view.root,'Notes').props.onClick())
+  await act(async()=>button(view.root,'Review').props.onClick())
   const field=view.root.findAllByType('textarea').find(node=>node.props.value==='Original')
   await act(async()=>field.props.onChange({target:{value:'Updated note'}}))
   await act(async()=>button(view.root,'Save Notes').props.onClick())
@@ -68,7 +70,7 @@ test('failed notes saves retain the draft and never show Saved',async()=>{
  global.fetch=async()=>new Response(JSON.stringify({error:'Database unavailable; retry'}),{status:503})
  try{
   await act(async()=>{view=Renderer.create(React.createElement(TradeModal,{trade,trades:[trade],tags,onClose(){},onNavigate(){},onSaved:()=>{saved=true}}))})
-  await act(async()=>button(view.root,'Notes').props.onClick())
+  await act(async()=>button(view.root,'Review').props.onClick())
   const field=view.root.findAllByType('textarea').find(node=>node.props.value==='Original')
   await act(async()=>field.props.onChange({target:{value:'Do not lose me'}}))
   await act(async()=>button(view.root,'Save Notes').props.onClick())
@@ -95,12 +97,29 @@ test('aborted navigation requests remain AbortError rather than false network fa
 test('same-trade refreshes do not replace an unsaved notes draft',async()=>{
  let view
  await act(async()=>{view=Renderer.create(React.createElement(TradeModal,{trade,trades:[trade],tags,onClose(){},onNavigate(){}}))})
- await act(async()=>button(view.root,'Notes').props.onClick())
+ await act(async()=>button(view.root,'Review').props.onClick())
  const field=view.root.findAllByType('textarea').find(node=>node.props.value==='Original')
  await act(async()=>field.props.onChange({target:{value:'Still editing'}}))
  await act(async()=>view.update(React.createElement(TradeModal,{trade:{...trade,notes:'Another window edit',journal_revision:4},trades:[trade],tags,onClose(){},onNavigate(){}})))
  assert.ok(view.root.findAllByType('textarea').some(node=>node.props.value==='Still editing'))
  view.unmount()
+})
+
+test('one-action review saves the lesson and Reviewed tag together, preserves tags, then advances',async()=>{
+ const previous=global.fetch;let payload,navigated,saved,view
+ const next={...trade,id:2,tag_ids:[],journal_revision:0,notes:''}
+ global.fetch=async(url,init)=>{payload=JSON.parse(init.body);return new Response(JSON.stringify({success:true,trade:{...trade,note_lessons:payload.note_lessons,journal_revision:4,tag_ids:payload.tagIds}}))}
+ try{
+  await act(async()=>{view=Renderer.create(React.createElement(TradeModal,{trade,trades:[trade,next],tags,onClose(){},onNavigate:t=>{navigated=t},onSaved:t=>{saved=t}}))})
+  await act(async()=>button(view.root,'Review').props.onClick())
+  const lesson=view.root.findAllByType('textarea').find(node=>node.props['aria-label']==='One lesson for next time')
+  await act(async()=>lesson.props.onChange({target:{value:'Wait for the retest before adding.'}}))
+  await act(async()=>button(view.root,'Save, mark reviewed & next').props.onClick())
+  assert.equal(payload.note_lessons,'Wait for the retest before adding.')
+  assert.deepEqual(payload.tagIds,[7,9])
+  assert.equal(saved.note_lessons,'Wait for the retest before adding.')
+  assert.equal(navigated.id,2)
+ }finally{view?.unmount();global.fetch=previous}
 })
 
 function backupService() {
