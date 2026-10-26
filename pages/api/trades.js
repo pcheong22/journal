@@ -1,15 +1,17 @@
+import { requireOwner } from '../../lib/serverAuth'
 import { createClient } from '@supabase/supabase-js'
 import { executionIndex } from '../../lib/executionStore'
 import { reportingTrade } from '../../lib/symbols'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 const executionStorage = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 export default async function handler(req, res) {
+  if (!await requireOwner(req, res)) return
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
   try {

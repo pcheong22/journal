@@ -1,3 +1,5 @@
+import { multipart, inspectSpreadsheet, uploadError } from '../../lib/uploadSafety'
+import { requireOwner } from '../../lib/serverAuth'
 // pages/api/upload.js
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
@@ -13,7 +15,10 @@ import { ensureExecutionStore, saveExecutionRecords } from '../../lib/executionS
 function parseCSV(text) {
   const rows = []
   let row = [], field = '', inQuotes = false
+  const pushField = () => { if (field.length > 65536) throw uploadError('A CSV field exceeds 64 KB.', 413); if (row.length >= 300) throw uploadError('Trade export exceeds 300 columns.', 413); row.push(field.trim()); field = '' }
+  const pushRow = () => { if (rows.length >= 100001) throw uploadError('Trade export exceeds 100,000 data rows.', 413); rows.push(row); row = [] }
   for (let i = 0; i < text.length; i++) {
+    if (field.length > 65536) throw uploadError('A CSV field exceeds 64 KB.', 413)
     const ch = text[i], next = text[i+1]
     if (inQuotes) {
       if (ch === '"' && next === '"') { field += '"'; i++ }
@@ -21,13 +26,14 @@ function parseCSV(text) {
       else                            { field += ch }
     } else {
       if      (ch === '"')  { inQuotes = true }
-      else if (ch === ',')  { row.push(field.trim()); field = '' }
-      else if (ch === '\r' && next === '\n') { row.push(field.trim()); rows.push(row); row = []; field = ''; i++ }
-      else if (ch === '\n') { row.push(field.trim()); rows.push(row); row = []; field = '' }
+      else if (ch === ',')  { pushField() }
+      else if (ch === '\r' && next === '\n') { pushField(); pushRow(); i++ }
+      else if (ch === '\n') { pushField(); pushRow() }
       else                  { field += ch }
     }
   }
-  if (field || row.length) { row.push(field.trim()); rows.push(row) }
+  if (inQuotes) throw uploadError('The CSV has an unterminated quoted field.')
+  if (field || row.length) { pushField(); pushRow() }
   return rows.filter(r => r.some(c => c !== ''))
 }
 
@@ -37,7 +43,7 @@ export const config = { api: { bodyParser: false, responseLimit: '20mb' } }
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
 const BROKER_COLORS  = ['#1a56db','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#be185d','#16a34a']
@@ -61,44 +67,18 @@ const ACCOUNT_CURRENCY_COLORS = {
 }
 
 export default async function handler(req, res) {
+  if (!await requireOwner(req, res)) return
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    // Read raw multipart body
-    const chunks = []
-    for await (const chunk of req) chunks.push(chunk)
-    const buffer = Buffer.concat(chunks)
-
-    const contentType   = req.headers['content-type'] || ''
-    const boundaryMatch = contentType.match(/boundary=(.+)$/)
-    if (!boundaryMatch) return res.status(400).json({ error: 'No boundary in content-type' })
-
-    // Simple multipart parser
-    const boundary    = '--' + boundaryMatch[1]
-    const parts       = buffer.toString('binary').split(boundary)
-    let fileBuffer    = null
-    let filename      = 'upload.csv'
-    let formAccountId = null
-    let formTimezone  = 'Asia/Dubai'
-
-    for (const part of parts) {
-      if (part.includes('filename=')) {
-        const fnMatch = part.match(/filename="([^"]+)"/)
-        if (fnMatch) filename = fnMatch[1]
-        const headerEnd = part.indexOf('\r\n\r\n')
-        if (headerEnd >= 0) {
-          const body = part.slice(headerEnd + 4, part.lastIndexOf('\r\n'))
-          fileBuffer = Buffer.from(body, 'binary')
-        }
-      } else if (part.includes('name="accountId"')) {
-        const headerEnd = part.indexOf('\r\n\r\n')
-        if (headerEnd >= 0) formAccountId = part.slice(headerEnd + 4, part.lastIndexOf('\r\n')).trim()
-      } else if (part.includes('name="timezone"')) {
-        const headerEnd = part.indexOf('\r\n\r\n')
-        if (headerEnd >= 0) formTimezone = part.slice(headerEnd + 4, part.lastIndexOf('\r\n')).trim() || 'Asia/Dubai'
-      }
-    }
-    if (!fileBuffer) return res.status(400).json({ error: 'No file found in request' })
+    const form = await multipart(req, 20 * 1024 * 1024)
+    const fileBuffer = form.file.buffer
+    const filename = form.file.filename || ''
+    const formAccountId = form.accountId || null
+    const formTimezone = form.timezone || 'Asia/Dubai'
+    try { new Intl.DateTimeFormat('en', { timeZone: formTimezone }) } catch { return res.status(400).json({ error: 'Invalid timezone.' }) }
+    if (formAccountId && !/^[A-Za-z0-9_-]{1,100}$/.test(formAccountId)) return res.status(400).json({ error: 'Invalid account.' })
+    inspectSpreadsheet(fileBuffer, filename)
 
     // Parse into rows
     let rows
@@ -106,12 +86,13 @@ export default async function handler(req, res) {
       const text = fileBuffer.toString('utf8').replace(/^\uFEFF/, '') // strip BOM
       rows = parseCSV(text)
     } else {
-      const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true })
+      const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true, sheetRows: 100002 })
       const ws = wb.Sheets[wb.SheetNames[0]]
       rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
     }
 
-    const accountIdOverride = req.headers['x-account-id'] || formAccountId || null
+    if (rows.length > 100001 || rows.some(row => row.length > 300)) return res.status(413).json({ error: 'Trade export exceeds 100,000 rows or 300 columns.' })
+    const accountIdOverride = formAccountId
 
     // ── Hypurrscan detection — handle separately (upsert mode) ─────────────
     if (isHypurrscan(rows)) {
@@ -219,7 +200,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Upload error:', err)
-    return res.status(500).json({ error: err.message || 'Upload failed' })
+    return res.status(err.status || 500).json({ error: err.message || 'Upload failed' })
   }
 }
 

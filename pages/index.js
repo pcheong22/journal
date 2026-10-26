@@ -279,12 +279,18 @@ function DashboardInner() {
   }
   const handleDrop  = e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
   const handleClear = async (accountId = null) => {
-    const msg = accountId ? 'Delete account and all its trades?' : 'Delete ALL data for ALL accounts?'
-    if (!confirm(msg + ' Cannot be undone.')) return
-    await fetch(accountId ? `/api/clear?account=${accountId}` : '/api/clear', { method:'DELETE' })
-    await loadTrades(dateFrom, dateTo)
-    setUpload({ status:'idle', message:'', broker:'', accountId:'' })
+    const expected = accountId ? `DELETE ${accountId}` : 'DELETE ALL'
+    const typed = prompt(`${accountId ? 'Delete this account and all its trades?' : 'Delete ALL accounts and their trades?'} This cannot be undone.\n\nType ${expected} to confirm.`)
+    if (typed !== expected) return
+    try {
+      const res = await fetch(accountId ? `/api/clear?account=${encodeURIComponent(accountId)}` : '/api/clear', { method:'DELETE', headers: { 'X-Journal-Delete': typed } })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Deletion failed.')
+      await loadTrades(dateFrom, dateTo)
+      setUpload({ status:'idle', message:'', broker:'', accountId:'' })
+    } catch (error) { alert(error.message) }
   }
+
   const saveAccountLabel = async (id, label, color) => {
     await fetch('/api/accounts', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, label, color }) })
     await loadTrades(dateFrom, dateTo)

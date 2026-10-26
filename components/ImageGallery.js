@@ -43,8 +43,9 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
       try {
         const res  = await fetch('/api/images', { method:'POST', body:form })
         const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Upload failed')
         if (data.image) setImages(prev => [...prev, data.image])
-      } catch(e) { console.error('Upload failed:', e) }
+      } catch(e) { alert(e.message || 'Upload failed') }
     }
     setUploading(false)
   }
@@ -76,10 +77,11 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
   const deleteImage  = async img => {
     if (!confirm('Delete this image?')) return
     try {
-      await fetch(`/api/images?id=${img.id}&entity_type=${entityType}&entity_id=${entityId}&filename=${img.filename}`, {method:'DELETE'})
+      const res = await fetch(`/api/images?id=${encodeURIComponent(img.id)}`, {method:'DELETE'})
+      if (!res.ok) throw new Error('Could not delete screenshot. Please try again.')
       setImages(prev => prev.filter(i => i.id !== img.id))
       if (lightbox === img.url) setLightbox(null)
-    } catch(e) { console.error(e) }
+    } catch(e) { alert(e.message) }
   }
   const handleDrop = e => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files) }
 
@@ -99,13 +101,13 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
           </div>
           {uploading && <span style={{marginLeft:'auto',width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} />}
         </div>
-        <input ref={fileRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>uploadFiles(e.target.files)} />
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple style={{display:'none'}} onChange={e=>uploadFiles(e.target.files)} />
 
         {/* URL paste section */}
         <div style={{marginBottom:12}}>
           <button onClick={()=>setShowUrls(s=>!s)}
             style={{fontSize:11,color:'var(--ac)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-mono)',padding:'4px 0',display:'flex',alignItems:'center',gap:5}}>
-            🔗 {showUrls?'▲ Hide URL import':'▼ Paste image URLs (TradingView snapshots etc.)'}
+            🔗 {showUrls?'▲ Hide URL import':'▼ Paste TradingView snapshot links'}
           </button>
           {showUrls && (
             <div style={{marginTop:8,background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'12px 14px'}}>
