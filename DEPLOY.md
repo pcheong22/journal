@@ -203,3 +203,18 @@ Execution drilldown:
   - Older snapshots remain private for audit. The current view selects the
     latest fill timestamp, then the most complete fill count. Missing opening
     history is flagged rather than inventing an average cost.
+
+Symbol reporting:
+  - The shared symbol registry resolves known exchange aliases, case and quote
+    suffix variants idempotently, including WTI/CL/CRUDE and the index aliases.
+  - /api/trades adds canonical symbols, saved tickers, known dated CL contracts,
+    underlying families, product type and underlying exposure direction at read
+    time. Existing stored trade rows, IDs and execution snapshots are preserved.
+  - Symbols defaults to underlying families, with expandable product rows and
+    a Markets / products view. Crude oil includes CRUDE and USO; Bitcoin includes
+    BTC/USD, IBIT, BITO and BITI when present. Inverse BITI flips underlying
+    exposure direction without changing the actual long/short trade direction.
+  - Reports aggregate journal P&L and individual trade outcomes, never average
+    ETF prices/quantities with contracts. Unsupported currencies are flagged
+    instead of being silently totalled as USD. The existing USD/USDC/USDT basis
+    is retained; no live FX conversion is introduced.

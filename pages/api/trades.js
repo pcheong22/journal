@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { executionIndex } from '../../lib/executionStore'
+import { reportingTrade } from '../../lib/symbols'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -50,7 +51,7 @@ export default async function handler(req, res) {
       try { indices[account] = await executionIndex(executionStorage, account) }
       catch (error) { console.error('Execution summary:', error.message); executionWarning = 'Execution counts are temporarily unavailable.' }
     }))
-    const trades = allTrades.map(trade => ({ ...trade, execution_count: indices[trade.account_id]?.[trade.id]?.count || null }))
+    const trades = allTrades.map(trade => ({ ...reportingTrade(trade), execution_count: indices[trade.account_id]?.[trade.id]?.count || null }))
 
     // Fetch accounts
     const { data: accounts } = await supabase.from('accounts').select('*').order('created_at')

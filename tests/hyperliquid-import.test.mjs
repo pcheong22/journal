@@ -4,7 +4,8 @@ import test from 'node:test'
 
 // Load the Next.js ES modules without changing the application's module mode.
 const moduleURL = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-const utils = moduleURL(await readFile(new URL('../lib/parserUtils.js', import.meta.url), 'utf8'))
+const symbols = moduleURL(await readFile(new URL('../lib/symbols.js', import.meta.url), 'utf8'))
+const utils = moduleURL((await readFile(new URL('../lib/parserUtils.js', import.meta.url), 'utf8')).replace("'./symbols'", JSON.stringify(symbols)))
 const executionUtils = moduleURL(await readFile(new URL('../lib/executionUtils.js', import.meta.url), 'utf8'))
 const parser = (await readFile(new URL('../lib/parsers/hyperliquid.js', import.meta.url), 'utf8'))
   .replace("'../parserUtils'", JSON.stringify(utils))
