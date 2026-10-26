@@ -46,3 +46,13 @@ Broker limitations are shown in each preview. PrimeXBT uses time grouping and in
 
 ### Review workflow (stage 5)
 Apply `migrations/20261026_stage_five_workflow.sql`. Bulk tags use a service-only transaction and expected journal revisions, preserving every other tag and note. The Reviewed journal tag is created only when first used. No existing trade is marked reviewed by migration. Selection is limited to 200 trades. The unreviewed inbox and weekly shortcut use the selected accounts/date range. Saved views live in browser preferences and travel with preference-inclusive full backups. Note drafts are local to the browser and are explicitly restored; they are not server-saved notes or part of full backups. A recovered draft from an older journal revision displays a warning. Navigation and tab closing warn about unsaved changes; keyboard navigation is disabled while typing.
+
+### Quiet research ledger redesign
+
+The rollback checkpoint is Git tag `journal-before-redesign-settings-fixed-20261026` at `72a42fc` (working Settings and backup access). A verified full backup was created on 26 October 2026 before this redesign: `journal-before-redesign-full-backup.json`, containing 1,902 trades, 12 accounts and all 11 attachment files. No database migration is required for the visual redesign.
+
+For a visual rollback, revert the redesign merge commit and let the normal production build deploy. This preserves all later trades, notes and tags. Do not restore the database solely to undo the UI. Full-journal restore remains available under the profile menu → Settings & backups, with a preview and typed confirmation; it replaces later journal edits too. The previous immutable Git tags and existing private backups are retained.
+
+`/design-preview` is a public, read-only visual demonstration with generated sample records only. It uses the same workspace components, does not request live journal data, and blocks journal API requests. The normal journal and every data API keep owner authentication. The profile menu replaces the floating Sign out button. Account deletion is under Settings → Account administration and retains the existing typed-confirmation and automatic-backup protections.
+
+Price checks are presentation-only: if reported P&L disagrees with entry-to-exit direction on a back-solved position, display a source-check warning and withhold price-derived return, R and estimated notional. Keep the reported P&L and original saved prices unchanged. A complete original broker export is needed to resolve an inferred opening match; a UI redesign is not evidence for rewriting it.

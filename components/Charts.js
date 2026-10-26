@@ -1,23 +1,28 @@
+import LedgerEquity from './LedgerEquity'
+import {money} from '../lib/presentation'
 import { useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
 
 Chart.register(...registerables)
 
 Chart.defaults.color = '#6b7280'
-Chart.defaults.borderColor = '#e2e5ea'
-Chart.defaults.font.family = "'JetBrains Mono', 'Fira Code', monospace"
+Chart.defaults.borderColor = 'rgba(128,140,155,.16)'
+Chart.defaults.backgroundColor = '#549589'
+Chart.defaults.elements.bar.borderWidth = 0
+Chart.defaults.font.family = "Inter, system-ui, sans-serif"
 Chart.defaults.font.size = 11
 
 const fU   = n => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0})
-const GRID  = { color:'rgba(255,255,255,0.06)', lineWidth:1 }
+const GRID  = { color:'rgba(128,140,155,.16)', lineWidth:1 }
 const TICK  = { color:'#9ca3af', font:{size:10} }
 const NOLEG = { display:false }
 const TIP   = { backgroundColor:'#fff', titleColor:'#0f1117', bodyColor:'#6b7280', borderColor:'#e2e5ea', borderWidth:1 }
 
-const privTick = (privacy) => (v) => privacy ? '***' : '$'+(v/1000).toFixed(0)+'k'
+const privTick = privacy=>v=>privacy?'•••':money(v,{compact:true,signed:false})
 
 export default function ChartComp(props) {
   const { type, privacy=false } = props
+  if(type==='ledgerEquity')return <LedgerEquity data={props.data} privacy={privacy}/>
   if (type==='equity')       return <EquityChart      data={props.data}               privacy={privacy} dateFrom={props.dateFrom} />
   if (type==='monthly') {
     const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -77,11 +82,11 @@ export default function ChartComp(props) {
       return bands
     })()
 
-    return <BarChart title="MONTHLY P&L"
+    return <BarChart title="Monthly P&L"
       labels={axisLabels} tooltipLabels={tooltipLabels}
       values={allMonths.map(d => d.pnl)}
       yearBands={yearBands} multiYear={multiYear}
-      height={220} cardHeight={multiYear ? 300 : 280}
+      height={220} cardHeight={320} stretch
       tickRotation={35} privacy={privacy} />
   }
   if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} cardHeight={320} stretch privacy={privacy} tickRotation={35} />
@@ -206,13 +211,13 @@ function EquityChart({ data, privacy, dateFrom }) {
         labels: spineLabels,
         datasets: [{
           data: spineVals,
-          borderColor: '#66ffa5',
+          borderColor: '#74baa1',
           borderWidth: 2,
           fill: true,
           backgroundColor: grad,
           pointRadius: 0,
           pointHoverRadius: 5,
-          pointHoverBackgroundColor: '#66ffa5',
+          pointHoverBackgroundColor: '#74baa1',
           pointHoverBorderColor: '#fff',
           pointHoverBorderWidth: 1.5,
           tension: 0,
@@ -416,11 +421,11 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
   useEffect(() => {
     if (!ref.current) return
     const cs = values.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
-    const bc = values.map(v => v>=0?'#059669':'#dc2626')
+    const bc=values.map(v=>getComputedStyle(document.body).getPropertyValue(v>=0?'--wn':'--ls').trim())
     chartRef.current?.destroy()
     const ch = new Chart(ref.current, {
       type:'bar',
-      data:{ labels, datasets:[{ data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3 }] },
+      data:{ labels, datasets:[{ data:values, backgroundColor:bc, borderColor:bc, borderWidth:0, borderRadius:3 }] },
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{ legend:NOLEG, tooltip:{...TIP, callbacks:{
@@ -430,7 +435,7 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
           label: ctx => privacy ? '  ***' : '  ' + fU(ctx.parsed.y)
         }} },
         scales:{
-          y:{ grid:GRID, ticks:{...TICK, callback: privacy ? ()=>'***' : v=>'$'+(v/1000).toFixed(0)+'k' } },
+          y:{ grid:GRID, ticks:{...TICK, callback:privTick(privacy) } },
           x:{ grid:{display:false}, ticks:{...TICK, maxRotation:tickRotation, minRotation:tickRotation, autoSkip:false} }
         }
       }
@@ -455,7 +460,7 @@ function WrChart({ title, labels, values, height=252, cardHeight=300, tickRotati
     const cs = values.map(v => v>=65?'rgba(26,86,219,.1)':'rgba(217,119,6,.1)')
     const bc = values.map(v => v>=65?'#1a56db':'#d97706')
     const ch = new Chart(ref.current, {
-      type:'bar', data:{labels, datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
+      type:'bar', data:{labels, datasets:[{data:values, backgroundColor:bc, borderColor:bc, borderWidth:0, borderRadius:3}]},
       options:{responsive:true, plugins:{legend:NOLEG, tooltip:TIP},
         scales:{y:{grid:GRID, min:0, max:100, ticks:{...TICK, callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:{...TICK, maxRotation:tickRotation, minRotation:tickRotation, autoSkip:false}}}}
     })
@@ -470,9 +475,9 @@ function HBarChart({ title, labels, values, height, isWr, privacy }) {
   useEffect(() => {
     if (!ref.current) return
     const cs = isWr ? values.map(v=>v>=65?'rgba(26,86,219,.1)':'rgba(217,119,6,.1)') : values.map(v=>v>=0?'rgba(5,150,105,.1)':'rgba(220,38,38,.1)')
-    const bc = isWr ? values.map(v=>v>=65?'#1a56db':'#d97706') : values.map(v=>v>=0?'#059669':'#dc2626')
+    const bc = isWr ? values.map(v=>v>=65?'#1a56db':'#d97706') : values.map(v=>v>=0?'#438f76':'#b76660')
     const ch = new Chart(ref.current, {
-      type:'bar', data:{labels, datasets:[{data:values, backgroundColor:cs, borderColor:bc, borderWidth:1.5, borderRadius:3}]},
+      type:'bar', data:{labels, datasets:[{data:values, backgroundColor:bc, borderColor:bc, borderWidth:0, borderRadius:3}]},
       options:{indexAxis:'y', responsive:true, plugins:{legend:NOLEG, tooltip:{...TIP, callbacks:{label: c=>isWr?c.parsed.x+'%':(privacy?'***':fU(c.parsed.x))}}},
         scales:{x:{grid:GRID, ticks:{...TICK, callback: isWr ? v=>v+'%' : privTick(privacy||false)}}, y:{grid:{display:false}, ticks:TICK}}}
     })
@@ -488,8 +493,8 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     if (!ref.current) return
     const ch = new Chart(ref.current, {
       type:'bar',
-      data:{labels:['Long P&L','Short P&L'], datasets:[{data:[longPnl,shortPnl],backgroundColor:[longPnl>=0?'#059669':'#dc2626',shortPnl>=0?'#059669':'#dc2626'],borderRadius:3}]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:privTick(privacy)}}},plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>privacy?'***':fU(c.parsed.y)}}}}
+      data:{labels:['Long P&L','Short P&L'], datasets:[{data:[longPnl,shortPnl],backgroundColor:[longPnl>=0?'#438f76':'#b76660',shortPnl>=0?'#438f76':'#b76660'],borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:GRID,border:{display:false},ticks:{...TICK,callback:privTick(privacy)}},x:{grid:{display:false},border:{display:false},ticks:TICK}},plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>privacy?'***':fU(c.parsed.y)}}}}
     })
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
@@ -505,7 +510,7 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 function DistChart({ trades, privacy }) {
   if (!trades?.length) return (
     <div className="card" style={{height:320,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-      <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
+      <div className="ct"><span className="ind" />P&L distribution</div>
       <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
     </div>
   )
@@ -572,7 +577,7 @@ function DistChart({ trades, privacy }) {
 
   return (
     <div className="card" style={{height:320,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-      <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
+      <div className="ct"><span className="ind" />P&L distribution</div>
       <svg aria-label="Trade P&L distribution histogram" role="img" width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',flex:1,minHeight:0,width:'100%'}}>
         {/* Zero line */}
         <line x1={W/2} y1={padTop} x2={W/2} y2={H-padBot} stroke="#4a5a6a" strokeWidth={1} opacity={0.5} />
@@ -584,7 +589,7 @@ function DistChart({ trades, privacy }) {
           return (
             <g key={i}>
               <rect x={x+1.5} y={H-padBot-h} width={bw-3} height={Math.max(h,b.count?1.5:0)}
-                fill={b.isLoss?'#ff5258':'#00c87a'} opacity={0.6} rx={2} />
+                fill={b.isLoss?'var(--ls)':'var(--wn)'} opacity={0.6} rx={2} />
               {b.count > 0 && <text x={x+bw/2} y={H-padBot-h-4} textAnchor="middle"
                 fontSize={11} fill="var(--tx2)" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
               <text x={x+bw/2} y={H-padBot+13} textAnchor="middle"
@@ -638,7 +643,7 @@ export function Top5PnlChart({ trades, mode, privacy, darkMode=false }) {
 
   const labels = entries.map(([s]) => s)
   const values = entries.map(([,v]) => Math.round(v))
-  const color  = mode === 'positive' ? (darkMode?'#66ffa5':'#059669') : (darkMode?'#ff5258':'#dc2626')
+  const color  = mode === 'positive' ? (darkMode?'#74baa1':'#438f76') : (darkMode?'#d58d88':'#b76660')
   const title  = mode === 'positive' ? 'TOP 5 INSTRUMENTS — BEST P&L' : 'TOP 5 INSTRUMENTS — WORST P&L'
 
   useEffect(() => {
@@ -664,7 +669,7 @@ export function Top5PnlChart({ trades, mode, privacy, darkMode=false }) {
           tooltip: { ...TIP, callbacks: { label: ctx => privacy ? '***' : fU(ctx.parsed.x * (mode==='positive'?1:-1)) } }
         },
         scales: {
-          x: { grid: GRID, ticks: { ...TICK, callback: v => privacy ? '***' : '$'+(v/1000).toFixed(0)+'k' } },
+          x: { beginAtZero:true, grid: GRID, ticks: { ...TICK, callback: v => privacy ? '•••' : money(v,{compact:true,signed:false}) } },
           y: { grid: { display: false }, ticks: { ...TICK, font: { size: 11 } } }
         }
       }
@@ -693,9 +698,9 @@ function HourlyChart({ data, privacy }) {
   const pnlVals= allH.map(h => hrMap[h] ? Math.round(hrMap[h].total_pnl) : 0)
   const wrVals = allH.map(h => hrMap[h] ? Math.round(hrMap[h].win_rate*100) : 0)
   const pnlCs  = pnlVals.map(v => v>=0?'rgba(5,150,105,.12)':'rgba(220,38,38,.12)')
-  const pnlBc  = pnlVals.map(v => v>=0?'#059669':'#dc2626')
+  const pnlBc  = pnlVals.map(v => v>=0?'#438f76':'#b76660')
   const wrCs   = wrVals.map(v => v>=67?'rgba(5,150,105,.12)':v<50?'rgba(220,38,38,.12)':'rgba(234,179,8,.12)')
-  const wrBc   = wrVals.map(v => v>=67?'#059669':v<50?'#dc2626':'#ca8a04')
+  const wrBc   = wrVals.map(v => v>=67?'#438f76':v<50?'#b76660':'#ca8a04')
   const xTicks = {...TICK, maxRotation:45, minRotation:45, autoSkip:true, maxTicksLimit:12}
 
   useEffect(() => {
@@ -752,9 +757,9 @@ function HourlyChart({ data, privacy }) {
                   <tr key={h} onMouseEnter={e=>e.currentTarget.style.background='var(--sf2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                     <td style={{...TD2,fontWeight:700}}>{(h<10?'0':'')+h+':00'}</td>
                     <td style={TD2}>{d.count}</td>
-                    <td style={{...TD2,color:d.total_pnl>=0?'#66ffa5':'#ff5258'}} className="private">{fU(Math.round(d.total_pnl))}</td>
-                    <td style={{...TD2,color:d.win_rate>=.67?'#66ffa5':d.win_rate<.5?'#ff5258':'#f0a500'}}>{(d.win_rate*100).toFixed(1)}%</td>
-                    <td style={{...TD2,color:d.avg_pnl>=0?'#66ffa5':'#ff5258'}} className="private">{fU(Math.round(d.avg_pnl))}</td>
+                    <td style={{...TD2,color:d.total_pnl>=0?'#74baa1':'#d58d88'}} className="private">{fU(Math.round(d.total_pnl))}</td>
+                    <td style={{...TD2,color:d.win_rate>=.67?'#74baa1':d.win_rate<.5?'#d58d88':'#f0a500'}}>{(d.win_rate*100).toFixed(1)}%</td>
+                    <td style={{...TD2,color:d.avg_pnl>=0?'#74baa1':'#d58d88'}} className="private">{fU(Math.round(d.avg_pnl))}</td>
                   </tr>
                 )
               })}
@@ -966,7 +971,7 @@ function RollingChart({ trades, privacy }) {
           {
             label:           `Expectancy (${W_SHORT}t)`,
             data:            e20,
-            borderColor:     '#66ffa5',
+            borderColor:     '#74baa1',
             backgroundColor: 'rgba(102,255,165,.08)',
             borderWidth:     2,
             pointRadius:     0,
@@ -1114,7 +1119,7 @@ function RollingChart({ trades, privacy }) {
 export function PnlPathChart({ sim, trade }) {
   const ref    = useRef()
   const isWin  = trade.pnl >= 0
-  const lineC  = isWin ? '#059669' : '#dc2626'
+  const lineC  = isWin ? '#438f76' : '#b76660'
   const fillC  = isWin ? 'rgba(5,150,105,.08)' : 'rgba(220,38,38,.06)'
   const zero   = new Array(sim.timePct.length).fill(0)
   const mfeLine = new Array(sim.timePct.length).fill(Math.round(sim.mfe))

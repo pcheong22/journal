@@ -43,7 +43,8 @@ export default function JournalAccess({ children }) {
     if (res.ok) { setStatus('signedOut'); setMessage('Signed out.') }
     else alert('Could not sign out. Please try again.')
   }
-  if (status === 'signedIn') return <>{requestError && <div role="alert" style={{position:'fixed',bottom:16,left:16,zIndex:10001,maxWidth:'min(480px,calc(100vw - 32px))',padding:16,borderRadius:8,background:'#4b1924',color:'#fff',boxShadow:'0 4px 20px #0005'}}>{requestError}<button aria-label="Dismiss error" onClick={()=>setRequestError('')} style={{marginLeft:12,background:'none',border:0,color:'#fff',cursor:'pointer'}}>×</button></div>}<button onClick={signOut} style={{ position: 'fixed', right: 20, bottom: 12, zIndex: 1000, background: 'var(--sf, #172031)', color: 'var(--tx, #fff)', border: '1px solid var(--bd, #334155)', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>Sign out</button>{children}</>
+  useEffect(()=>{const listener=()=>{if(status==='signedIn')signOut()};window.addEventListener('journal-sign-out',listener);return()=>window.removeEventListener('journal-sign-out',listener)},[status])
+  if (status === 'signedIn') return <>{requestError && <div role="alert" style={{position:'fixed',bottom:16,left:16,zIndex:10001,maxWidth:'min(480px,calc(100vw - 32px))',padding:16,borderRadius:8,background:'#4b1924',color:'#fff',boxShadow:'0 4px 20px #0005'}}>{requestError}<button aria-label="Dismiss error" onClick={()=>setRequestError('')} style={{marginLeft:12,background:'none',border:0,color:'#fff',cursor:'pointer'}}>×</button></div>}{children}</>
   return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#0c1220', color: '#e8edf5', padding: 24 }}>
     <section style={{ width: '100%', maxWidth: 420, background: '#151f30', border: '1px solid #2b3b53', borderRadius: 16, padding: 32 }}>
       <div style={{ color: '#8fa3be', fontSize: 12, letterSpacing: 2 }}>TRADEINTEL</div>
