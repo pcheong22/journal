@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx'
 import { parseTradeFile } from '../../lib/tradeUtils'
 import { parseHypurrscan, isHypurrscan } from '../../lib/parsers/hypurrscan'
 import { computeStreaks } from '../../lib/parserUtils'
+import { parseHyperliquid } from '../../lib/parsers/hyperliquid'
+import { reconcileHyperliquid } from '../../lib/hyperliquidImport'
 
 // Proper RFC 4180 CSV parser — handles quoted fields containing commas and newlines
 function parseCSV(text) {
@@ -135,15 +137,26 @@ export default async function handler(req, res) {
     }
 
     // Deduplicate by position_id
-    const { data: existing } = await supabase.from('trades').select('position_id').eq('account_id', accountId)
-    const existingIds = new Set((existing || []).map(t => t.position_id))
-    const newTrades   = incoming.filter(t => !existingIds.has(t.position_id))
-    const dupCount    = incoming.length - newTrades.length
+    let newTrades, dupCount, reconciled = 0, removed = 0
+    if (broker === 'Hyperliquid') {
+      // Reparse in UTC only to recognise the old, unconverted native timestamps.
+      // All saved timestamps still use the timezone selected for this upload.
+      const utcTrades = parseHyperliquid(rows, filename, accountId, 'UTC').trades
+      const result = await reconcileHyperliquid(supabase, incoming, utcTrades)
+      ;({ newTrades, duplicates: dupCount, reconciled, removed } = result)
+    } else {
+      const { data: existing, error } = await supabase.from('trades').select('position_id').eq('account_id', accountId)
+      if (error) throw new Error(error.message)
+      const existingIds = new Set((existing || []).map(t => t.position_id))
+      newTrades = incoming.filter(t => !existingIds.has(t.position_id))
+      dupCount = incoming.length - newTrades.length
+    }
 
     if (!newTrades.length) {
       return res.status(200).json({
-        message: 'All trades already imported — no duplicates added',
+        message: removed ? `Reconciled ${reconciled} trades; removed ${removed} duplicate copies` : 'All trades already imported — no duplicates added',
         imported: 0, duplicates: dupCount, total: incoming.length, broker, accountId,
+        reconciled, removed,
       })
     }
 
@@ -176,6 +189,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       message: `Imported ${inserted} new trades for account ${accountId}`,
       imported: inserted, duplicates: dupCount, total: incoming.length, broker, accountId, currency,
+      reconciled, removed,
     })
 
   } catch (err) {
