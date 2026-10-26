@@ -84,7 +84,7 @@ export default function ChartComp(props) {
       height={220} cardHeight={multiYear ? 300 : 280}
       tickRotation={35} privacy={privacy} />
   }
-  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={200} cardHeight={270} privacy={privacy} tickRotation={35} />
+  if (type==='duration')     return <BarChart   title="P&L BY DURATION"  labels={props.data.map(d=>d.bucket)}      values={props.data.map(d=>Math.round(d.total_pnl))} cardHeight={320} stretch privacy={privacy} tickRotation={35} />
   if (type==='direction')    return <DirectionChart longPnl={props.longPnl} shortPnl={props.shortPnl} privacy={privacy} />
   if (type==='distribution') return <DistChart trades={props.trades} privacy={privacy} />
   if (type==='symbolPnl')    return <HBarChart  title="P&L BY SYMBOL"    labels={props.data.map(d=>d.symbol)}      values={props.data.map(d=>Math.round(d.total_pnl))} height={270} privacy={privacy} />
@@ -410,7 +410,7 @@ function YearRow({ yearBands, chartRef, canvasRef }) {
 }
 
 // ── BAR CHART (P&L) ──────────────────────────────────────────────────────────
-function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy, tickRotation=0, yearBands=[], multiYear=false }) {
+function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight=300, privacy, stretch=false, tickRotation=0, yearBands=[], multiYear=false }) {
   const ref     = useRef()
   const chartRef = useRef()
   useEffect(() => {
@@ -439,9 +439,9 @@ function BarChart({ title, labels, tooltipLabels, values, height=252, cardHeight
     return () => ch.destroy()
   }, [JSON.stringify(values), privacy])
   return (
-    <div className="card" style={{height:cardHeight,boxSizing:'border-box'}}>
+    <div className="card" style={{height:cardHeight,boxSizing:'border-box',...(stretch?{display:'flex',flexDirection:'column'}:{})}}>
       <div className="ct"><span className="ind" />{title}</div>
-      <div style={{position:'relative',height}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      <div style={{position:'relative',height:stretch?'auto':height,...(stretch?{flex:1,minHeight:0}:{})}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
       {multiYear && yearBands.length > 0 && <YearRow yearBands={yearBands} chartRef={chartRef} canvasRef={ref} />}
     </div>
   )
@@ -495,9 +495,9 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
     return () => ch.destroy()
   }, [longPnl, shortPnl, privacy])
   return (
-    <div className="card" style={{height:300,boxSizing:'border-box'}}>
+    <div className="card" style={{height:320,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
       <div className="ct"><span className="ind" />LONG VS SHORT</div>
-      <div style={{position:'relative',height:252}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+      <div style={{position:'relative',flex:1,minHeight:0}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
     </div>
   )
 }
@@ -505,7 +505,7 @@ function DirectionChart({ longPnl, shortPnl, privacy }) {
 // ── WIN/LOSS DISTRIBUTION ────────────────────────────────────────────────────
 function DistChart({ trades, privacy }) {
   if (!trades?.length) return (
-    <div className="card" style={{height:300,boxSizing:'border-box'}}>
+    <div className="card" style={{height:320,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
       <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
       <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
     </div>
@@ -561,7 +561,7 @@ function DistChart({ trades, privacy }) {
 
   const maxCount = Math.max(...buckets.map(b=>b.count), 1)
   const domain   = (NBUCKETS+1) * step
-  const W=460, H=260, padX=14, padTop=28, padBot=44
+  const W=460, H=210, padX=14, padTop=20, padBot=44
   const plotW    = W - padX*2
   const bw       = plotW / buckets.length
   const xPos     = v => padX + ((v+domain)/(domain*2)) * plotW
@@ -572,9 +572,9 @@ function DistChart({ trades, privacy }) {
   const avgLossX = Math.min(Math.max(xPos(avgLoss), padX+2),  W-padX-52)
 
   return (
-    <div className="card" style={{height:300,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
+    <div className="card" style={{height:320,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
       <div className="ct"><span className="ind" />P&L DISTRIBUTION</div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',flex:1}}>
+      <svg aria-label="Trade P&L distribution histogram" role="img" width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',flex:1,minHeight:0,width:'100%'}}>
         {/* Zero line */}
         <line x1={W/2} y1={padTop} x2={W/2} y2={H-padBot} stroke="#4a5a6a" strokeWidth={1} opacity={0.5} />
 
@@ -587,9 +587,9 @@ function DistChart({ trades, privacy }) {
               <rect x={x+1.5} y={H-padBot-h} width={bw-3} height={Math.max(h,b.count?1.5:0)}
                 fill={b.isLoss?'#ff5258':'#00c87a'} opacity={0.6} rx={2} />
               {b.count > 0 && <text x={x+bw/2} y={H-padBot-h-4} textAnchor="middle"
-                fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
+                fontSize={11} fill="var(--tx2)" fontFamily="var(--font-mono)">{privacy?'*':b.count}</text>}
               <text x={x+bw/2} y={H-padBot+13} textAnchor="middle"
-                fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">{b.label}</text>
+                fontSize={11} fill="var(--tx2)" fontFamily="var(--font-mono)">{b.label}</text>
             </g>
           )
         })}
@@ -597,35 +597,31 @@ function DistChart({ trades, privacy }) {
         {/* Avg Loss dashed marker */}
         {!privacy && avgLoss !== 0 && <>
           <line x1={avgLossX} y1={padTop+2} x2={avgLossX} y2={H-padBot}
-            stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgLossX-62} y={padTop-2} width={60} height={15}
-            fill="#1a2330" stroke="#6b7280" strokeWidth={0.5} rx={2} opacity={0.95} />
-          <text x={avgLossX-32} y={padTop+8.5} textAnchor="middle"
-            fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">AvgL {fmtAvg(avgLoss)}</text>
+            stroke="var(--ls)" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.8} />
         </>}
 
         {/* Avg Win dashed marker */}
         {!privacy && avgWin !== 0 && <>
           <line x1={avgWinX} y1={padTop+2} x2={avgWinX} y2={H-padBot}
-            stroke="#8899aa" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.7} />
-          <rect x={avgWinX+1} y={padTop-2} width={60} height={15}
-            fill="#1a2330" stroke="#6b7280" strokeWidth={0.5} rx={2} opacity={0.95} />
-          <text x={avgWinX+31} y={padTop+8.5} textAnchor="middle"
-            fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">AvgW {fmtAvg(avgWin)}</text>
+            stroke="var(--wn)" strokeWidth={1.5} strokeDasharray="5,4" opacity={0.8} />
         </>}
 
         {/* Axis labels */}
-        <text x={padX}   y={H-padBot+26} fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">← LOSSES</text>
-        <text x={W/2}    y={H-padBot+26} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">$0</text>
-        <text x={W-padX} y={H-padBot+26} textAnchor="end"    fontSize={9} fill="#9ca3af" fontFamily="var(--font-mono)">WINS →</text>
+        <text x={padX}   y={H-padBot+26} fontSize={11} fill="var(--tx2)" fontFamily="var(--font-mono)">← LOSSES</text>
+        <text x={W/2}    y={H-padBot+26} textAnchor="middle" fontSize={11} fill="var(--tx2)" fontFamily="var(--font-mono)">$0</text>
+        <text x={W-padX} y={H-padBot+26} textAnchor="end"    fontSize={11} fill="var(--tx2)" fontFamily="var(--font-mono)">WINS →</text>
       </svg>
+      <div className="distribution-averages">
+        <div><span>Average loss</span><strong className="private neg">{privacy?'***':losses.length?fmtAvg(avgLoss):'—'}</strong></div>
+        <div><span>Average win</span><strong className="private pos">{privacy?'***':wins.length?fmtAvg(avgWin):'—'}</strong></div>
+      </div>
     </div>
   )
 }
 
 
 // ── TOP 5 INSTRUMENTS BY P&L ─────────────────────────────────────────────────
-export function Top5PnlChart({ trades, mode, privacy }) {
+export function Top5PnlChart({ trades, mode, privacy, darkMode=false }) {
   const ref = useRef()
 
   // Aggregate by symbol
@@ -643,8 +639,7 @@ export function Top5PnlChart({ trades, mode, privacy }) {
 
   const labels = entries.map(([s]) => s)
   const values = entries.map(([,v]) => Math.round(v))
-  const color  = mode === 'positive' ? 'rgba(5,150,105,.25)' : 'rgba(220,38,38,.25)'
-  const border = mode === 'positive' ? '#059669' : '#dc2626'
+  const color  = mode === 'positive' ? (darkMode?'#66ffa5':'#059669') : (darkMode?'#ff5258':'#dc2626')
   const title  = mode === 'positive' ? 'TOP 5 INSTRUMENTS — BEST P&L' : 'TOP 5 INSTRUMENTS — WORST P&L'
 
   useEffect(() => {
@@ -656,9 +651,10 @@ export function Top5PnlChart({ trades, mode, privacy }) {
         datasets: [{
           data: values.map(v => Math.abs(v)),
           backgroundColor: color,
-          borderColor: border,
-          borderWidth: 1.5,
-          borderRadius: 4,
+          borderWidth: 0,
+          borderRadius: 3,
+          borderSkipped: false,
+          maxBarThickness: 28,
         }]
       },
       options: {
@@ -675,14 +671,14 @@ export function Top5PnlChart({ trades, mode, privacy }) {
       }
     })
     return () => ch.destroy()
-  }, [JSON.stringify(values), JSON.stringify(labels), privacy])
+  }, [JSON.stringify(values), JSON.stringify(labels), privacy, color, mode])
 
   return (
-    <div className="card" style={{height:300,boxSizing:'border-box'}}>
+    <div className="card" style={{height:320,boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
       <div className="ct"><span className="ind" />{title}</div>
       {entries.length === 0
         ? <div style={{color:'var(--mu)',fontSize:12,padding:'20px 0'}}>No data</div>
-        : <div style={{position:'relative',height:252}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
+        : <div style={{position:'relative',flex:1,minHeight:0}}><canvas ref={ref} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}} /></div>
       }
     </div>
   )
