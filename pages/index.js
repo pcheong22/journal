@@ -1,3 +1,4 @@
+import ReviewWorkflow from '../components/ReviewWorkflow'
 import DataQuality from '../components/DataQuality'
 import {escapeHTML} from '../lib/reportSafety'
 import ImportReview, {importRequest} from '../components/ImportReview'
@@ -17,20 +18,7 @@ class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
   render() {
-    if (this.state.error) return (
-      <div style={{ padding:24, background:'#0c1117', minHeight:'100vh', color:'#e8edf3', fontFamily:'monospace' }}>
-        <div style={{ background:'#2a0a0a', border:'1px solid #ff5258', borderRadius:8, padding:20, maxWidth:800 }}>
-          <div style={{ color:'#ff5258', fontWeight:700, fontSize:14, marginBottom:12 }}>⚠ Application Error</div>
-          <div style={{ fontSize:12, color:'#e8edf3', marginBottom:8 }}>{this.state.error.message}</div>
-          <pre style={{ fontSize:10, color:'#8899aa', whiteSpace:'pre-wrap', overflow:'auto', maxHeight:300, background:'#111', padding:12, borderRadius:4 }}>
-            {this.state.error.stack}
-          </pre>
-          <button onClick={()=>window.location.reload()} style={{ marginTop:12, padding:'8px 16px', background:'#1e2d3d', border:'1px solid #1e2d3d', color:'#e8edf3', cursor:'pointer', borderRadius:5 }}>
-            Reload page
-          </button>
-        </div>
-      </div>
-    )
+    if(this.state.error)return <section className="card" role="alert" style={{margin:24,padding:24}}><h2>This view could not be displayed</h2><p>Your saved journal data is unchanged. Retry this view or select another tab.</p><button className="btn btn-p" onClick={()=>this.setState({error:null})}>Retry view</button><button className="btn" onClick={()=>window.location.reload()}>Reload journal</button></section>
     return this.props.children
   }
 }
@@ -102,6 +90,8 @@ function DashboardInner() {
   const [page,           setPage]           = useState(0)
   const [sortKey,        setSortKey]        = useState('entry_time')
   const [sortDir,        setSortDir]        = useState(-1)
+  const [reviewInbox,setReviewInbox]=useState(false)
+  const [reviewSelection,setReviewSelection]=useState(new Set())
   const [fSym,           setFSym]           = useState('')
   const [fDir,           setFDir]           = useState('')
   const [fRes,           setFRes]           = useState('')
@@ -134,7 +124,9 @@ function DashboardInner() {
     })
   }
 
-  const PAGE    = 50
+  const PAGE = [50,100,200].includes(settings.tradeLogPageSize)?settings.tradeLogPageSize:50
+  useEffect(()=>setPage(0),[PAGE])
+  useEffect(()=>setReviewSelection(new Set()),[dateFrom,dateTo,selAccounts,fSym,fDir,fRes,fSess,search,reviewInbox])
   const fileRef = useRef()
 
   useEffect(() => {
@@ -191,6 +183,8 @@ function DashboardInner() {
     if (fSym)  f = f.filter(t => fSym.startsWith('family:') ? t.underlying === fSym.slice(7) : t.symbol === fSym)
     if (fDir)  f = f.filter(t => t.direction === fDir)
     if (fRes === 'win')  f = f.filter(t => t.pnl > 0)
+    if(reviewInbox){const reviewed=tags.find(t=>t.name==='Reviewed')?.id;f=f.filter(t=>!t.tag_ids?.includes(reviewed))}
+    if(fRes==='breakeven')f=f.filter(t=>t.pnl===0)
     if (fRes === 'loss') f = f.filter(t => t.pnl < 0)
     if (fSess) f = f.filter(t => t.session   === fSess)
     if (search) f = f.filter(t =>
@@ -206,7 +200,7 @@ function DashboardInner() {
       return sortDir * (av > bv ? 1 : av < bv ? -1 : 0)
     })
     setFiltered(f); setPage(0)
-  }, [allTrades, selAccounts, fSym, fDir, fRes, fSess, search, sortKey, sortDir])
+  }, [allTrades, selAccounts, fSym, fDir, fRes, fSess, search, sortKey, sortDir,reviewInbox,tags])
 
   const loadTrades = useCallback(async (from, to) => {
     setLoading(true); setLoadError('')
@@ -232,7 +226,7 @@ function DashboardInner() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadTrades(dateFrom, dateTo) }, [])
+  useEffect(() => {let from=dateFrom,to=dateTo;try{const saved=JSON.parse(localStorage.getItem('ti_settings')||'{}'),preset=DATE_PRESETS.find(p=>p.label===saved.defaultDatePreset);if(preset){from=preset.from();to=preset.to()}}catch{}loadTrades(from,to)}, [])
 
   const applyPreset = (preset) => {
     const p = DATE_PRESETS.find(p => p.label === preset)
@@ -255,8 +249,9 @@ function DashboardInner() {
 
   const handleFile = async (file, accountIdOverride = null, timezoneOverride = null) => {
     if (!file) return
+    if(file.size>20*1024*1024){setUpload({status:'error',message:'Choose an export smaller than 20 MB.',broker:'',accountId:''});return}
     if (!accountIdOverride) {
-      const text = await file.text()
+      const text = await file.slice(0,65536).text()
       const firstLine = text.split('\n')[0] || ''
       const header = firstLine.replace(/^\uFEFF/, '').split(',').map(value => value.trim().replace(/^"|"$/g, ''))
       if (isTxFlow([header])) {
@@ -583,9 +578,9 @@ function DashboardInner() {
       </div>
 
       <nav style={{background:'var(--sf)',borderBottom:'1px solid var(--bd)'}}>
-        <div style={{display:'flex',padding:'0 24px',gap:0}}>
+        <div style={{display:'flex',padding:'0 24px',gap:0,overflowX:'auto'}}>
           {[['overview','📈 Overview'],['edge','🔬 Edge'],['coach','🧠 Coach'],['streaks','🔥 Streaks'],['calendar','📅 Calendar'],['symbols','🎯 Symbols'],['timing','⏱ Timing'],['trades','📋 Trade Log'],['missed','⏭ Passed']].map(([id,label])=>(
-            <div key={id} className={`nt ${tab===id?'active':''}`} onClick={()=>setTab(id)}>{label}</div>
+            <button key={id} className={`nt ${tab===id?'active':''}`} aria-current={tab===id?'page':undefined} style={{background:'transparent',borderTop:0,borderLeft:0,borderRight:0,cursor:'pointer',whiteSpace:'nowrap'}} onClick={()=>setTab(id)}>{label}</button>
           ))}
         </div>
       </nav>
@@ -679,7 +674,7 @@ function DashboardInner() {
         />
       )}
 
-      <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}>
+      <main style={{padding:'18px 24px',maxWidth:1440,margin:'0 auto',overflowX:'hidden'}}><ErrorBoundary key={tab}>
         {loadError && <div role="alert" style={{padding:14,marginBottom:14,border:'1px solid var(--ls)',borderRadius:8,color:'var(--ls)'}}>{loadError} <button className="btn btn-sm" onClick={()=>loadTrades(dateFrom,dateTo)}>Retry loading</button></div>}
 
         {tab==='overview' && stats && (
@@ -1024,6 +1019,12 @@ function DashboardInner() {
 
         {tab==='trades' && (
           <div className="anim">
+            <ReviewWorkflow trades={selectedTrades} pageTrades={paged} tags={tags} inbox={reviewInbox} setInbox={setReviewInbox} selection={reviewSelection} setSelection={setReviewSelection}
+             onSaved={async updated=>{setAllTrades(prev=>prev.map(t=>{const changed=updated.find(u=>u.id===t.id);return changed?reportingTrade({...t,...changed}):t}));const response=await(await journalFetch('/api/trades?from='+encodeURIComponent(dateFrom+'T00:00:00Z')+'&to='+encodeURIComponent(dateTo+'T23:59:59.999Z'))).json();if(response.tags)setTags(response.tags)}}
+             filters={{symbol:fSym,direction:fDir,result:fRes,session:fSess,search,inbox:reviewInbox,accounts:[...selAccounts],from:dateFrom,to:dateTo,sortKey,sortDir}}
+             savedViews={settings.savedViews || []} onSaveViews={views=>saveSetting('savedViews',views)}
+             onApply={v=>{setFSym(v.symbol||'');setFDir(v.direction||'');setFRes(v.result||'');setFSess(v.session||'');setSearch(v.search||'');setReviewInbox(!!v.inbox);setSelAccounts(new Set(v.accounts||[]));setDateFrom(v.from);setDateTo(v.to);setDatePreset('');setSortKey(v.sortKey||'exit_time');setSortDir(v.sortDir===1?1:-1);setReviewSelection(new Set());loadTrades(v.from,v.to)}}
+             onWeekly={()=>{const from=daysAgo(7),to=today();setDateFrom(from);setDateTo(to);setDatePreset('');setFSym('');setFDir('');setFRes('');setFSess('');setSearch('');setReviewInbox(true);setReviewSelection(new Set());loadTrades(from,to)}} />
             <div style={{fontSize:11,color:'var(--mu)',marginBottom:10,fontFamily:'var(--font-mono)'}}>Click any row to open · ← → keys to navigate · notes and tags saved per trade</div>
             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap',background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'10px 14px',boxShadow:'var(--sh-sm)'}}>
               <input className="inp" style={{width:160}} placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)} />
@@ -1032,7 +1033,7 @@ function DashboardInner() {
                 <optgroup label="Underlying families">{['Crude oil','Bitcoin'].filter(family=>visibleTrades.some(trade=>trade.underlying===family)).map(family=><option key={family} value={`family:${family}`}>{family} — all products</option>)}</optgroup>
                 <optgroup label="Markets / products">{symbols.map(symbol=><option key={symbol}>{symbol}</option>)}</optgroup>
               </select>
-              {[[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['Win & Loss','win','loss']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
+              {[[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['All outcomes','win','loss','breakeven']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
                 <select key={i} className="inp" value={val} onChange={e=>setter(e.target.value)}>
                   {opts.map((o,j)=><option key={o} value={j===0?'':o}>{o}</option>)}
                 </select>
@@ -1044,8 +1045,8 @@ function DashboardInner() {
             <div className="card" style={{padding:0,overflow:'hidden'}}>
               <div className="tw trade-tbl-wrap">
                 <table style={{minWidth:1020}}>
-                  <thead><tr>
-                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Avg entry'],['exit_price','Avg exit'],['execution_count','Executions'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
+                  <thead><tr><th scope="col">Select</th>
+                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Avg entry'],['exit_price','Avg exit'],['execution_count','Executions'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_strategy','Strategy'],['_r','Result']].map(([k,l])=>(
                       <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
                         {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
                       </th>
@@ -1059,7 +1060,8 @@ function DashboardInner() {
                       const acc = accountsMap[t.account_id]
                       const hasNotes = t.notes||t.note_entry_reason||t.note_lessons
                       return (
-                        <tr key={t.id||i} className="clk" onClick={()=>setSelected(t)}>
+                        <tr key={t.id||i} className="clk" tabIndex={0} onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelected(t)}}} onClick={()=>setSelected(t)}>
+                          <td onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={`Select ${t.symbol} trade ${t.id}`} checked={reviewSelection.has(t.id)} onChange={e=>setReviewSelection(prev=>{const next=new Set(prev);if(e.target.checked&&next.size<200)next.add(t.id);else next.delete(t.id);return next})}/></td>
                           <td className="mu">{t.entry_time?.slice(0,16).replace('T',' ')}</td>
                           <td className="mu">{t.exit_time?.slice(0,16).replace('T',' ')}</td>
                           <td className="mu">{dur}</td>
@@ -1108,13 +1110,13 @@ function DashboardInner() {
             <div style={{fontSize:12,color:'var(--mu)'}}>Upload your PrimeXBT CSV export using the bar above.</div>
           </div>
         )}
-      </main>
+      </ErrorBoundary></main>
 
       {selected && (
         <TradeModal
           trade={selected}
           onClose={()=>setSelected(null)}
-          trades={visibleTrades}
+          trades={filtered}
           onNavigate={t=>setSelected(t)}
           tags={tags}
           onSaved={updated => { setAllTrades(prev => prev.map(t => t.id === updated.id ? reportingTrade({ ...t, ...updated }) : t)); setSelected(prev => prev?.id === updated.id ? reportingTrade({ ...prev, ...updated }) : prev) }}
@@ -1552,8 +1554,8 @@ function DashboardOrderList({ order, onChange }) {
 
 function SettingsPanel({ settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
-  const TABS         = ['overview','coach','streaks','calendar','symbols','timing','tradelog','missed']
-  const TAB_LABELS   = { overview:'Overview', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', tradelog:'Trade Log', missed:'Passed' }
+  const TABS         = ['overview','edge','coach','streaks','calendar','symbols','timing','trades','missed']
+  const TAB_LABELS   = { overview:'Overview', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log', missed:'Passed' }
   const PAGE_SIZES   = [50, 100, 200]
 
   const Row = ({ label, sub, children }) => (

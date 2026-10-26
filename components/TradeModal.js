@@ -1,3 +1,4 @@
+import {draftKey,readNoteDraft,writeNoteDraft,NOTE_TEMPLATES} from '../lib/noteDraft'
 import { journalFetch } from '../lib/request'
 import { riskMultiple } from '../lib/journalNotes'
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -45,12 +46,16 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   const [aiResult,    setAiResult]    = useState(null)
   const [aiError,     setAiError]     = useState(null)
 
+  const [recoveredDraft,setRecoveredDraft]=useState(null),[draftMessage,setDraftMessage]=useState('')
+  const dirtyNotes=useRef(false)
   const idx = trades.findIndex(item => item.id === trade.id)
 
   // Load saved values when trade changes
   useEffect(() => {
     if (!trade) return
     setSim(null)
+    dirtyNotes.current=false;setDraftMessage('')
+    if(typeof window!=='undefined')setRecoveredDraft(readNoteDraft(window.localStorage,trade))
     setNoteEntry(trade.note_entry_reason    || '')
     setNoteMgmt(trade.note_management       || '')
     setNoteLessons(trade.note_lessons       || '')
@@ -63,17 +68,21 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     setSection(trade.execution_count ? 'executions' : 'chart')
   }, [trade.id])
 
-  // Keyboard nav
-  const handleKey = useCallback(e => {
-    if (e.key === 'Escape')       onClose()
-    if (e.key === 'ArrowLeft'  && idx > 0)                 onNavigate(trades[idx-1])
-    if (e.key === 'ArrowRight' && idx < trades.length - 1) onNavigate(trades[idx+1])
-  }, [idx, trades, onClose, onNavigate])
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [handleKey])
+  const hasTagChanges=JSON.stringify([...selectedTags].sort())!==JSON.stringify([...(trade.tag_ids || [])].sort())
+  const canLeave=()=>!dirtyNotes.current&&!hasTagChanges || (typeof window!=='undefined'&&window.confirm('This trade has unsaved changes. Leave this trade? Note drafts remain on this browser; unsaved tag changes will be discarded.'))
+  const closeSafely=()=>{if(!saving&&canLeave())onClose()}
+  const navigateSafely=next=>{if(!saving&&next&&canLeave())onNavigate(next)}
+  const values=()=>({notes:noteFree,note_entry_reason:noteEntry,note_management:noteMgmt,note_lessons:noteLessons,note_emotional_state:noteEmotion,stop_loss:stopLoss})
+  const remember=(patch)=>{dirtyNotes.current=true;setSaved(false);try{writeNoteDraft(window.localStorage,trade,{...values(),...patch},revision);setDraftMessage('Draft saved on this browser. Save Notes to update the journal.')}catch{setDraftMessage('Draft could not be stored on this browser. Keep this window open until saved.')}}
+  const applyValues=patch=>{const setters={notes:setNoteFree,note_entry_reason:setNoteEntry,note_management:setNoteMgmt,note_lessons:setNoteLessons,note_emotional_state:setNoteEmotion,stop_loss:setStopLoss};Object.entries(patch).forEach(([key,value])=>setters[key]?.(value));remember(patch)}
+  const handleKey=useCallback(e=>{
+    if(['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName)||e.target?.isContentEditable)return
+    if(e.key==='Escape')closeSafely()
+    if(e.key==='ArrowLeft'&&idx>0)navigateSafely(trades[idx-1])
+    if(e.key==='ArrowRight'&&idx<trades.length-1)navigateSafely(trades[idx+1])
+  },[idx,trades,onClose,onNavigate,saving,hasTagChanges])
+  useEffect(()=>{document.addEventListener('keydown',handleKey);return()=>document.removeEventListener('keydown',handleKey)},[handleKey])
+  useEffect(()=>{if(typeof window==='undefined')return;const guard=e=>{if(dirtyNotes.current||hasTagChanges){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',guard);return()=>window.removeEventListener('beforeunload',guard)},[hasTagChanges])
 
   if (!trade) return null
 
@@ -134,6 +143,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
       })
       const data = await res.json()
       if (!res.ok || !data.success || !data.trade) throw new Error(data.error || 'Could not save. Please retry.')
+      if(section==='notes'){try{window.localStorage.removeItem(draftKey(trade))}catch{};dirtyNotes.current=false;setRecoveredDraft(null);setDraftMessage('')}
       if (onSaved) onSaved(data.trade)
       if (tradeIdRef.current !== id) return
       setRevision(data.trade.journal_revision); setSaved(section)
@@ -182,8 +192,8 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
   ]
 
   return (
-    <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="mb">
+    <div className="mo" onClick={e=>e.target===e.currentTarget&&closeSafely()}>
+      <div className="mb" role="dialog" aria-modal="true" aria-label={`${trade.symbol} trade details`}>
 
         {/* ── MODAL HEADER ─────────────────────────────────────────────── */}
         <div className="mh">
@@ -196,7 +206,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 <span style={{fontWeight:700,fontSize:16}}>{trade.symbol}</span>
                 <span style={{color:'var(--bd2)'}}>·</span>
                 <span className="private" style={{fontFamily:'var(--font-mono)',fontSize:15,fontWeight:700,color:pnlC}}>{fU(trade.pnl)}</span>
-                <span className={`pill ${pnlPos?'pb':'pr'}`}>{pnlPos?'WIN':'LOSS'}</span>
+                <span className={`pill ${pnlPos?'pb':'pr'}`}>{trade.pnl===0?'BREAKEVEN':pnlPos?'WIN':'LOSS'}</span>
                 {rDisplay != null && <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:parseFloat(rDisplay)>=1?'var(--wn)':'var(--ls)',fontWeight:600,background:'var(--sf3)',padding:'2px 7px',borderRadius:4}}>{rDisplay}R</span>}
               </div>
               <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
@@ -213,9 +223,9 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
             </div>
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
               <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{idx+1}/{trades.length}</span>
-              <button className="btn btn-sm" disabled={idx<=0}                 onClick={()=>onNavigate(trades[idx-1])}>← Prev</button>
-              <button className="btn btn-sm" disabled={idx>=trades.length-1}   onClick={()=>onNavigate(trades[idx+1])}>Next →</button>
-              <button className="btn btn-sm" onClick={onClose}>✕</button>
+              <button className="btn btn-sm" disabled={idx<=0}                 onClick={()=>navigateSafely(trades[idx-1])}>← Prev</button>
+              <button className="btn btn-sm" disabled={idx>=trades.length-1}   onClick={()=>navigateSafely(trades[idx+1])}>Next →</button>
+              <button className="btn btn-sm" onClick={closeSafely}>✕</button>
             </div>
           </div>
 
@@ -306,6 +316,9 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
           {/* ── NOTES SECTION ─────────────────────────────────────────── */}
           {activeSection==='notes' && (
             <div>
+              {recoveredDraft&&<div role="status" style={{padding:12,border:'1px solid var(--wa)',marginBottom:12}}><p>A note draft from {new Date(recoveredDraft.savedAt).toLocaleString()} is available on this browser.{recoveredDraft.revision!==revision?' The saved trade has changed since this draft; compare it before saving.':''}</p><button className="btn" onClick={()=>{applyValues(recoveredDraft.values);setRecoveredDraft(null)}}>Restore draft</button><button className="btn" onClick={()=>{try{window.localStorage.removeItem(draftKey(trade))}catch{}setRecoveredDraft(null)}}>Discard draft</button></div>}
+              <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>{Object.entries(NOTE_TEMPLATES).map(([name,patch])=><button className="btn btn-sm" key={name} onClick={()=>applyValues(Object.fromEntries(Object.entries(patch).map(([key,value])=>[key,values()[key]?values()[key]+'\n\n'+value:value])))}>Add {name.toLowerCase()} prompts</button>)}</div>
+              {draftMessage&&<p role="status" style={{fontSize:11,color:'var(--mu)'}}>{draftMessage}</p>}
               {/* Stop loss / R-Multiple */}
               <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:14}}>
                 <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.06em',fontFamily:'var(--font-mono)',marginBottom:10}}>RISK METRICS</div>
@@ -313,7 +326,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                   <div>
                     <div className="notes-label">Stop Loss Price (optional)</div>
                     <input disabled={saving} className="inp" style={{width:'100%',fontFamily:'var(--font-mono)'}} type="number" placeholder={`e.g. ${trade.direction==='Long'?(trade.entry_price*0.99).toFixed(2):(trade.entry_price*1.01).toFixed(2)}`}
-                      value={stopLoss} onChange={e=>{ setStopLoss(e.target.value); setSaved(false) }} />
+                      value={stopLoss} onChange={e=>{ setStopLoss(e.target.value); remember({stop_loss:e.target.value}) }} />
                   </div>
                   <div>
                     <div className="notes-label">R-Multiple (auto-calculated)</div>
@@ -326,19 +339,19 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
               {/* Structured notes */}
               <div style={{display:'grid',gap:12,marginBottom:12}}>
                 {[
-                  ['Why did you enter this trade?',           noteEntry,   setNoteEntry],
-                  ['How did you manage the trade?',           noteMgmt,    setNoteMgmt],
-                  ['What would you do differently next time?',noteLessons, setNoteLessons],
-                  ['Emotional state during the trade',        noteEmotion, setNoteEmotion],
-                ].map(([label,val,setter])=>(
+                  ['Why did you enter this trade?',noteEntry,setNoteEntry,'note_entry_reason'],
+                  ['How did you manage the trade?',noteMgmt,setNoteMgmt,'note_management'],
+                  ['What would you do differently next time?',noteLessons,setNoteLessons,'note_lessons'],
+                  ['Emotional state during the trade',noteEmotion,setNoteEmotion,'note_emotional_state'],
+                ].map(([label,val,setter,key])=>(
                   <div key={label}>
                     <div className="notes-label">{label}</div>
-                    <textarea disabled={saving} className="notes-field" rows={2} placeholder="Type your notes…" value={val} onChange={e=>{ setter(e.target.value); setSaved(false) }} />
+                    <textarea disabled={saving} className="notes-field" rows={2} placeholder="Type your notes…" value={val} onChange={e=>{ setter(e.target.value); remember({[key]:e.target.value}) }} />
                   </div>
                 ))}
                 <div>
                   <div className="notes-label">Free-form notes (anything else)</div>
-                  <textarea disabled={saving} className="notes-field" rows={3} placeholder="Additional observations, market context, screenshots description…" value={noteFree} onChange={e=>{ setNoteFree(e.target.value); setSaved(false) }} />
+                  <textarea disabled={saving} className="notes-field" rows={3} placeholder="Additional observations, market context, screenshots description…" value={noteFree} onChange={e=>{ setNoteFree(e.target.value); remember({notes:e.target.value}) }} />
                 </div>
               </div>
               <button className="btn btn-p" onClick={()=>handleSave('notes')} disabled={saving} style={{width:'100%',justifyContent:'center',padding:'8px'}}>
@@ -410,7 +423,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
 
           {/* ── AI COACH SECTION ──────────────────────────────────────── */}
           {activeSection==='ai' && (
-            <div>
+            <div><p style={{fontSize:12,color:'var(--mu)',lineHeight:1.7}}>Generate sends this trade and its note text to the configured AI provider. Coaching scores are subjective opinions; check them against the recorded data.</p>
               <div style={{background:'var(--sf2)',border:'1px solid var(--bd)',borderRadius:8,padding:'14px',marginBottom:14}}>
                 <div style={{fontSize:12,color:'var(--tx2)',lineHeight:1.6,marginBottom:10}}>
                   AI will analyse this trade using price data, duration, session, R-multiple, and any notes you've added. The more notes you add, the more personalised the feedback.
