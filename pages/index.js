@@ -794,6 +794,7 @@ export function JournalWorkspace({previewData=null}) {
               </span>
             </div>
 </>}
+            {!loading&&filtered.length===0&&<p role="status" className="data-check-notice">{fRes==='source'?'No source-check warnings match this scope.':'No trades match these filters.'} Use Reset filters or choose another reporting period.</p>}
             <div className="mobile-trade-list">{paged.map(t=><div className="mobile-trade-row" key={t.id}><input type="checkbox" aria-label={`Select ${t.symbol} mobile trade ${t.id}`} checked={reviewSelection.has(t.id)} onChange={e=>setReviewSelection(prev=>{const next=new Set(prev);if(e.target.checked&&next.size<200)next.add(t.id);else next.delete(t.id);return next})}/><button className="mobile-trade" onClick={()=>setSelected(t)}><span><strong>{t.symbol}</strong><small>{t.direction} · {t.entry_time?.slice(0,10)||'Unknown date'}</small></span><span><strong className={'private '+(t.pnl>=0?'positive':'negative')}>{['USD','USDC','USDT'].includes(t.currency)?money(t.pnl):`${t.pnl.toLocaleString()} ${t.currency||'unknown currency'}`}</strong><small>{t.data_check?'Source check':durationLabel(t.duration_mins)} · Open ↗</small></span></button></div>)}</div>
             <div className="card" style={{padding:0,overflow:'hidden'}}>
               <div className="tw trade-tbl-wrap ledger-trades">
@@ -833,7 +834,7 @@ export function JournalWorkspace({previewData=null}) {
               </div>
               <div style={{display:'flex',gap:8,alignItems:'center',padding:'10px 14px',borderTop:'1px solid var(--bd)',background:'var(--sf2)'}}>
                 <button className="btn" disabled={page===0} onClick={()=>setPage(p=>p-1)}>← Prev</button>
-                <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{page*PAGE+1}–{Math.min((page+1)*PAGE,filtered.length)} of {filtered.length}</span>
+                <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{filtered.length?page*PAGE+1:0}–{Math.min((page+1)*PAGE,filtered.length)} of {filtered.length}</span>
                 <button className="btn" disabled={(page+1)*PAGE>=filtered.length} onClick={()=>setPage(p=>p+1)}>Next →</button>
               </div>
             </div>
@@ -846,9 +847,9 @@ export function JournalWorkspace({previewData=null}) {
 
         {!loading && allTrades.length===0 && tab!=='coach' && tab!=='missed' && (
           <div style={{textAlign:'center',padding:'60px 20px'}}>
-            <div style={{fontSize:36,marginBottom:12}}>📊</div>
+
             <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:'var(--tx)'}}>No trades loaded</div>
-            <div style={{fontSize:12,color:'var(--mu)'}}>Upload your PrimeXBT CSV export using the bar above.</div>
+            <div style={{fontSize:12,color:'var(--mu)'}}>Use Import trades in the header to add a supported broker export.</div>
           </div>
         )}
       </ErrorBoundary></main>
