@@ -3,6 +3,7 @@ import Head from 'next/head'
 import { computeStats } from '../lib/tradeUtils'
 import { isTxFlow } from '../lib/parsers/txflow'
 import TxFlowAccountModal from '../components/TxFlowAccountModal'
+import { reportingTrade } from '../lib/symbols'
 import dynamic from 'next/dynamic'
 
 // Error boundary — catches client-side crashes and shows the error on screen
@@ -30,6 +31,7 @@ class ErrorBoundary extends Component {
 const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
 const Top5PnlChart = dynamic(() => import('../components/Charts').then(m => ({ default: m.Top5PnlChart })), { ssr: false })
 const TradeModal      = dynamic(() => import('../components/TradeModal'),   { ssr: false })
+const SymbolAnalysis = dynamic(() => import('../components/SymbolAnalysis'), { ssr: false })
 const EdgeDiscovery   = dynamic(() => import('../components/EdgeDiscovery'),  { ssr: false })
 const ImageGallery = dynamic(() => import('../components/ImageGallery'), { ssr: false })
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
@@ -177,13 +179,13 @@ function DashboardInner() {
       return { ...t, price_pct }
     })
     let f = [...enriched]
-    if (fSym)  f = f.filter(t => t.symbol    === fSym)
+    if (fSym)  f = f.filter(t => fSym.startsWith('family:') ? t.underlying === fSym.slice(7) : t.symbol === fSym)
     if (fDir)  f = f.filter(t => t.direction === fDir)
     if (fRes === 'win')  f = f.filter(t => t.pnl > 0)
     if (fRes === 'loss') f = f.filter(t => t.pnl < 0)
     if (fSess) f = f.filter(t => t.session   === fSess)
     if (search) f = f.filter(t =>
-      (t.symbol+t.direction+t.session+t.entry_time+(t.account_id||'')).toLowerCase().includes(search.toLowerCase())
+      [t.symbol,t.original_symbol,t.underlying,t.direction,t.exposure_direction,t.session,t.entry_time,t.account_id].join(' ').toLowerCase().includes(search.toLowerCase())
     )
     const effectiveSortKey = sortKey === 'pct_gain' ? 'price_pct' : sortKey
     f.sort((a,b) => {
@@ -205,7 +207,7 @@ function DashboardInner() {
       if (to)   params.set('to', to + 'T23:59:59Z')
       const res  = await fetch(`/api/trades?${params}`)
       const data = await res.json()
-      if (data.trades)   setAllTrades(data.trades)
+      if (data.trades)   setAllTrades(data.trades.map(reportingTrade))
       if (data.accounts) {
         setAccounts(data.accounts)
         // Also refresh strategies
@@ -1005,37 +1007,8 @@ function DashboardInner() {
         {tab==='calendar' && <div className="anim"><div className="card">{stats ? renderCalendar() : <div style={{color:'var(--mu)',textAlign:'center',padding:20}}>Loading…</div>}</div></div>}
 
         {tab==='symbols' && stats && (
-          <div className="anim">
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}} className="g2">
-              <ChartComp type="symbolPnl" data={stats.symbols.slice(0,14)} privacy={privacy} />
-              <ChartComp type="symbolWr"  data={stats.symbols.slice(0,14)} />
-            </div>
-            <div className="card">
-              <div className="ct"><span className="ind" />SYMBOL BREAKDOWN
-                <span style={{fontSize:10,fontWeight:400,color:'var(--mu)',marginLeft:8}}>SILVER → XAG/USD · GOLD → XAU/USD (normalised)</span>
-              </div>
-              <div className="tw">
-                <table style={{minWidth:540}}>
-                  <thead><tr>{['Symbol','Trades','Total P&L','Win Rate','Avg P&L','Assessment'].map(h=><th key={h}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {stats.symbols.map(s=>{
-                      const wr=Math.round(s.win_rate*100)
-                      const badge=s.total_pnl>10000&&s.win_rate>.65?<span className="pill pb">KEEP</span>:s.total_pnl<-10000?<span className="pill pr">REDUCE</span>:<span className="pill pn">MONITOR</span>
-                      return (
-                        <tr key={s.symbol}>
-                          <td className="sym-c">{s.symbol}</td><td>{s.count}</td>
-                          <td className={`${s.total_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(s.total_pnl))}</td>
-                          <td><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:48,background:'var(--sf3)',borderRadius:2,height:4}}><div style={{width:wr+'%',height:4,borderRadius:2,background:wr>=65?'var(--wn)':wr<50?'var(--ls)':'var(--wa)'}} /></div><span className={wr>=65?'pos':wr<50?'neg':'wa'}>{wr}%</span></div></td>
-                          <td className={`${s.avg_pnl>=0?'pos':'neg'} private`}>{fU(Math.round(s.avg_pnl))}</td>
-                          <td>{badge}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <SymbolAnalysis trades={visibleTrades} privacy={privacy}
+            onSelect={(symbol, family) => { setFSym(family ? `family:${symbol}` : symbol); setSearch(''); setPage(0); setTab('trades') }} />
         )}
 
         {tab==='timing' && stats && (
@@ -1106,7 +1079,12 @@ function DashboardInner() {
             <div style={{fontSize:11,color:'var(--mu)',marginBottom:10,fontFamily:'var(--font-mono)'}}>Click any row to open · ← → keys to navigate · notes and tags saved per trade</div>
             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap',background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:8,padding:'10px 14px',boxShadow:'var(--sh-sm)'}}>
               <input className="inp" style={{width:160}} placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)} />
-              {[[fSym,setFSym,['All Symbols',...symbols]],[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['Win & Loss','win','loss']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
+              <select className="inp" aria-label="Market or underlying family" value={fSym} onChange={event=>setFSym(event.target.value)}>
+                <option value="">All symbols and families</option>
+                <optgroup label="Underlying families">{['Crude oil','Bitcoin'].filter(family=>visibleTrades.some(trade=>trade.underlying===family)).map(family=><option key={family} value={`family:${family}`}>{family} — all products</option>)}</optgroup>
+                <optgroup label="Markets / products">{symbols.map(symbol=><option key={symbol}>{symbol}</option>)}</optgroup>
+              </select>
+              {[[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['Win & Loss','win','loss']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
                 <select key={i} className="inp" value={val} onChange={e=>setter(e.target.value)}>
                   {opts.map((o,j)=><option key={o} value={j===0?'':o}>{o}</option>)}
                 </select>
@@ -1137,7 +1115,7 @@ function DashboardInner() {
                           <td className="mu">{t.entry_time?.slice(0,16).replace('T',' ')}</td>
                           <td className="mu">{t.exit_time?.slice(0,16).replace('T',' ')}</td>
                           <td className="mu">{dur}</td>
-                          <td className="sym-c">{t.symbol}</td>
+                          <td className="sym-c" title={`Saved ticker: ${t.original_symbol || t.symbol} · Family: ${t.underlying || t.symbol}`}>{t.symbol}{t.inverse && <div style={{fontSize:9,color:'var(--wa)',fontWeight:400}}>{t.exposure_direction} BTC exposure</div>}</td>
                           <td>{acc&&<span style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 6px',borderRadius:4,background:acc.color+'15',border:`1px solid ${acc.color}30`,fontSize:10,fontFamily:'var(--font-mono)',fontWeight:600}}><span style={{width:5,height:5,borderRadius:'50%',background:acc.color}} />{acc.label||acc.id}</span>}</td>
                           <td><span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:t.direction==='Long'?'#00b5a3':'#ffb300',background:t.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${t.direction==='Long'?'#00b5a3':'#ffb300'}`}}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
                           <td>{t.entry_price?.toLocaleString()||'—'}</td>

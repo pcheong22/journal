@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 const url = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-const utils = url(await readFile(new URL('../lib/parserUtils.js', import.meta.url), 'utf8'))
+const symbols = url(await readFile(new URL('../lib/symbols.js', import.meta.url), 'utf8'))
+const utils = url((await readFile(new URL('../lib/parserUtils.js', import.meta.url), 'utf8')).replace("'./symbols'", JSON.stringify(symbols)))
 const { parseTxFlow, isTxFlow, txflowAccountId } = await import(url(
   (await readFile(new URL('../lib/parsers/txflow.js', import.meta.url), 'utf8')).replace("'../parserUtils'", JSON.stringify(utils))))
 const { changedTxFlowTrade } = await import(url(await readFile(new URL('../lib/txflowImport.js', import.meta.url), 'utf8')))

@@ -205,6 +205,13 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
                 {trade.entry_time?.slice(0,16).replace('T',' ')} → {trade.exit_time?.slice(0,16).replace('T',' ')} GMT
                 &nbsp;·&nbsp;{trade.session}&nbsp;·&nbsp;{trade.day_of_week}&nbsp;·&nbsp;{dur}
               </div>
+              <div style={{fontSize:11,color:'var(--mu)',marginTop:5}}>
+                {trade.underlying && <>Family: {trade.underlying} · </>}
+                Saved ticker: {trade.original_symbol || trade.symbol}
+                {trade.contract_symbol && <> · Contract: {trade.contract_symbol}</>}
+                {trade.product_type && trade.product_type !== 'Broker instrument' && <> · {trade.product_type}</>}
+                {trade.inverse && <> · {trade.exposure_direction} Bitcoin exposure (daily inverse)</>}
+              </div>
             </div>
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
               <span style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{idx+1}/{trades.length}</span>
