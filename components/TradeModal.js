@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import ExecutionPanel from './ExecutionPanel'
 import { simulatePnLPath } from '../lib/tradeUtils'
 import { PnlPathChart } from './Charts'
 import ImageGallery from './ImageGallery'
@@ -15,7 +16,7 @@ const CAT_COLORS = {
 export default function TradeModal({ trade, onClose, trades, onNavigate, tags = [], onSaved }) {
   const [tf,          setTf]          = useState('1')
   const [sim,         setSim]         = useState(null)
-  const [activeSection, setSection]   = useState('chart') // chart | notes | tags | ai
+  const [activeSection, setSection]   = useState(trade?.execution_count ? 'executions' : 'chart')
 
   // Notes state — pre-populate from trade if already saved
   const [noteEntry,   setNoteEntry]   = useState('')
@@ -52,7 +53,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
     setStopLoss(trade.stop_loss != null ? String(trade.stop_loss) : '')
     setSelectedTags(new Set())
     setAiResult(null); setAiError(null); setSaved(false)
-    setSection('chart')
+    setSection(trade.execution_count ? 'executions' : 'chart')
   }, [trade])
 
   // Keyboard nav
@@ -173,6 +174,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
 
   // Section nav
   const SECTIONS = [
+    { id:'executions', label:'Executions' },
     { id:'chart',  label:'📈 Chart' },
     { id:'pnl',    label:'📊 P&L Path' },
     { id:'notes',  label:'📝 Notes' },
@@ -232,8 +234,8 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
             {[
               ['P&L',       fU(trade.pnl),                    pnlC,             'Net realised',     true],
               ['% RETURN',  pct,                               pnlPos?'var(--wn)':'var(--ls)','P&L / Notional', false],
-              ['ENTRY',     trade.entry_price?.toLocaleString()||'—','var(--tx)','Price',            false],
-              ['EXIT',      trade.exit_price?.toLocaleString()||'—', 'var(--tx)','Price',            false],
+              ['AVG ENTRY', trade.entry_price?.toLocaleString()||'—','var(--tx)','Saved average price', false],
+              ['AVG EXIT',  trade.exit_price?.toLocaleString()||'—', 'var(--tx)','Saved average price', false],
               ['PRICE MOVE',pts!=null?(pts>=0?'+':'')+pts.toFixed(5):'—', pnlC, trade.direction,    false],
               ['SIZE',      trade.size?.toLocaleString()||'—', 'var(--tx)',       'Contracts',        false],
               ['DURATION',  dur,                               'var(--tx)',        Math.round(trade.duration_mins||0)+'min', false],
@@ -268,6 +270,7 @@ export default function TradeModal({ trade, onClose, trades, onNavigate, tags = 
             </div>
           </div>
 
+          {activeSection==='executions' && <ExecutionPanel trade={trade} />}
           {/* ── CHART SECTION ─────────────────────────────────────────── */}
           {activeSection==='chart' && (
             <div>

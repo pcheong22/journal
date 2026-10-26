@@ -113,3 +113,22 @@ test('scale-ins after partial closes use the remaining-position cost basis', () 
 test('an opening-only position does not appear as a completed trade', () => {
   assert.equal(parse([long[0]]).length, 0)
 })
+
+test('execution sidecars retain every original row and distinct identical fills', () => {
+  const doubled = [header, long[0], long[0], long[1], long[1], long[2], long[2]]
+  const { trades, executions } = parseTxFlow(doubled, 'history.csv', wallet, 'Asia/Dubai')
+  assert.equal(executions[0].position_id, trades[0].position_id)
+  assert.equal(executions[0].fills.length, 6)
+  assert.equal(new Set(executions[0].fills.map(fill => fill.source_key)).size, 6)
+  assert.ok(executions[0].fills.every(fill => Array.isArray(fill.source_row) && fill.source_time && fill.source_row_number >= 2))
+})
+
+test('a reversing execution is allocated without duplicating its quantity or fee', () => {
+  const source = [header, fill('Buy', '12:00:00', 1, 100, 0, 1), fill('Sell', '13:00:00', 3, 110, 10, 3), fill('Buy', '14:00:00', 2, 100, 20, 2)]
+  const { executions } = parseTxFlow(source, 'history.csv', wallet, 'Asia/Dubai')
+  const allocations = executions.flatMap(trade => trade.fills).filter(fill => fill.source_time.endsWith('13:00:00'))
+  assert.equal(allocations.length, 2)
+  assert.equal(allocations.reduce((sum, fill) => sum + fill.quantity, 0), 3)
+  assert.equal(allocations.reduce((sum, fill) => sum + fill.fee, 0), 3)
+  assert.equal(allocations.reduce((sum, fill) => sum + fill.reported_pnl, 0), 10)
+})

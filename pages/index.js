@@ -272,7 +272,7 @@ function DashboardInner() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       setUpload({ status:'success', message:data.message, broker:data.broker||'', accountId:data.accountId||'' })
-      if (data.imported > 0 || data.reconciled > 0 || data.removed > 0) await loadTrades(dateFrom, dateTo)
+      if (data.imported > 0 || data.reconciled > 0 || data.removed > 0 || data.executionsSaved > 0) await loadTrades(dateFrom, dateTo)
     } catch(e) { setUpload({ status:'error', message:e.message, broker:'', accountId:'' }) }
   }
   const handleDrop  = e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
@@ -1119,7 +1119,7 @@ function DashboardInner() {
               <div className="tw trade-tbl-wrap">
                 <table style={{minWidth:1020}}>
                   <thead><tr>
-                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Entry Px'],['exit_price','Exit Px'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
+                    {[['entry_time','Entry'],['exit_time','Exit'],['duration_mins','Duration'],['symbol','Symbol'],['account_id','Account'],['direction','Dir'],['entry_price','Avg entry'],['exit_price','Avg exit'],['execution_count','Executions'],['notional_usd','Notional'],['pnl','P&L'],['pct_gain','% Ret'],['session','Session'],['_notes','Notes'],['_r','Result']].map(([k,l])=>(
                       <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
                         {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
                       </th>
@@ -1142,6 +1142,7 @@ function DashboardInner() {
                           <td><span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,color:t.direction==='Long'?'#00b5a3':'#ffb300',background:t.direction==='Long'?'rgba(0,181,163,.12)':'rgba(255,179,0,.12)',border:`1px solid ${t.direction==='Long'?'#00b5a3':'#ffb300'}`}}>{t.direction==='Long'?'▲':'▼'} {t.direction}</span></td>
                           <td>{t.entry_price?.toLocaleString()||'—'}</td>
                           <td>{t.exit_price?.toLocaleString()||'—'}</td>
+                          <td style={{color:'var(--ac)',whiteSpace:'nowrap'}} title={t.execution_count ? 'Open this trade to inspect execution batches and individual fills' : 'Re-upload the original supported CSV to add execution details'}>{t.execution_count ? `${t.execution_count} fills ↗` : '—'}</td>
                           <td className="private" style={{fontFamily:'var(--font-mono)',fontSize:11}}>{t.notional_usd ? '$'+Math.round(t.notional_usd).toLocaleString() : '—'}</td>
                           <td className={`${t.pnl>=0?'pos':'neg'} private`}>{fU(t.pnl)}</td>
                           <td className={pct!=null?(pct>=0?'pos':'neg'):''}>{pctStr}</td>
