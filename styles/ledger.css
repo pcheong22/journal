@@ -218,3 +218,14 @@ body.privacy-on .private::after {content:'••••';color:var(--mu);position
 .review-risk {font-size:12px;margin:8px 0 22px;color:var(--tx2)}
 .review-risk summary {cursor:pointer;padding:10px 0}
 .review-risk[open]>div {margin-top:10px}
+
+/* Loading and keyboard access share the same ledger surfaces. */
+.journal-loading{min-height:100vh}.journal-loading-brand{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:600;padding:0 0 28px;border-bottom:1px solid var(--bd)}
+.loading-message{margin:36px 0 28px;max-width:600px}.loading-message h1{font-size:25px;letter-spacing:-.6px;margin-bottom:10px}.loading-message p{color:var(--tx2);line-height:1.7;margin-bottom:18px}
+.loading-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;padding:28px 0;border-block:1px solid var(--bd)}
+.loading-metrics>div{display:grid;gap:16px}.loading-metrics span,.loading-metrics strong{display:block;height:12px;width:65%;border-radius:3px;background:var(--sf3)}.loading-metrics strong{height:30px;width:80%}
+.loading-chart{height:280px;margin-top:30px;border:1px solid var(--bd);border-radius:8px;background:var(--sf)}
+button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ac);outline-offset:3px}
+.settings-panel{max-width:calc(100vw - 32px)}.settings-panel [data-dialog-close]{min-width:40px;min-height:40px}.settings-panel button[role=switch]{outline-offset:4px}
+@media(max-width:768px){.loading-metrics{grid-template-columns:1fr 1fr;gap:28px}.loading-chart{height:210px}.settings-panel .inp{max-width:150px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

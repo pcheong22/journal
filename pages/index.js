@@ -1,3 +1,5 @@
+import JournalLoading from '../components/JournalLoading'
+import {useDialogFocus} from '../lib/useDialogFocus'
 import JournalShell from '../components/JournalShell'
 import JournalOverview from '../components/JournalOverview'
 import {money,durationLabel} from '../lib/presentation'
@@ -187,6 +189,7 @@ export function JournalWorkspace({previewData=null}) {
     let f = [...enriched]
     if (fSym)  f = f.filter(t => fSym.startsWith('family:') ? t.underlying === fSym.slice(7) : t.symbol === fSym)
     if (fDir)  f = f.filter(t => t.direction === fDir)
+    if (fRes === 'source') f = f.filter(t => t.data_check)
     if (fRes === 'win')  f = f.filter(t => t.pnl > 0)
     if(reviewInbox){const reviewed=tags.find(t=>t.name==='Reviewed')?.id;f=f.filter(t=>!t.tag_ids?.includes(reviewed))}
     if(fRes==='breakeven')f=f.filter(t=>t.pnl===0)
@@ -211,11 +214,12 @@ export function JournalWorkspace({previewData=null}) {
     if(previewData){setAllTrades(previewData.trades.filter(t=>(!from||t.exit_time.slice(0,10)>=from)&&(!to||t.exit_time.slice(0,10)<=to)).map(reportingTrade));setAccounts(previewData.accounts);setTags(previewData.tags);setLoading(false);return}
     const requestId=++requestSequence.current
     setLoading(true); setLoadError('')
+    const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),30000)
     try {
       const params = new URLSearchParams()
       if (from && from !== '2000-01-01') params.set('from', from + 'T00:00:00Z')
       if (to)   params.set('to', to + 'T23:59:59.999Z')
-      const res  = await journalFetch(`/api/trades?${params}`)
+      const res  = await journalFetch(`/api/trades?${params}`,{signal:controller.signal})
       const data = await res.json()
       if(requestId!==requestSequence.current)return
       if (data.trades)   setAllTrades(data.trades.map(reportingTrade))
@@ -230,8 +234,8 @@ export function JournalWorkspace({previewData=null}) {
         })
       }
       if (data.tags)     setTags(data.tags)
-    } catch(e) {if(requestId===requestSequence.current)setLoadError(e.message || 'Could not load your journal. Please retry.')}
-    if(requestId===requestSequence.current)setLoading(false)
+    } catch(e) {if(requestId===requestSequence.current)setLoadError(e.name==='AbortError'?'Loading took longer than expected. Please retry.':e.message || 'Could not load your journal. Please retry.')}
+    finally{clearTimeout(deadline);if(requestId===requestSequence.current)setLoading(false)}
   }, [])
 
   useEffect(() => {let from=dateFrom,to=dateTo;try{const saved=JSON.parse(localStorage.getItem('ti_settings')||'{}'),preset=DATE_PRESETS.find(p=>p.label===saved.defaultDatePreset);if(preset){from=preset.from();to=preset.to()}}catch{}loadTrades(from,to)}, [])
@@ -395,12 +399,7 @@ export function JournalWorkspace({previewData=null}) {
     </>)
   }
 
-  if (!isClient || loading&&!allTrades.length) return (
-    <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
-      <div style={{width:28,height:28,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',animation:'spin 1s linear infinite'}} />
-      <div style={{color:'var(--mu)',fontFamily:'var(--font-mono)',fontSize:11,letterSpacing:'.04em'}}>LOADING…</div>
-    </div>
-  )
+  if (!isClient || !allTrades.length&&(loading||loadError)) return <JournalLoading error={loadError} onRetry={()=>loadTrades(dateFrom,dateTo)}/>
 
   return (
     <>
@@ -514,7 +513,7 @@ export function JournalWorkspace({previewData=null}) {
         {['overview','portfolio'].includes(tab) && stats && (
           <div className="anim">
           {tab==='overview'&&selectedTrades.length>visibleTrades.length&&<p className="data-check-notice">{selectedTrades.length-visibleTrades.length} trades in other currencies are excluded from dollar analytics and remain available in Trades.</p>}
-          {tab==='overview'&&<JournalOverview key={darkMode?'dark':'light'} stats={stats} trades={visibleTrades} tags={tags} privacy={privacy} onReview={()=>{setTab('review');setReviewInbox(true)}} onInstrument={symbol=>{setFSym(symbol);setFDir('');setFRes('');setFSess('');setSearch('');setReviewInbox(false);setTab('trades')}}/>}
+          {tab==='overview'&&<JournalOverview key={darkMode?'dark':'light'} stats={stats} trades={visibleTrades} tags={tags} privacy={privacy} onReview={()=>{setTab('review');setReviewInbox(true)}} onSourceCheck={()=>{setFSym('');setFDir('');setFRes('source');setFSess('');setSearch('');setReviewInbox(false);setLogFiltersOpen(true);setTab('trades')}} onInstrument={symbol=>{setFSym(symbol);setFDir('');setFRes('');setFSess('');setSearch('');setReviewInbox(false);setTab('trades')}}/>}
           {tab==='portfolio'&&<div className="page-heading"><div><span className="eyebrow">Analysis</span><h1>Portfolio detail</h1><p>Explore closed-trade statistics and account contributions.</p></div></div>}
           {(tab==='portfolio'?['risk','rolling','accounts']:[]).map(section => {
             switch(section) {
@@ -785,9 +784,9 @@ export function JournalWorkspace({previewData=null}) {
                 <optgroup label="Underlying families">{['Crude oil','Bitcoin'].filter(family=>visibleTrades.some(trade=>trade.underlying===family)).map(family=><option key={family} value={`family:${family}`}>{family} — all products</option>)}</optgroup>
                 <optgroup label="Markets / products">{symbols.map(symbol=><option key={symbol}>{symbol}</option>)}</optgroup>
               </select>
-              {[[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['All outcomes','win','loss','breakeven']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
+              {[[fDir,setFDir,['Long & Short','Long','Short']],[fRes,setFRes,['All outcomes','win','loss','breakeven','source']],[fSess,setFSess,['All Sessions','Asia','London','London/NY Overlap','New York']]].map(([val,setter,opts],i)=>(
                 <select key={i} aria-label={['Direction','Outcome','Trading session'][i]} className="inp" value={val} onChange={e=>setter(e.target.value)}>
-                  {opts.map((o,j)=><option key={o} value={j===0?'':o}>{o}</option>)}
+                  {opts.map((o,j)=><option key={o} value={j===0?'':o}>{o==='source'?'Source check':o}</option>)}
                 </select>
               ))}
               <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:11,color:'var(--mu)'}}>
@@ -1163,12 +1162,14 @@ function HyperliquidAccountModal({ onSelect, onClose, existingAccounts }) {
 // ── DASHBOARD ORDER LIST ──────────────────────────────────────────────────────
 // Drag-to-reorder list for Overview sections in Settings
 function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false, settings, saveSetting, privacy, setPrivacy, darkMode, setDarkMode, acctStatsOpen, setAcctStatsOpen, onClose }) {
+  const panelRef=useRef(null)
+  useDialogFocus(panelRef,onClose)
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
   const TABS         = ['overview','edge','coach','streaks','calendar','symbols','timing','trades','review','missed']
   const TAB_LABELS   = { overview:'Overview', edge:'Edge', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log',review:'Review queue', missed:'Passed' }
   const PAGE_SIZES   = [50, 100, 200]
 
-  const Row = ({ label, sub, children }) => (
+  const Row = useCallback(({ label, sub, children }) => (
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--bd)'}}>
       <div>
         <div style={{fontSize:12,fontWeight:600,color:'var(--tx)'}}>{label}</div>
@@ -1176,53 +1177,53 @@ function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false
       </div>
       <div style={{flexShrink:0,marginLeft:16}}>{children}</div>
     </div>
-  )
+  ),[])
 
-  const Toggle = ({ value, onChange }) => (
-    <button onClick={()=>onChange(!value)}
+  const Toggle = useCallback(({ value, onChange, label }) => (
+    <button role="switch" aria-label={label} aria-checked={!!value} onClick={()=>onChange(!value)}
       style={{width:42,height:24,borderRadius:12,border:'none',cursor:'pointer',transition:'all .2s',
         background:value?'var(--ac)':'var(--bd2)',position:'relative',flexShrink:0}}>
       <span style={{position:'absolute',top:3,left:value?20:3,width:18,height:18,borderRadius:'50%',background:'#fff',transition:'left .2s',display:'block'}} />
     </button>
-  )
+  ),[])
 
-  const Select = ({ value, options, onChange }) => (
-    <select value={value} onChange={e=>onChange(e.target.value)} className="inp"
+  const Select = useCallback(({ value, options, onChange, label }) => (
+    <select aria-label={label} value={value} onChange={e=>onChange(e.target.value)} className="inp"
       style={{padding:'4px 8px',fontSize:11,fontFamily:'var(--font-mono)',minWidth:90}}>
       {options.map(o => <option key={o.value||o} value={o.value||o}>{typeof o==='object'?(o.label||String(o.value)):o}</option>)}
     </select>
-  )
+  ),[])
 
   return (
     <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:12,width:420,maxHeight:'85vh',overflow:'auto',boxShadow:'var(--sh-lg)',margin:'auto',position:'relative'}}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1} className="settings-panel" style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:12,width:420,maxHeight:'85vh',overflow:'auto',boxShadow:'var(--sh-lg)',margin:'auto',position:'relative'}}>
         <div style={{padding:'18px 24px',borderBottom:'1px solid var(--bd)',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:'var(--sf)',zIndex:10}}>
           <div>
-            <div style={{fontWeight:700,fontSize:15}}>Settings</div>
+            <h2 id="settings-title" style={{fontWeight:600,fontSize:18,margin:0}}>Settings</h2>
             <div style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)',marginTop:2}}>Preferences saved to this browser</div>
           </div>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
+          <button aria-label="Close settings" data-dialog-close onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
         </div>
         <div style={{padding:'0 24px 24px'}}>
           <BackupPanel settings={settings} /><ImportHistory /><details className="account-administration"><summary>Account administration</summary><p>Renaming keeps trades attached. Deletion requires typing the account ID and saves a safety backup.</p>{accounts.map(a=><div key={a.id}><span>{a.label||a.id}<small>{a.broker}</small></span><button className="btn btn-sm" disabled={preview} onClick={()=>onEditAccount(a)}>Rename</button><button className="btn btn-sm btn-d" disabled={preview} onClick={()=>onDeleteAccount(a.id)}>Delete account</button></div>)}<button className="btn btn-d" disabled={preview} onClick={()=>onDeleteAccount(null)}>Delete all accounts and trades…</button></details>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
           <Row label="Dark mode" sub="Default theme on load">
-            <Toggle value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />
+            <Toggle label="Dark mode" value={settings.defaultDark} onChange={v=>{saveSetting('defaultDark',v); setDarkMode(v)}} />
           </Row>
           <Row label="Privacy mode" sub="Hide P&L values on load">
-            <Toggle value={settings.defaultPrivacy} onChange={v=>{saveSetting('defaultPrivacy',v); setPrivacy(v)}} />
+            <Toggle label="Hide amounts by default" value={settings.defaultPrivacy} onChange={v=>{saveSetting('defaultPrivacy',v); setPrivacy(v)}} />
           </Row>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>DASHBOARD</div>
           <Row label="Default date range" sub="Range selected on load">
-            <Select value={settings.defaultDatePreset} options={DATE_PRESETS} onChange={v=>saveSetting('defaultDatePreset',v)} />
+            <Select label="Default date range" value={settings.defaultDatePreset} options={DATE_PRESETS} onChange={v=>saveSetting('defaultDatePreset',v)} />
           </Row>
           <Row label="Default tab" sub="Tab open on load">
-            <Select value={settings.defaultTab}
+            <Select label="Default tab" value={settings.defaultTab}
               options={TABS.map(t=>({value:t, label:TAB_LABELS[t]}))}
               onChange={v=>saveSetting('defaultTab',v)} />
           </Row>
           <Row label="Account breakdown" sub="Expanded or collapsed on load">
-            <Toggle value={settings.acctStatsDefault} onChange={v=>{saveSetting('acctStatsDefault',v); setAcctStatsOpen(v)}} />
+            <Toggle label="Expand account breakdown by default" value={settings.acctStatsDefault} onChange={v=>{saveSetting('acctStatsDefault',v); setAcctStatsOpen(v)}} />
           </Row>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>HYPERLIQUID</div>
           <Row label="CSV timezone" sub="Your local timezone when exporting from Hyperliquid">
@@ -1241,7 +1242,7 @@ function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false
           </Row>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>TRADE LOG</div>
           <Row label="Rows per page" sub="Number of trades shown per page">
-            <Select value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
+            <Select label="Rows per page" value={settings.tradeLogPageSize} options={PAGE_SIZES.map(n=>({value:n,label:n+' rows'}))} onChange={v=>saveSetting('tradeLogPageSize',parseInt(v))} />
           </Row>
           <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid var(--bd)'}}>
             <button className="btn" onClick={()=>{
@@ -1890,23 +1891,23 @@ ${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Fo
   const displayInsights = report?.insights?(typeof report.insights==='string'?JSON.parse(report.insights):report.insights):[]
 
   return (
-    <div className="anim">
+    <div className="anim coach-workspace"><div className="page-heading"><div><span className="eyebrow">Review</span><h1>Trading coach</h1><p>Reflect on a period, then choose one thing to improve.</p></div></div>
       <div className="card" style={{marginBottom:14}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>AI TRADING COACH · LIVE REPORT</div>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',marginBottom:4}}>Period review</div>
             <div style={{fontSize:15,fontWeight:700,marginBottom:2}}>Performance Analysis · {tradeCount?.toLocaleString()||0} Trades</div>
             <div style={{fontSize:11,color:'var(--ac)',fontFamily:'var(--font-mono)',fontWeight:600,marginBottom:8}}>Period: {periodLabel}</div>
             <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.6,maxWidth:520,marginBottom:12}}>Change the date range at the top of the page first, then generate a report for that specific period.</div>
             <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
               <button className={`btn ${loading?'':'btn-p'}`} onClick={generate} disabled={loading||!stats} style={{padding:'8px 20px',fontSize:13,gap:8}}>
-                {loading?(<><span style={{width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} /> Analysing {tradeCount?.toLocaleString()} trades…</>):generated?'🔄 Regenerate':'🧠 Generate AI Coaching Report'}
+                {loading?(<><span style={{width:14,height:14,border:'2px solid var(--bd2)',borderTop:'2px solid var(--ac)',borderRadius:'50%',display:'inline-block',animation:'spin 1s linear infinite'}} /> Analysing {tradeCount?.toLocaleString()} trades…</>):generated?'Regenerate report':'Generate coaching report'}
               </button>
               {report && (<>
-                <button className="btn" onClick={saveReport} disabled={saving} style={{gap:6}}>{saving?'💾 Saving…':savedOk?'✅ Saved!':'💾 Save Report'}</button>
-                <button className="btn" onClick={exportPDF} style={{gap:6}}>📄 Export PDF</button>
+                <button className="btn" onClick={saveReport} disabled={saving} style={{gap:6}}>{saving?'Saving…':savedOk?'Saved':'Save report'}</button>
+                <button className="btn" onClick={exportPDF} style={{gap:6}}>Export PDF</button>
               </>)}
-              <button className="btn" onClick={toggleHistory} style={{gap:6,marginLeft:'auto'}}>📋 {showHist?'Hide':'View'} Saved Reports</button>
+              <button className="btn" onClick={toggleHistory} style={{gap:6,marginLeft:'auto'}}>{showHist?'Hide':'View'} saved reports</button>
             </div>
             {lastRun&&!loading&&<div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)',marginTop:8}}>Generated: {lastRun} · via {providerLabel} · period: {periodLabel}</div>}
             {!stats&&<div style={{fontSize:11,color:'var(--mu)',marginTop:8}}>Upload trades first to enable AI analysis.</div>}
@@ -2000,9 +2001,9 @@ ${report.coaching_tip?`<div class="tip"><div class="tip-lbl">💡 This Week's Fo
 
       {!report&&!loading&&!error&&(
         <div style={{textAlign:'center',padding:'48px 20px',color:'var(--mu)'}}>
-          <div style={{fontSize:40,marginBottom:12}}>🧠</div>
+
           <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:'var(--tx)'}}>Ready to analyse your trading</div>
-          <div style={{fontSize:12,maxWidth:420,margin:'0 auto',lineHeight:1.7}}>Select a date range above (WTD, MTD, QTD, YTD, or All), then click Generate. Each report is saved separately so you can compare periods over time.</div>
+          <div style={{fontSize:12,maxWidth:420,margin:'0 auto',lineHeight:1.7}}>Choose a reporting period above, then generate a report. Each report is saved separately so you can compare periods over time.</div>
         </div>
       )}
     </div>

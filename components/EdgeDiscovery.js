@@ -7,8 +7,8 @@ import DrawdownAttribution from './DrawdownAttribution'
 import EdgeConcentration   from './EdgeConcentration'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const fU  = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
-const fA  = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
+const fU  = (n, d=0) => <span className="private">{(n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})}</span>
+const fA  = n => <span className="private">{'$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})}</span>
 const fP  = (n,d=1) => (n*100).toFixed(d)+'%'
 const fN  = (n,d=2) => n==null?'—':n.toFixed(d)
 
@@ -57,14 +57,14 @@ function heatColor(val, min, max) {
 
 function heatTextColor(val) {
   if (val == null || isNaN(val)) return 'var(--mu)'
-  return val >= 0 ? '#66ffa5' : '#ff5258'
+  return val >= 0 ? 'var(--wn)' : 'var(--ls)'
 }
 
 // ── Shared table styles ───────────────────────────────────────────────────────
-const TH = { fontSize:9, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
+const TH = { fontSize:11, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
   letterSpacing:'.08em', fontFamily:'var(--font-mono)', padding:'7px 12px',
   borderBottom:'1px solid var(--bd)', whiteSpace:'nowrap', cursor:'pointer', userSelect:'none' }
-const TD = { fontSize:11, fontFamily:'var(--font-mono)', padding:'7px 12px',
+const TD = { fontSize:12, fontFamily:'var(--font-mono)', padding:'7px 12px',
   borderBottom:'1px solid var(--bd2)', whiteSpace:'nowrap' }
 
 // ── Section header ────────────────────────────────────────────────────────────
@@ -180,12 +180,12 @@ function SymbolExpectancyTable({ trades }) {
                 onMouseLeave={e=>e.currentTarget.style.background=drillSym===r.symbol?'var(--ac-bg)':'transparent'}>
                 <td style={{...TD,fontWeight:700,color:'var(--tx)'}}>{r.symbol}</td>
                 <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{r.trades}</td>
-                <td style={{...TD,textAlign:'right',color:r.wr>=.5?'#66ffa5':'#ff5258'}}>{fP(r.wr)}</td>
-                <td style={{...TD,textAlign:'right',color:'#66ffa5'}}>{fU(r.avgW)}</td>
-                <td style={{...TD,textAlign:'right',color:'#ff5258'}}>{fU(r.avgL)}</td>
-                <td style={{...TD,textAlign:'right',color:r.pf>=1?'#66ffa5':'#ff5258'}}>{r.pf===Infinity?'∞':fN(r.pf)}</td>
+                <td style={{...TD,textAlign:'right',color:r.wr>=.5?'var(--wn)':'var(--ls)'}}>{fP(r.wr)}</td>
+                <td style={{...TD,textAlign:'right',color:'var(--wn)'}}>{fU(r.avgW)}</td>
+                <td style={{...TD,textAlign:'right',color:'var(--ls)'}}>{fU(r.avgL)}</td>
+                <td style={{...TD,textAlign:'right',color:r.pf>=1?'var(--wn)':'var(--ls)'}}>{r.pf===Infinity?'∞':fN(r.pf)}</td>
                 <td style={{...TD,textAlign:'right',fontWeight:700,color:heatTextColor(r.expectancy)}}>{fU(r.expectancy)}</td>
-                <td style={{...TD,textAlign:'right',color:r.total>=0?'#66ffa5':'#ff5258',fontWeight:600}}>{fU(r.total)}</td>
+                <td style={{...TD,textAlign:'right',color:r.total>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(r.total)}</td>
               </tr>
             ))}
           </tbody>
@@ -223,11 +223,11 @@ function SymbolExpectancyTable({ trades }) {
                     <tr key={b}>
                       <td style={{...TD,fontWeight:600,color:'var(--tx)'}}>{b}</td>
                       <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{bts.length}</td>
-                      <td style={{...TD,textAlign:'right',color:wr>=.5?'#66ffa5':'#ff5258'}}>{fP(wr)}</td>
-                      <td style={{...TD,textAlign:'right',color:'#66ffa5'}}>{fU(avgW)}</td>
-                      <td style={{...TD,textAlign:'right',color:'#ff5258'}}>{fU(avgL)}</td>
+                      <td style={{...TD,textAlign:'right',color:wr>=.5?'var(--wn)':'var(--ls)'}}>{fP(wr)}</td>
+                      <td style={{...TD,textAlign:'right',color:'var(--wn)'}}>{fU(avgW)}</td>
+                      <td style={{...TD,textAlign:'right',color:'var(--ls)'}}>{fU(avgL)}</td>
                       <td style={{...TD,textAlign:'right',fontWeight:700,color:heatTextColor(exp)}}>{fU(exp)}</td>
-                      <td style={{...TD,textAlign:'right',color:total>=0?'#66ffa5':'#ff5258',fontWeight:600}}>{fU(total)}</td>
+                      <td style={{...TD,textAlign:'right',color:total>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(total)}</td>
                     </tr>
                   )
                 })}
@@ -285,19 +285,19 @@ function DurationExpectancyTable({ trades }) {
                 onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                 <td style={{...TD,fontWeight:700,color:'var(--tx)',minWidth:80}}>{r.bucket}</td>
                 <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':'var(--mu)'}}>{r.trades||'—'}</td>
-                <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':r.wr>=.5?'#66ffa5':'#ff5258'}}>{r.trades?fP(r.wr):'—'}</td>
-                <td style={{...TD,textAlign:'right',color:'#66ffa5'}}>{r.trades?fU(r.avgW):'—'}</td>
-                <td style={{...TD,textAlign:'right',color:'#ff5258'}}>{r.trades?fU(r.avgL):'—'}</td>
-                <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':r.pf>=1?'#66ffa5':'#ff5258'}}>{r.trades?(r.pf===Infinity?'∞':fN(r.pf)):'—'}</td>
+                <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':r.wr>=.5?'var(--wn)':'var(--ls)'}}>{r.trades?fP(r.wr):'—'}</td>
+                <td style={{...TD,textAlign:'right',color:'var(--wn)'}}>{r.trades?fU(r.avgW):'—'}</td>
+                <td style={{...TD,textAlign:'right',color:'var(--ls)'}}>{r.trades?fU(r.avgL):'—'}</td>
+                <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':r.pf>=1?'var(--wn)':'var(--ls)'}}>{r.trades?(r.pf===Infinity?'∞':fN(r.pf)):'—'}</td>
                 <td style={{...TD,textAlign:'right',fontWeight:700,color:r.trades===0?'var(--bd2)':heatTextColor(r.expectancy)}}>{r.trades?fU(r.expectancy):'—'}</td>
-                <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':r.avgTrade>=0?'#66ffa5':'#ff5258'}}>{r.trades?fU(r.avgTrade):'—'}</td>
+                <td style={{...TD,textAlign:'right',color:r.trades===0?'var(--bd2)':r.avgTrade>=0?'var(--wn)':'var(--ls)'}}>{r.trades?fU(r.avgTrade):'—'}</td>
                 <td style={{...TD,textAlign:'right',minWidth:160}}>
                   {r.trades > 0 && (
                     <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}>
-                      <span style={{color:r.total>=0?'#66ffa5':'#ff5258',fontWeight:600}}>{fU(r.total)}</span>
+                      <span style={{color:r.total>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>{fU(r.total)}</span>
                       <div style={{width:60,height:6,background:'var(--sf2)',borderRadius:3,overflow:'hidden'}}>
                         <div style={{height:'100%',width:`${Math.round(Math.abs(r.total)/maxAbs*100)}%`,
-                          background:r.total>=0?'#66ffa5':'#ff5258',borderRadius:3,transition:'width .3s'}} />
+                          background:r.total>=0?'var(--wn)':'var(--ls)',borderRadius:3,transition:'width .3s'}} />
                       </div>
                     </div>
                   )}
@@ -404,7 +404,7 @@ function SymbolDurationHeatmap({ trades }) {
                 ? (v => v!=null ? fU(v) : '—')
                 : (v => fU(v))
               const aggColor  = aggVal==null ? 'var(--mu)'
-                : metric==='total' ? (aggVal>=0?'#66ffa5':'#ff5258')
+                : metric==='total' ? (aggVal>=0?'var(--wn)':'var(--ls)')
                 : heatTextColor(metric==='winrate' ? aggVal-50 : aggVal)
               return (
                 <tr key={sym}
@@ -603,12 +603,12 @@ function WhereMyEdgeLives({ trades, strategies = [] }) {
         </div>
       </td>
       <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{r.trades}</td>
-      <td style={{...TD,textAlign:'right',color:r.wr>=.5?'#66ffa5':'#ff5258'}}>{fP(r.wr)}</td>
-      <td style={{...TD,textAlign:'right',color:'#66ffa5'}}>{fU(r.avgW)}</td>
-      <td style={{...TD,textAlign:'right',color:'#ff5258'}}>{fU(r.avgL)}</td>
-      <td style={{...TD,textAlign:'right',color:r.pf>=1?'#66ffa5':'#ff5258'}}>{r.pf===Infinity?'∞':fN(r.pf)}</td>
+      <td style={{...TD,textAlign:'right',color:r.wr>=.5?'var(--wn)':'var(--ls)'}}>{fP(r.wr)}</td>
+      <td style={{...TD,textAlign:'right',color:'var(--wn)'}}>{fU(r.avgW)}</td>
+      <td style={{...TD,textAlign:'right',color:'var(--ls)'}}>{fU(r.avgL)}</td>
+      <td style={{...TD,textAlign:'right',color:r.pf>=1?'var(--wn)':'var(--ls)'}}>{r.pf===Infinity?'∞':fN(r.pf)}</td>
       <td style={{...TD,textAlign:'right',fontWeight:700,fontSize:12,color:heatTextColor(r.expectancy)}}>{fU(r.expectancy)}</td>
-      <td style={{...TD,textAlign:'right',fontWeight:600,color:r.total>=0?'#66ffa5':'#ff5258'}}>{fU(r.total)}</td>
+      <td style={{...TD,textAlign:'right',fontWeight:600,color:r.total>=0?'var(--wn)':'var(--ls)'}}>{fU(r.total)}</td>
     </tr>
   )
 
@@ -639,8 +639,8 @@ function WhereMyEdgeLives({ trades, strategies = [] }) {
             </button>
           )}
           <div style={{marginLeft:'auto',fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>
-            <span style={{color:'#66ffa5',fontWeight:700}}>{positive.length}</span> positive ·
-            <span style={{color:'#ff5258',fontWeight:700,marginLeft:6}}>{negative.length}</span> negative combinations
+            <span style={{color:'var(--wn)',fontWeight:700}}>{positive.length}</span> positive ·
+            <span style={{color:'var(--ls)',fontWeight:700,marginLeft:6}}>{negative.length}</span> negative combinations
           </div>
         </div>
       </Card>
@@ -681,7 +681,7 @@ function WhereMyEdgeLives({ trades, strategies = [] }) {
         <Card>
           <SectionHeader
             title="Negative historical expectancy combinations"
-            sub="Ranked by how much they're costing you. Consider removing these from your playbook." />
+            sub="Historical losses within this sample. Check sample size and future results before changing your playbook." />
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead>
@@ -802,7 +802,7 @@ function PerformanceSimulator({ trades }) {
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,padding:'10px 0',borderBottom:'1px solid var(--bd2)'}}>
         <div style={{fontSize:11,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{label}</div>
         <div style={{fontSize:12,fontFamily:'var(--font-mono)',fontWeight:600,color:'var(--tx)',textAlign:'right'}}>{fmt(base)}</div>
-        <div style={{fontSize:12,fontFamily:'var(--font-mono)',fontWeight:700,color:better?'#66ffa5':'#ff5258',textAlign:'right'}}>
+        <div style={{fontSize:12,fontFamily:'var(--font-mono)',fontWeight:700,color:better?'var(--wn)':'var(--ls)',textAlign:'right'}}>
           {fmt(sim)} {sim!==base && <span style={{fontSize:9,opacity:.7}}>{better?'↑':'↓'}</span>}
         </div>
       </div>
@@ -837,7 +837,7 @@ function PerformanceSimulator({ trades }) {
                 style={{marginLeft:8,padding:'2px 8px',fontSize:11,fontFamily:'var(--font-mono)',flex:1,maxWidth:200}}>
                 <option value=''>Select symbol…</option>
                 {allSymbols.map(([sym,pnl])=>(
-                  <option key={sym} value={sym}>{sym} ({fU(pnl)})</option>
+                  <option key={sym} value={sym}>{sym}</option>
                 ))}
               </select>
             )}
@@ -868,14 +868,14 @@ function PerformanceSimulator({ trades }) {
         <div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:20,padding:'16px 0',borderBottom:'1px solid var(--bd)',flexWrap:'wrap'}}>
           <div style={{minWidth:0,flex:1}}>
             <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-mono)',marginBottom:4}}>P&L CHANGE</div>
-            <div style={{fontSize:'clamp(18px,5vw,28px)',fontWeight:700,color:diff>=0?'#66ffa5':'#ff5258',fontFamily:'var(--font-mono)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+            <div style={{fontSize:'clamp(18px,5vw,28px)',fontWeight:700,color:diff>=0?'var(--wn)':'var(--ls)',fontFamily:'var(--font-mono)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
               {fU(diff)}
             </div>
           </div>
           <div style={{height:40,width:1,background:'var(--bd)',flexShrink:0}} />
           <div style={{minWidth:0,flex:1}}>
             <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-mono)',marginBottom:4}}>VS BASELINE</div>
-            <div style={{fontSize:'clamp(18px,5vw,28px)',fontWeight:700,color:pctImprovement>=0?'#66ffa5':'#ff5258',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>
+            <div style={{fontSize:'clamp(18px,5vw,28px)',fontWeight:700,color:pctImprovement>=0?'var(--wn)':'var(--ls)',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>
               {pctImprovement>=0?'+':''}{pctImprovement.toFixed(1)}%
             </div>
           </div>
@@ -901,13 +901,13 @@ function PerformanceSimulator({ trades }) {
 // MAIN COMPONENT
 // ────────────────────────────────────────────────────────────────────────────
 const SUB_TABS = [
-  ['symbol',        '🎯 Symbols'],
-  ['duration',      '⏱ Duration'],
-  ['heatmaps',      '🌡 Heatmaps'],
-  ['where',         '🔎 My Edge'],
-  ['concentration', '📊 Concentration'],
-  ['simulator',     '🧪 Simulator'],
-  ['drawdown',      '📉 Drawdown'],
+  ['symbol',        'Symbols'],
+  ['duration',      'Duration'],
+  ['heatmaps',      'Heatmaps'],
+  ['where',         'My Edge'],
+  ['concentration', 'Concentration'],
+  ['simulator',     'Simulator'],
+  ['drawdown',      'Drawdown'],
 ]
 
 export default function EdgeDiscovery({ trades = [], stats = null, strategies = [] }) {

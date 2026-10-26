@@ -8,15 +8,15 @@
 import { useState, useMemo } from 'react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const fU  = (n, d=0) => n == null ? '—' : (n>=0?'+':'') + n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
-const fA  = n => '$' + Math.abs(Math.round(n)).toLocaleString()
+const fU  = (n, d=0) => <span className="private">{n == null ? '—' : (n>=0?'+':'') + n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})}</span>
+const fA  = n => <span className="private">{'$' + Math.abs(Math.round(n)).toLocaleString()}</span>
 const fP  = (n,d=1) => (n*100).toFixed(d)+'%'
 const fN  = (n,d=1) => n.toFixed(d)
 
-const TH = { fontSize:9, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
+const TH = { fontSize:11, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
   letterSpacing:'.07em', fontFamily:'var(--font-mono)', padding:'6px 8px',
   borderBottom:'1px solid var(--bd)', whiteSpace:'nowrap', cursor:'pointer', userSelect:'none' }
-const TD = { fontSize:11, fontFamily:'var(--font-mono)', padding:'6px 8px',
+const TD = { fontSize:12, fontFamily:'var(--font-mono)', padding:'6px 8px',
   borderBottom:'1px solid var(--bd2)', whiteSpace:'nowrap' }
 
 function Card({ children, style }) {
@@ -95,18 +95,18 @@ function ParetoAnalysis({ trades }) {
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
         <div style={{background:'rgba(102,255,165,.06)',border:'1px solid rgba(102,255,165,.2)',
           borderRadius:8,padding:'10px 12px'}}>
-          <div style={{fontSize:9,fontWeight:700,color:'#66ffa5',textTransform:'uppercase',
+          <div style={{fontSize:9,fontWeight:700,color:'var(--wn)',textTransform:'uppercase',
             letterSpacing:'.07em',fontFamily:'var(--font-mono)',marginBottom:4}}>Top 10% of trades</div>
-          <div style={{fontSize:18,fontWeight:700,fontFamily:'var(--font-mono)',color:'#66ffa5'}}>
+          <div style={{fontSize:18,fontWeight:700,fontFamily:'var(--font-mono)',color:'var(--wn)'}}>
             {paretoData.find(d=>d.pct===10)?.grossPct.toFixed(0)}%
           </div>
           <div style={{fontSize:10,color:'var(--mu)',marginTop:2}}>of gross profit</div>
         </div>
         <div style={{background:'rgba(102,255,165,.06)',border:'1px solid rgba(102,255,165,.2)',
           borderRadius:8,padding:'10px 12px'}}>
-          <div style={{fontSize:9,fontWeight:700,color:'#66ffa5',textTransform:'uppercase',
+          <div style={{fontSize:9,fontWeight:700,color:'var(--wn)',textTransform:'uppercase',
             letterSpacing:'.07em',fontFamily:'var(--font-mono)',marginBottom:4}}>Top 20% of trades</div>
-          <div style={{fontSize:18,fontWeight:700,fontFamily:'var(--font-mono)',color:'#66ffa5'}}>
+          <div style={{fontSize:18,fontWeight:700,fontFamily:'var(--font-mono)',color:'var(--wn)'}}>
             {paretoData.find(d=>d.pct===20)?.grossPct.toFixed(0)}%
           </div>
           <div style={{fontSize:10,color:'var(--mu)',marginTop:2}}>of gross profit</div>
@@ -122,7 +122,7 @@ function ParetoAnalysis({ trades }) {
           </div>
           <input type="range" min={1} max={80} value={threshold}
             onChange={e=>setThreshold(+e.target.value)}
-            style={{width:120,accentColor:'#66ffa5'}} />
+            style={{width:120,accentColor:'var(--wn)'}} />
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
           {[
@@ -134,7 +134,7 @@ function ParetoAnalysis({ trades }) {
               <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',
                 textTransform:'uppercase',letterSpacing:'.06em',marginBottom:2}}>{label}</div>
               <div style={{fontSize:13,fontWeight:700,fontFamily:'var(--font-mono)',
-                color:'#66ffa5'}}>{val}</div>
+                color:'var(--wn)'}}>{val}</div>
               <div style={{fontSize:9,color:'var(--mu)',marginTop:1}}>{sub}</div>
             </div>
           ))}
@@ -161,9 +161,9 @@ function ParetoAnalysis({ trades }) {
               {/* Net P&L — solid green, shrinks when losers enter */}
               <div style={{position:'absolute',top:0,left:0,height:'100%',
                 width:`${Math.min(100,Math.max(0,(d.netPct/maxGrossPct)*100))}%`,
-                background:'#66ffa5',borderRadius:3,transition:'width .4s'}} />
+                background:'var(--wn)',borderRadius:3,transition:'width .4s'}} />
             </div>
-            <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'#66ffa5',
+            <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--wn)',
               width:36,textAlign:'right',flexShrink:0,fontWeight:600}}>
               {d.grossPct.toFixed(0)}%
             </div>
@@ -176,7 +176,7 @@ function ParetoAnalysis({ trades }) {
         </div>
         <div style={{display:'flex',gap:16,marginTop:8}}>
           <div style={{display:'flex',alignItems:'center',gap:5,fontSize:9,color:'var(--mu)'}}>
-            <div style={{width:12,height:6,background:'#66ffa5',borderRadius:2}} />
+            <div style={{width:12,height:6,background:'var(--wn)',borderRadius:2}} />
             Net P&L %
           </div>
           <div style={{display:'flex',alignItems:'center',gap:5,fontSize:9,color:'var(--mu)'}}>
@@ -315,7 +315,7 @@ function ConcentrationTable({ trades }) {
                   </div>
                 </td>
                 <td style={{...TD,textAlign:'right',color:'var(--mu)'}}>{r.trades}</td>
-                <td style={{...TD,textAlign:'right',color:r.wr>=.5?'#66ffa5':'#ff5258'}}>
+                <td style={{...TD,textAlign:'right',color:r.wr>=.5?'var(--wn)':'var(--ls)'}}>
                   {fP(r.wr,0)}
                 </td>
                 <td style={{...TD,textAlign:'right'}}>
@@ -324,20 +324,20 @@ function ConcentrationTable({ trades }) {
                       <div style={{height:'100%',width:`${r.grossP/maxGrossP*100}%`,
                         background:'rgba(102,255,165,.6)',borderRadius:2}} />
                     </div>
-                    <span style={{color:'#66ffa5',minWidth:60,textAlign:'right'}}>{fA(r.grossP)}</span>
+                    <span style={{color:'var(--wn)',minWidth:60,textAlign:'right'}}>{fA(r.grossP)}</span>
                   </div>
                 </td>
                 <td style={{...TD,textAlign:'right',fontWeight:600,
-                  color:r.netP>=0?'#66ffa5':'#ff5258'}}>{fU(Math.round(r.netP))}</td>
+                  color:r.netP>=0?'var(--wn)':'var(--ls)'}}>{fU(Math.round(r.netP))}</td>
                 <td style={{...TD,textAlign:'right',fontWeight:700,
-                  color:r.grossPct>20?'#66ffa5':r.grossPct>10?'#f0a500':'var(--mu)'}}>
+                  color:r.grossPct>20?'var(--wn)':r.grossPct>10?'#f0a500':'var(--mu)'}}>
                   {r.grossPct.toFixed(1)}%
                 </td>
                 <td style={{...TD,textAlign:'right'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'flex-end'}}>
                     <div style={{width:36,height:4,background:'var(--sf2)',borderRadius:2,overflow:'hidden'}}>
                       <div style={{height:'100%',width:`${Math.min(100,r.cumGross)}%`,
-                        background:'#66ffa5',borderRadius:2}} />
+                        background:'var(--wn)',borderRadius:2}} />
                     </div>
                     <span style={{color:'var(--mu)',fontSize:10}}>{r.cumGross.toFixed(0)}%</span>
                   </div>
@@ -401,8 +401,8 @@ function TailCostAnalysis({ trades }) {
           <span style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>Worst</span>
           <input type="range" min={1} max={20} value={tailPct}
             onChange={e=>setTailPct(+e.target.value)}
-            style={{width:80,accentColor:'#ff5258'}} />
-          <span style={{fontSize:10,fontWeight:700,color:'#ff5258',fontFamily:'var(--font-mono)',
+            style={{width:80,accentColor:'var(--ls)'}} />
+          <span style={{fontSize:10,fontWeight:700,color:'var(--ls)',fontFamily:'var(--font-mono)',
             minWidth:28}}>{tailPct}%</span>
         </div>
       </div>
@@ -412,10 +412,10 @@ function TailCostAnalysis({ trades }) {
         gap:8,marginBottom:16}}>
         {[
           ['Trades in tail',  `${tailStats.n}`,                 'var(--tx)'],
-          ['Total cost',      fU(Math.round(tailStats.tailCost)), '#ff5258'],
-          ['P&L without',     fU(Math.round(tailStats.newNet)),   tailStats.newNet>=0?'#66ffa5':'#ff5258'],
-          ['Exp improvement', fU(Math.round(expImprovement)),     expImprovement>=0?'#66ffa5':'#ff5258'],
-          ['New win rate',    fP(tailStats.newWr),                tailStats.newWr>=.5?'#66ffa5':'#ff5258'],
+          ['Total cost',      fU(Math.round(tailStats.tailCost)), 'var(--ls)'],
+          ['P&L without',     fU(Math.round(tailStats.newNet)),   tailStats.newNet>=0?'var(--wn)':'var(--ls)'],
+          ['Exp improvement', fU(Math.round(expImprovement)),     expImprovement>=0?'var(--wn)':'var(--ls)'],
+          ['New win rate',    fP(tailStats.newWr),                tailStats.newWr>=.5?'var(--wn)':'var(--ls)'],
         ].map(([label,val,color]) => (
           <div key={label} style={{background:'var(--sf2)',borderRadius:6,padding:'8px 10px'}}>
             <div style={{fontSize:8,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',
@@ -438,10 +438,10 @@ function TailCostAnalysis({ trades }) {
               padding:'5px 0',borderBottom:'1px solid var(--sf2)'}}>
               <span style={{fontSize:11,fontWeight:600,color:'var(--tx)',flex:1}}>{r.sym}</span>
               <span style={{fontSize:10,color:'var(--mu)',fontFamily:'var(--font-mono)'}}>{r.trades}t</span>
-              <span style={{fontSize:11,fontWeight:700,color:'#ff5258',fontFamily:'var(--font-mono)',
+              <span style={{fontSize:11,fontWeight:700,color:'var(--ls)',fontFamily:'var(--font-mono)',
                 minWidth:70,textAlign:'right'}}>{fU(Math.round(r.cost))}</span>
               <div style={{width:50,height:4,background:'var(--sf2)',borderRadius:2,overflow:'hidden'}}>
-                <div style={{height:'100%',borderRadius:2,background:'#ff5258',
+                <div style={{height:'100%',borderRadius:2,background:'var(--ls)',
                   width:`${Math.min(100,Math.abs(r.cost)/Math.abs(tailStats.tailCost)*100)}%`}} />
               </div>
             </div>
@@ -454,12 +454,12 @@ function TailCostAnalysis({ trades }) {
         borderRadius:7,padding:'10px 12px',fontSize:10,color:'var(--mu)',lineHeight:1.6}}>
         <span style={{fontWeight:700,color:'#f0a500'}}>Insight: </span>
         Removing your worst {tailPct}% of trades ({tailStats.n} trades) would
-        {' '}<span style={{color:expImprovement>=0?'#66ffa5':'#ff5258',fontWeight:600}}>
+        {' '}<span style={{color:expImprovement>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>
           {expImprovement>=0?'increase':'decrease'} per-trade expectancy
           by {fA(Math.abs(expImprovement))}
         </span>
         {' '}and
-        {' '}<span style={{color:netImprovement>=0?'#66ffa5':'#ff5258',fontWeight:600}}>
+        {' '}<span style={{color:netImprovement>=0?'var(--wn)':'var(--ls)',fontWeight:600}}>
           {netImprovement>=0?'add':'cost'} {fA(Math.abs(netImprovement))} in net P&L
         </span>.
         {tailStats.topSymbols[0] && ` ${tailStats.topSymbols[0].sym} is your biggest tail contributor.`}
