@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
+import { executionIndex } from '../../lib/executionStore'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
+const executionStorage = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
@@ -41,7 +44,13 @@ export default async function handler(req, res) {
       from_idx += BATCH
     }
 
-    const trades = allTrades
+    const indices = {}
+    let executionWarning = null
+    await Promise.all([...new Set(allTrades.filter(trade => ['TxFlow', 'Hyperliquid'].includes(trade.broker)).map(trade => trade.account_id))].map(async account => {
+      try { indices[account] = await executionIndex(executionStorage, account) }
+      catch (error) { console.error('Execution summary:', error.message); executionWarning = 'Execution counts are temporarily unavailable.' }
+    }))
+    const trades = allTrades.map(trade => ({ ...trade, execution_count: indices[trade.account_id]?.[trade.id]?.count || null }))
 
     // Fetch accounts
     const { data: accounts } = await supabase.from('accounts').select('*').order('created_at')
@@ -53,6 +62,7 @@ export default async function handler(req, res) {
       trades:   trades   || [],
       accounts: accounts || [],
       tags:     tags     || [],
+      executionWarning,
     })
   } catch (err) {
     console.error('Fetch error:', err)

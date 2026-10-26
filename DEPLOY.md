@@ -185,3 +185,21 @@ TxFlow trade history imports:
     Funding is not in this file and is not included.
   - Repeated uploads skip unchanged positions; later closes update the same
     position while preserving journal notes, strategies, tags and images.
+
+Execution drilldown:
+  - TxFlow and native Hyperliquid imports preserve original fill rows alongside
+    existing consolidated trades. Re-uploading an already-imported history also
+    backfills execution details without creating another trade.
+  - Execution records are immutable JSON snapshots in the PRIVATE Supabase
+    Storage bucket trade-executions, provisioned on first supported upload using
+    the server service-role key. No SQL migration or public bucket is required.
+    Do not make this bucket public. Reads go through /api/executions?tradeId=…
+    after checking that the journal trade exists.
+  - Trade Log shows fill counts. The Executions tab shows timestamp batches,
+    expandable fills, original CSV row references, weighted prices and running
+    position costs. Timestamp batches are explicitly not claimed to be orders.
+  - Other brokers retain their saved summaries; execution import support for
+    their export formats can be added independently.
+  - Older snapshots remain private for audit. The current view selects the
+    latest fill timestamp, then the most complete fill count. Missing opening
+    history is flagged rather than inventing an average cost.

@@ -7,6 +7,7 @@ import { computeStreaks } from '../../lib/parserUtils'
 import { parseHyperliquid } from '../../lib/parsers/hyperliquid'
 import { reconcileHyperliquid } from '../../lib/hyperliquidImport'
 import { changedTxFlowTrade } from '../../lib/txflowImport'
+import { ensureExecutionStore, saveExecutionRecords } from '../../lib/executionStore'
 
 // Proper RFC 4180 CSV parser — handles quoted fields containing commas and newlines
 function parseCSV(text) {
@@ -126,6 +127,7 @@ export default async function handler(req, res) {
         error: 'No valid trades found. Check the file format matches your broker export.'
       })
     }
+    if (parsed.executions?.length) await ensureExecutionStore(supabase)
 
     // Upsert account
     const { data: existingAccts, error: accountReadError } = await supabase.from('accounts').select('id,broker').eq('id', accountId)
@@ -172,10 +174,11 @@ export default async function handler(req, res) {
     }
 
     if (!newTrades.length) {
+      const executionsSaved = await saveExecutionRecords(supabase, parsed, filename, formTimezone)
       return res.status(200).json({
-        message: removed ? `Reconciled ${reconciled} trades; removed ${removed} duplicate copies` : 'All trades already imported — no duplicates added',
+        message: removed ? `Reconciled ${reconciled} trades; removed ${removed} duplicate copies` : executionsSaved ? `Execution details saved for ${executionsSaved} fills — no duplicate trades added` : 'All trades already imported — no duplicates added',
         imported: 0, duplicates: dupCount, total: incoming.length, broker, accountId,
-        reconciled, removed,
+        reconciled, removed, executionsSaved,
       })
     }
 
@@ -206,10 +209,11 @@ export default async function handler(req, res) {
       inserted += batch.length
     }
 
+    const executionsSaved = await saveExecutionRecords(supabase, parsed, filename, formTimezone)
     return res.status(200).json({
       message: `Imported ${inserted - updated} new trade${inserted - updated === 1 ? '' : 's'}${updated ? `; updated ${updated} trades` : ''} for ${broker === 'TxFlow' ? BROKER_LABELS.TxFlow(accountId) : `account ${accountId}`}`,
       imported: inserted, duplicates: dupCount, total: incoming.length, broker, accountId, currency,
-      reconciled, removed, updated,
+      reconciled, removed, updated, executionsSaved,
       ...(parsed.pnlBasis ? { pnlBasis: parsed.pnlBasis } : {}),
     })
 
