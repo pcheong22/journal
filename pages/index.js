@@ -61,6 +61,7 @@ const DATE_PRESETS = [
 export function JournalWorkspace({previewData=null}) {
   const preview=!!previewData
   const [tab,            setTab]            = useState('overview')
+  useEffect(()=>{window.scrollTo({top:0,left:0,behavior:'instant'})},[tab])
   const [allTrades,      setAllTrades]      = useState([])
   const [accounts,         setAccounts]         = useState([])
   const [strategies,       setStrategies]       = useState([])
