@@ -17,6 +17,7 @@ import { isTxFlow } from '../lib/parsers/txflow'
 import TxFlowAccountModal from '../components/TxFlowAccountModal'
 import { reportingTrade } from '../lib/symbols'
 import dynamic from 'next/dynamic'
+import ViewLoading from '../components/ViewLoading'
 
 // Error boundary — catches client-side crashes and shows the error on screen
 class ErrorBoundary extends Component {
@@ -27,11 +28,26 @@ class ErrorBoundary extends Component {
     return this.props.children
   }
 }
-const ChartComp    = dynamic(() => import('../components/Charts'),       { ssr: false })
-const TradeModal      = dynamic(() => import('../components/TradeModal'),   { ssr: false })
-const SymbolAnalysis = dynamic(() => import('../components/SymbolAnalysis'), { ssr: false })
-const EdgeDiscovery   = dynamic(() => import('../components/EdgeDiscovery'),  { ssr: false })
-const ImageGallery = dynamic(() => import('../components/ImageGallery'), { ssr: false })
+const ChartComp = dynamic(() => import('../components/Charts'), {
+  ssr:false,
+  loading:()=> <ViewLoading label="Preparing chart" compact/>,
+})
+const TradeModal = dynamic(() => import('../components/TradeModal'), {
+  ssr:false,
+  loading:()=> <ViewLoading label="Opening trade workspace" overlay/>,
+})
+const SymbolAnalysis = dynamic(() => import('../components/SymbolAnalysis'), {
+  ssr:false,
+  loading:()=> <ViewLoading label="Preparing instrument analysis"/>,
+})
+const EdgeDiscovery = dynamic(() => import('../components/EdgeDiscovery'), {
+  ssr:false,
+  loading:()=> <ViewLoading label="Preparing edge analysis"/>,
+})
+const ImageGallery = dynamic(() => import('../components/ImageGallery'), {
+  ssr:false,
+  loading:()=> <ViewLoading label="Loading screenshots" compact/>,
+})
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fA   = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
 const fPct = (n, d=1) => (n>=0?'+':'')+n.toFixed(d)+'%'
@@ -330,19 +346,19 @@ export function JournalWorkspace({previewData=null}) {
     const days   = new Date(Date.UTC(calYear, calMonth+1, 0)).getDate()
     let mPnl=0, mTrades=0, mWins=0, mDays=0
     const cells = []
-    for (let i=0; i<shift; i++) cells.push(<div key={`e${i}`} className="cal-cell emp" />)
+    for (let i=0; i<shift; i++) cells.push(<div key={`e${i}`} className="cal-cell emp" role="presentation" />)
     for (let d=1; d<=days; d++) {
       const ds   = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
       const info = calMap[ds]
       if (info) { mPnl+=info.total_pnl; mTrades+=info.count; mWins+=info.win_rate*info.count; mDays++ }
       cells.push(
-        <div key={d} className={`cal-cell${info?' hd '+(info.total_pnl>=0?' wd':' ld'):''}`}>
-          <div style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:1}}>{d}</div>
+        <div key={d} role="gridcell" aria-label={info?`${MONTHS[calMonth]} ${d}, ${calYear}: ${info.count} trades, ${info.total_pnl>=0?'profit':'loss'}${privacy?' amount hidden':` ${fA(info.total_pnl)}`}`:`${MONTHS[calMonth]} ${d}, ${calYear}: no closed trades`} className={`cal-cell${info?' hd '+(info.total_pnl>=0?' wd':' ld'):''}`}>
+          <div aria-hidden="true" style={{fontSize:9,color:'var(--mu)',fontFamily:'var(--font-mono)',marginBottom:1}}>{d}</div>
           {info && <>
-            <div className="private" style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:600,color:info.total_pnl>=0?'var(--wn-tx)':'var(--ls-tx)'}}>
+            <div aria-hidden="true" className="private" style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:600,color:info.total_pnl>=0?'var(--wn-tx)':'var(--ls-tx)'}}>
               {(info.total_pnl>=0?'+':'-')+fA(info.total_pnl)}
             </div>
-            <div style={{fontSize:9,color:'var(--mu)',marginTop:1}}>{info.count}t</div>
+            <div aria-hidden="true" style={{fontSize:9,color:'var(--mu)',marginTop:1}}>{info.count}t</div>
           </>}
         </div>
       )
@@ -381,12 +397,12 @@ export function JournalWorkspace({previewData=null}) {
           </div>
         </div>
       )}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
+      <div role="row" aria-hidden="true" style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
         {['M','T','W','T','F','S','S'].map((d,i)=>(
           <div key={i} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'var(--mu)',fontFamily:'var(--font-mono)',padding:'3px 0',textTransform:'uppercase',letterSpacing:'.04em'}}>{d}</div>
         ))}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>{cells}</div>
+      <div role="grid" aria-label={`${MONTHS[calMonth]} ${calYear} trading calendar`} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>{cells}</div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginTop:12}}>
         {[['MONTH P&L',mDays?(mPnl>=0?'+':'-')+fA(mPnl):'No data',mPnl>=0?'var(--wn-tx)':'var(--ls-tx)',true],
           ['WIN RATE',mwr,'var(--ac)',false],
@@ -408,8 +424,6 @@ export function JournalWorkspace({previewData=null}) {
       <Head>
         <title>Trading Journal · Performance Intelligence</title>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
       <JournalShell tab={tab} onTab={id=>{setTab(id);if(id==='review')setReviewInbox(true);if(id==='trades')setReviewInbox(false)}} accounts={accounts} selectedAccounts={selAccounts} onAccounts={setSelAccounts}
@@ -707,9 +721,9 @@ export function JournalWorkspace({previewData=null}) {
 
         {tab==='timing' && stats && (
           <div className="anim">
-            <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+            <div role="tablist" aria-label="Timing analysis" className="analysis-pills">
               {[['sessions','Trading Sessions'],['dow','Day of Week'],['hourly','Hour of Day']].map(([id,label])=>(
-                <div key={id} className={`st ${timingTab===id?'active':''}`} onClick={()=>setTimingTab(id)}>{label}</div>
+                <button key={id} type="button" role="tab" aria-selected={timingTab===id} className={`st ${timingTab===id?'active':''}`} onClick={()=>setTimingTab(id)}>{label}</button>
               ))}
             </div>
             {timingTab==='sessions' && (<>
@@ -804,8 +818,8 @@ export function JournalWorkspace({previewData=null}) {
                 <table style={{minWidth:850}}>
                   <thead><tr><th scope="col">Select</th>
                     {[['symbol','Instrument'],['pnl','Reported P&L'],['entry_time','Opened · UTC'],['account_id','Account'],['duration_mins','Duration'],['pct_gain','Price move'],['execution_count','Fills'],['_notes','Review'],...(logDetails?[['exit_time','Closed · UTC'],['entry_price','Avg entry'],['exit_price','Avg exit'],['notional_usd','Estimated notional'],['session','Session'],['_strategy','Strategy']]:[])].map(([k,l])=>(
-                      <th key={k} className={sortKey===k?'th-s':''} onClick={()=>{if(!k.startsWith('_')){setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}}>
-                        {l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}
+                      <th key={k} className={sortKey===k?'th-s':''} scope="col" aria-sort={sortKey===k?(sortDir<0?'descending':'ascending'):'none'}>
+                        {k.startsWith('_')?l:<button type="button" className="sort-button" onClick={()=>{setSortKey(k);setSortDir(sortKey===k?-sortDir:-1)}}>{l}{sortKey===k?(sortDir<0?' ↓':' ↑'):''}</button>}
                       </th>
                     ))}
                   </tr></thead>
@@ -1174,12 +1188,12 @@ function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false
   const PAGE_SIZES   = [50, 100, 200]
 
   const Row = useCallback(({ label, sub, children }) => (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--bd)'}}>
-      <div>
+    <div className="settings-row">
+      <div className="settings-row-copy">
         <div style={{fontSize:12,fontWeight:600,color:'var(--tx)'}}>{label}</div>
         {sub && <div style={{fontSize:10,color:'var(--mu)',marginTop:2}}>{sub}</div>}
       </div>
-      <div style={{flexShrink:0,marginLeft:16}}>{children}</div>
+      <div className="settings-row-control">{children}</div>
     </div>
   ),[])
 
@@ -1200,7 +1214,7 @@ function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false
 
   return (
     <div className="mo" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1} className="settings-panel" style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:12,width:420,maxHeight:'85vh',overflow:'auto',boxShadow:'var(--sh-lg)',margin:'auto',position:'relative'}}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1} className="settings-panel" style={{background:'var(--sf)',border:'1px solid var(--bd)',borderRadius:12,width:680,maxHeight:'85vh',overflow:'auto',boxShadow:'var(--sh-lg)',margin:'auto',position:'relative'}}>
         <div style={{padding:'18px 24px',borderBottom:'1px solid var(--bd)',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:'var(--sf)',zIndex:10}}>
           <div>
             <h2 id="settings-title" style={{fontWeight:600,fontSize:18,margin:0}}>Settings</h2>
@@ -1208,7 +1222,7 @@ function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false
           </div>
           <button aria-label="Close settings" data-dialog-close onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--mu)',fontSize:18,padding:4}}>✕</button>
         </div>
-        <div style={{padding:'0 24px 24px'}}>
+        <div className="settings-content">
           <BackupPanel settings={settings} /><ImportHistory /><details className="account-administration"><summary>Account administration</summary><p>Renaming keeps trades attached. Deletion requires typing the account ID and saves a safety backup.</p>{accounts.map(a=><div key={a.id}><span>{a.label||a.id}<small>{a.broker}</small></span><button className="btn btn-sm" disabled={preview} onClick={()=>onEditAccount(a)}>Rename</button><button className="btn btn-sm btn-d" disabled={preview} onClick={()=>onDeleteAccount(a.id)}>Delete account</button></div>)}<button className="btn btn-d" disabled={preview} onClick={()=>onDeleteAccount(null)}>Delete all accounts and trades…</button></details>
           <div style={{fontSize:9,fontWeight:700,color:'var(--mu)',textTransform:'uppercase',letterSpacing:'.08em',fontFamily:'var(--font-mono)',padding:'16px 0 4px'}}>APPEARANCE</div>
           <Row label="Dark mode" sub="Default theme on load">

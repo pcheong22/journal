@@ -31,7 +31,7 @@
   --wa-bg:   #fffbeb;
   --wa-bd:   #fde68a;
   --wa-tx:   #92400e;
-  --font-sans: 'Barlow', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --sh-sm: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
   --sh:    0 1px 3px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
@@ -48,8 +48,8 @@ body.dark-mode {
   --bd2:     #2e333a;
   --tx:      #e8edf3;
   --tx2:     #b0b8c8;
-  --mu:      #6b7280;
-  --mu2:     #454a52;
+  --mu:      #8c96a8;
+  --mu2:     #697386;
   --ac:      #3b82f6;
   --ac2:     #60a5fa;
   --ac-bg:   #0f1e35;
@@ -147,7 +147,7 @@ select.inp { cursor: pointer; }
 .tw { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); }
 thead { background: var(--sf2); position: sticky; top: 0; z-index: 1; }
-th { text-align: left; font-size: 10px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--bd); white-space: nowrap; cursor: pointer; user-select: none; background: var(--sf2); }
+th { text-align: left; font-size: 10px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--bd); white-space: nowrap; cursor: default; user-select: none; background: var(--sf2); }
 th:hover { color: var(--tx); background: var(--sf3); } .th-s { color: var(--ac) !important; }
 td { padding: 7px 10px; border-bottom: 1px solid var(--bd); font-size: 11px; white-space: nowrap; color: var(--tx2); }
 tr:last-child td { border-bottom: none; }

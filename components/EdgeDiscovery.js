@@ -63,7 +63,7 @@ function heatTextColor(val) {
 // ── Shared table styles ───────────────────────────────────────────────────────
 const TH = { fontSize:11, fontWeight:700, color:'var(--mu)', textTransform:'uppercase',
   letterSpacing:'.08em', fontFamily:'var(--font-mono)', padding:'7px 12px',
-  borderBottom:'1px solid var(--bd)', whiteSpace:'nowrap', cursor:'pointer', userSelect:'none' }
+  borderBottom:'1px solid var(--bd)', whiteSpace:'nowrap', cursor:'default', userSelect:'none' }
 const TD = { fontSize:12, fontFamily:'var(--font-mono)', padding:'7px 12px',
   borderBottom:'1px solid var(--bd2)', whiteSpace:'nowrap' }
 
@@ -90,6 +90,13 @@ function Card({ children, style }) {
 function SortInd({ col, sortKey, sortDir }) {
   if (sortKey !== col) return <span style={{opacity:.3}}>⇅</span>
   return <span style={{color:'var(--ac)'}}>{sortDir===1?'↑':'↓'}</span>
+}
+
+function SortButton({column,label,sortKey,sortDir,onSort,align='end'}){
+ const active=sortKey===column
+ return <button type="button" className={`sort-button align-${align}`} onClick={()=>onSort(column)} aria-label={`Sort by ${label}${active?`, currently ${sortDir<0?'descending':'ascending'}`:''}`}>
+  {label} <SortInd col={column} sortKey={sortKey} sortDir={sortDir}/>
+ </button>
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -165,8 +172,8 @@ function SymbolExpectancyTable({ trades }) {
           <thead>
             <tr>
               {COLS.map(([key,label]) => (
-                <th key={key} style={{...TH,textAlign:key==='symbol'?'left':'right'}} onClick={()=>toggleSort(key)}>
-                  {label} <SortInd col={key} sortKey={sortKey} sortDir={sortDir} />
+                <th key={key} scope="col" aria-sort={sortKey===key?(sortDir<0?'descending':'ascending'):'none'} style={{...TH,textAlign:key==='symbol'?'left':'right'}}>
+                  <SortButton column={key} label={label} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align={key==='symbol'?'start':'end'}/>
                 </th>
               ))}
             </tr>
@@ -175,6 +182,9 @@ function SymbolExpectancyTable({ trades }) {
             {sorted.map(r => (
               <tr key={r.symbol}
                 onClick={() => setDrillSym(prev => prev === r.symbol ? null : r.symbol)}
+                onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setDrillSym(prev=>prev===r.symbol?null:r.symbol)}}}
+                tabIndex={0}
+                aria-label={`${r.symbol}, ${r.trades} trades. ${drillSym===r.symbol?'Collapse':'Expand'} duration detail`}
                 style={{cursor:'pointer',background:drillSym===r.symbol?'var(--ac-bg)':'transparent',transition:'background .1s'}}
                 onMouseEnter={e=>e.currentTarget.style.background=drillSym===r.symbol?'var(--ac-bg)':'var(--sf2)'}
                 onMouseLeave={e=>e.currentTarget.style.background=drillSym===r.symbol?'var(--ac-bg)':'transparent'}>
@@ -197,7 +207,7 @@ function SymbolExpectancyTable({ trades }) {
         <div style={{marginTop:16,padding:16,background:'var(--sf2)',borderRadius:8,border:'1px solid var(--bd)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <div style={{fontWeight:700,fontSize:12,color:'var(--ac)'}}>{drillSym} — by duration</div>
-            <button onClick={()=>setDrillSym(null)} style={{background:'none',border:'none',color:'var(--mu)',cursor:'pointer',fontSize:12}}>✕</button>
+            <button aria-label={`Close ${drillSym} duration detail`} onClick={()=>setDrillSym(null)} style={{background:'none',border:'none',color:'var(--mu)',cursor:'pointer',fontSize:12}}>✕</button>
           </div>
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
@@ -657,9 +667,8 @@ function WhereMyEdgeLives({ trades, strategies = [] }) {
                 <th style={{...TH,width:28}}>#</th>
                 <th style={{...TH,textAlign:'left'}}>Setup</th>
                 {['trades','wr','avgW','avgL','pf','expectancy','total'].map(k => (
-                  <th key={k} style={{...TH,textAlign:'right',cursor:'pointer'}} onClick={()=>toggleSort(k)}>
-                    {k==='wr'?'Win Rate':k==='avgW'?'Avg Win':k==='avgL'?'Avg Loss':k==='pf'?'Prof. Factor':k==='expectancy'?'Expectancy':k==='total'?'Total P&L':'Trades'}
-                    {' '}<SortInd col={k} sortKey={sortKey} sortDir={sortDir} />
+                  <th key={k} scope="col" aria-sort={sortKey===k?(sortDir<0?'descending':'ascending'):'none'} style={{...TH,textAlign:'right'}}>
+                    <SortButton column={k} label={k==='wr'?'Win Rate':k==='avgW'?'Avg Win':k==='avgL'?'Avg Loss':k==='pf'?'Prof. Factor':k==='expectancy'?'Expectancy':k==='total'?'Total P&L':'Trades'} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}/>
                   </th>
                 ))}
               </tr>
