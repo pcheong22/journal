@@ -81,7 +81,7 @@ test('failed notes saves retain the draft and never show Saved',async()=>{
  }finally{view?.unmount();global.fetch=previous}
 })
 test('full backup format rejects project mismatches, omitted tables and path escapes',()=>{
- const doc={format:'tradeintel-full-backup',version:1,project:'project',snapshot:{schema:'s',digest:'d',tables:Object.fromEntries(backup.BACKUP_TABLES.map(t=>[t,[]]))},files:[],checksum:'a'.repeat(64)}
+ const doc={format:'tradeintel-full-backup',version:backup.BACKUP_VERSION,project:'project',snapshot:{schema:'s',digest:'d',tables:Object.fromEntries(backup.BACKUP_TABLES.map(t=>[t,[]]))},files:[],checksum:'a'.repeat(64)}
  assert.equal(backup.validateBackupShape(doc,'project'),doc)
  assert.throws(()=>backup.validateBackupShape(doc,'different'))
  const damaged=structuredClone(doc);delete damaged.snapshot.tables.trades;assert.throws(()=>backup.validateBackupShape(damaged,'project'))
