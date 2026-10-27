@@ -70,3 +70,19 @@ test('market chart loads lazily and preview history never calls the private API'
  await act(async()=>{view=Renderer.create(React.createElement(Component,{trade,active:false,preview:true}))});assert.equal(calls,0)
  await act(async()=>view.update(React.createElement(Component,{trade,active:true,preview:true})));assert.equal(calls,0);assert.match(JSON.stringify(view.toJSON()),/Representative chart data/);observer();view.unmount()
 })
+
+test('market history API selects only stored trade columns before loading crude candles',async()=>{
+ let selected='',status,body
+ const query={select(columns){selected=columns;return query},eq(){return query},async single(){return {data:{...trade,id:9868,symbol:'WTI/USD',broker:'Extended'},error:null}}}
+ const api=load('../pages/api/market-history.js',{process:{env:{}},require:path=>{
+  if(path==='@supabase/supabase-js')return {createClient:()=>({from:()=>query})}
+  if(path==='../../lib/serverAuth')return {requireOwner:async()=>true}
+  if(path==='../../lib/executionStore')return {readExecutionRecord:async()=>null}
+  if(path==='../../lib/marketHistory')return {HISTORY_INTERVALS:['1h'],defaultHistoryInterval:()=> '1h',fetchMarketHistory:async()=>({candles:[{time:1},{time:2}],interval:'1h',source:{kind:'yahoo',symbol:'CL=F'}}),fetchPivotReference:async()=>null,executionMarkers:()=>[]}
+  if(path==='../../lib/pivots')return {pivotContext:()=>null}
+  return require(path)
+ }})
+ const res={setHeader(){},status(value){status=value;return res},json(value){body=value;return res}}
+ await api.default({method:'GET',query:{tradeId:'9868'}},res)
+ assert.doesNotMatch(selected,/original_symbol/);assert.equal(status,200);assert.equal(body.history.source.symbol,'CL=F')
+})
