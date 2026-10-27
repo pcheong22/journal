@@ -5,7 +5,7 @@ import {defaultHistoryInterval,HISTORY_INTERVALS} from '../lib/marketHistory'
 import {journalFetch} from '../lib/request'
 
 const HistoricalReplayChart=dynamic(()=>import('./HistoricalReplayChart'),{ssr:false,loading:()=> <div className="market-chart-skeleton" role="status">Preparing historical chart…</div>})
-const INTERVAL_LABEL={'1m':'1 minute','5m':'5 minutes','15m':'15 minutes','30m':'30 minutes','1h':'1 hour','4h':'4 hours','1d':'1 day'}
+const INTERVAL_LABEL={'1m':'1 minute','5m':'5 minutes','15m':'15 minutes','30m':'30 minutes','1h':'1 hour','2h':'2 hours','4h':'4 hours','8h':'8 hours','1d':'1 day','1w':'1 week'}
 const pivotPrice=value=>Number(value).toLocaleString('en-US',{maximumFractionDigits:8})
 const pivotPeriod=value=>new Date(value*1000).toLocaleDateString('en-GB',{timeZone:'UTC',day:'2-digit',month:'short',year:'numeric'})
 
@@ -32,7 +32,7 @@ export default function MarketChart({trade,active,preview=false}){
  useEffect(()=>{setIntervalValue(defaultHistoryInterval(trade));setHistory(null);setError('')},[trade.id])
  useEffect(()=>{
   if(!started)return
-  if(preview){setHistory(previewHistory(trade));return}
+  if(preview){setHistory({...previewHistory(trade),interval});return}
   const controller=new AbortController();setLoading(true);setError('')
   journalFetch(`/api/market-history?tradeId=${encodeURIComponent(trade.id)}&interval=${encodeURIComponent(interval)}`,{signal:controller.signal})
    .then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||'Historical chart data could not be loaded.');return body.history})
