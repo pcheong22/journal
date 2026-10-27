@@ -72,7 +72,7 @@ test('market chart loads lazily and preview history never calls the private API'
 })
 
 test('market history API selects only stored trade columns before loading crude candles',async()=>{
- let selected='',status,body
+ let selected='',status,body,cache
  const query={select(columns){selected=columns;return query},eq(){return query},async single(){return {data:{...trade,id:9868,symbol:'WTI/USD',broker:'Extended'},error:null}}}
  const api=load('../pages/api/market-history.js',{process:{env:{}},require:path=>{
   if(path==='@supabase/supabase-js')return {createClient:()=>({from:()=>query})}
@@ -82,7 +82,23 @@ test('market history API selects only stored trade columns before loading crude 
   if(path==='../../lib/pivots')return {pivotContext:()=>null}
   return require(path)
  }})
- const res={setHeader(){},status(value){status=value;return res},json(value){body=value;return res}}
+ const res={setHeader(name,value){if(name==='Cache-Control')cache=value},status(value){status=value;return res},json(value){body=value;return res}}
  await api.default({method:'GET',query:{tradeId:'9868'}},res)
- assert.doesNotMatch(selected,/original_symbol/);assert.equal(status,200);assert.equal(body.history.source.symbol,'CL=F')
+ assert.doesNotMatch(selected,/original_symbol/);assert.equal(status,200);assert.equal(body.history.source.symbol,'CL=F');assert.match(cache,/max-age=300/)
+})
+
+test('market history errors are never cached',async()=>{
+ let status,cache
+ const query={select(){return query},eq(){return query},async single(){return {data:null,error:{message:'missing column'}}}}
+ const api=load('../pages/api/market-history.js',{process:{env:{}},require:path=>{
+  if(path==='@supabase/supabase-js')return {createClient:()=>({from:()=>query})}
+  if(path==='../../lib/serverAuth')return {requireOwner:async()=>true}
+  if(path==='../../lib/executionStore')return {readExecutionRecord:async()=>null}
+  if(path==='../../lib/marketHistory')return {HISTORY_INTERVALS:['1h']}
+  if(path==='../../lib/pivots')return {}
+  return require(path)
+ }})
+ const res={setHeader(name,value){if(name==='Cache-Control')cache=value},status(value){status=value;return res},json(){return res}}
+ await api.default({method:'GET',query:{tradeId:'9868'}},res)
+ assert.equal(status,502);assert.match(cache,/no-store/)
 })
