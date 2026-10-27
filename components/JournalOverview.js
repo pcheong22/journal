@@ -3,7 +3,8 @@ import {useState} from 'react'
 import {priceCheck} from '../lib/symbols'
 import {money,instrumentContributions} from '../lib/presentation'
 import DataQuality from './DataQuality'
-const ChartComp=dynamic(()=>import('./Charts'),{ssr:false})
+import ViewLoading from './ViewLoading'
+const ChartComp=dynamic(()=>import('./Charts'),{ssr:false,loading:()=> <ViewLoading label="Preparing chart" compact/>})
 function Metric({label,value,context,tone='',privateValue=false}){return <div className="headline-metric"><div className="metric-label">{label}</div><div className={'metric-value '+tone+(privateValue?' private':'')}>{value}</div><div className="metric-context">{context}</div></div>}
 export default function JournalOverview({stats,trades,tags,privacy,onReview,onInstrument,onSourceCheck}){
  const [ascending,setAscending]=useState(false),[all,setAll]=useState(false)

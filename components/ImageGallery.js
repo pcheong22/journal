@@ -22,6 +22,13 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
     loadImages()
   }, [entityId, entityType])
 
+  useEffect(()=>{
+    if(!lightbox)return
+    const close=event=>{if(event.key==='Escape')setLightbox(null)}
+    document.addEventListener('keydown',close)
+    return()=>document.removeEventListener('keydown',close)
+  },[lightbox])
+
   const loadImages = async () => {
     setLoading(true)
     try {
@@ -92,7 +99,7 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
     <div>
       {!readOnly && (<>
         {/* File upload zone */}
-        <div onClick={()=>fileRef.current?.click()}
+        <div role="button" tabIndex={0} aria-label="Attach screenshots" onClick={()=>fileRef.current?.click()} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();fileRef.current?.click()}}}
           onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
           style={{border:`2px dashed ${dragOver?'var(--ac)':'var(--bd)'}`,borderRadius:8,padding:'12px 16px',marginBottom:8,background:dragOver?'var(--ac-bg)':'var(--sf2)',cursor:'pointer',transition:'all .15s',display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:18}}>{uploading?'⏳':'🖼️'}</span>
@@ -169,9 +176,11 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))',gap:8}}>
           {images.map(img => (
             <div key={img.id} style={{position:'relative',borderRadius:7,overflow:'hidden',border:'1px solid var(--bd)',background:'var(--sf3)',aspectRatio:'4/3'}}>
-              <img src={img.url} alt={img.filename} onClick={()=>setLightbox(img.url)}
-                style={{width:'100%',height:'100%',objectFit:'cover',cursor:'pointer',display:'block',transition:'opacity .15s'}}
-                onMouseEnter={e=>e.target.style.opacity='.8'} onMouseLeave={e=>e.target.style.opacity='1'} />
+              <button type="button" aria-label={`Open ${img.filename}`} onClick={()=>setLightbox(img.url)} style={{display:'block',width:'100%',height:'100%',padding:0,border:0,background:'transparent',cursor:'pointer'}}>
+                <img src={img.url} alt={img.filename}
+                  style={{width:'100%',height:'100%',objectFit:'cover',display:'block',transition:'opacity .15s'}}
+                  onMouseEnter={e=>e.target.style.opacity='.8'} onMouseLeave={e=>e.target.style.opacity='1'} />
+              </button>
               {!readOnly && (
                 <button onClick={()=>deleteImage(img)}
                   style={{position:'absolute',top:4,right:4,width:20,height:20,borderRadius:'50%',border:'none',background:'rgba(0,0,0,.7)',color:'#fff',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
@@ -184,10 +193,10 @@ export default function ImageGallery({ entityType, entityId, readOnly = false, i
       )}
 
       {lightbox && (
-        <div onClick={()=>setLightbox(null)}
+        <div role="dialog" aria-modal="true" aria-label="Screenshot preview" tabIndex={-1} onClick={event=>event.target===event.currentTarget&&setLightbox(null)}
           style={{position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <img src={lightbox} alt="Screenshot" style={{maxWidth:'100%',maxHeight:'90vh',objectFit:'contain',borderRadius:8,boxShadow:'0 0 60px rgba(0,0,0,.5)'}} />
-          <button onClick={()=>setLightbox(null)}
+          <button aria-label="Close screenshot preview" onClick={()=>setLightbox(null)}
             style={{position:'absolute',top:20,right:24,background:'rgba(255,255,255,.15)',border:'none',color:'#fff',fontSize:20,width:40,height:40,borderRadius:'50%',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
             ✕
           </button>
