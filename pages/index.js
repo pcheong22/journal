@@ -48,6 +48,10 @@ const ImageGallery = dynamic(() => import('../components/ImageGallery'), {
   ssr:false,
   loading:()=> <ViewLoading label="Loading screenshots" compact/>,
 })
+const PreTradeWorkspace = dynamic(() => import('../components/PreTradeWorkspace'), {
+  ssr:false,
+  loading:()=> <ViewLoading label="Preparing pre-trade plans"/>,
+})
 const fU   = (n, d=0) => (n>=0?'+':'')+n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d})
 const fA   = n => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0})
 const fPct = (n, d=1) => (n>=0?'+':'')+n.toFixed(d)+'%'
@@ -706,6 +710,8 @@ export function JournalWorkspace({previewData=null}) {
           <CoachTab stats={stats} tradeCount={visibleTrades.length} datePreset={datePreset} dateFrom={dateFrom} dateTo={dateTo} />
         )}
 
+        {tab==='pretrade' && <PreTradeWorkspace accounts={accounts} preview={preview}/>}
+
         {tab==='streaks' && stats && (
           <div className="anim">
             <ChartComp type="streaks" trades={visibleTrades} stats={stats} privacy={privacy} />
@@ -862,7 +868,7 @@ export function JournalWorkspace({previewData=null}) {
           <MissedTab dateFrom={dateFrom} dateTo={dateTo} datePreset={datePreset} visibleTrades={visibleTrades} />
         )}
 
-        {!loading && allTrades.length===0 && tab!=='coach' && tab!=='missed' && (
+        {!loading && allTrades.length===0 && !['coach','missed','pretrade'].includes(tab) && (
           <div style={{textAlign:'center',padding:'60px 20px'}}>
 
             <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:'var(--tx)'}}>No trades loaded</div>
@@ -1183,8 +1189,8 @@ function SettingsPanel({ accounts=[],onEditAccount,onDeleteAccount,preview=false
   const panelRef=useRef(null)
   useDialogFocus(panelRef,onClose)
   const DATE_PRESETS = ['YTD','1Y','6M','3M','1M','MTD','QTD','All']
-  const TABS         = ['overview','edge','coach','streaks','calendar','symbols','timing','trades','review','missed']
-  const TAB_LABELS   = { overview:'Overview', edge:'Edge', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log',review:'Review queue', missed:'Passed' }
+  const TABS         = ['overview','pretrade','edge','coach','streaks','calendar','symbols','timing','trades','review','missed']
+  const TAB_LABELS   = { overview:'Overview', pretrade:'Pre-trade plan', edge:'Edge', coach:'Coach', streaks:'Streaks', calendar:'Calendar', symbols:'Symbols', timing:'Timing', trades:'Trade Log',review:'Review queue', missed:'Passed' }
   const PAGE_SIZES   = [50, 100, 200]
 
   const Row = useCallback(({ label, sub, children }) => (
