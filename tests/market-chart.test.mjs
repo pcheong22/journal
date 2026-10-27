@@ -22,6 +22,7 @@ test('reference feeds repair stale aliases without changing contract or source i
 })
 
 test('historical profiles cover crypto, futures, metals, FX and ETFs without changing trade identity',()=>{
+ assert.deepEqual([...history.HISTORY_INTERVALS],['1m','5m','15m','30m','1h','2h','4h','8h','1d','1w'])
  assert.equal(JSON.stringify(history.historyProfile({symbol:'BTC/USD'}).providers.map(p=>p.kind)),JSON.stringify(['hyperliquid','yahoo']))
  assert.equal(history.historyProfile({symbol:'CRUDE/USD'}).providers[0].symbol,'CL=F')
  assert.equal(history.historyProfile({symbol:'XAG/USD'}).providers[0].symbol,'SI=F')
@@ -43,6 +44,20 @@ test('Hyperliquid candles are normalised and invalid provider rows are discarded
  const mock=async(url,init)=>{assert.equal(url,'https://api.hyperliquid.xyz/info');const body=JSON.parse(init.body);assert.equal(body.type,'candleSnapshot');assert.equal(body.req.coin,'BTC');return new Response(JSON.stringify([{t:1000,o:'10',h:'12',l:'9',c:'11',v:'7'},{t:2000,o:null,h:'12',l:'9',c:'11'}]))}
  const candles=await history.fetchHyperliquidHistory('BTC','5m',{start:0,end:10000},mock)
  assert.equal(JSON.stringify(candles),JSON.stringify([{time:1,open:10,high:12,low:9,close:11,volume:7}]))
+})
+
+test('Hyperliquid receives native wide replay intervals',async()=>{
+ const requested=[];const mock=async(url,init)=>{requested.push(JSON.parse(init.body).req.interval);return new Response(JSON.stringify([{t:1000,o:'10',h:'12',l:'9',c:'11',v:'7'}]))}
+ for(const interval of ['2h','4h','8h','1w'])await history.fetchHyperliquidHistory('BTC',interval,{start:0,end:10000},mock)
+ assert.deepEqual(requested,['2h','4h','8h','1w'])
+})
+
+test('Yahoo-backed wide replay bars are aggregated from hourly candles',async()=>{
+ const hour=3600,requested=[]
+ const mock=async url=>{requested.push(new URL(url).searchParams.get('interval'));return new Response(JSON.stringify({chart:{result:[{timestamp:[0,hour,2*hour,3*hour,4*hour],indicators:{quote:[{open:[10,11,12,13,14],high:[12,13,14,15,16],low:[8,9,10,11,12],close:[11,12,13,14,15],volume:[1,2,3,4,5]}]}}],error:null}}))}
+ const candles=await history.fetchYahooHistory('CL=F','4h',{start:0,end:5*hour*1000},mock)
+ assert.equal(requested[0],'60m');assert.deepEqual(JSON.parse(JSON.stringify(candles)),[{time:0,open:10,high:15,low:8,close:14,volume:10},{time:4*hour,open:14,high:16,low:12,close:15,volume:5}])
+ await history.fetchYahooHistory('CL=F','1w',{start:0,end:5*hour*1000},mock);assert.equal(requested[1],'1wk')
 })
 
 test('pivot references request daily history from the start of the prior UTC year',async()=>{
@@ -68,7 +83,7 @@ test('market chart loads lazily and preview history never calls the private API'
  const exported=load('../components/MarketChart.js',{require:path=>path==='react'?React:path==='react/jsx-runtime'?require(path):path==='next/dynamic'?(()=>()=>null):path==='../lib/marketChart'?chart:path==='../lib/marketHistory'?history:path==='../lib/request'?request:require(path),document:{body:{classList:{contains:()=>false}}},MutationObserver:class{constructor(fn){observer=fn}observe(){}disconnect(){}}},true)
  const Component=exported.default;let view
  await act(async()=>{view=Renderer.create(React.createElement(Component,{trade,active:false,preview:true}))});assert.equal(calls,0)
- await act(async()=>view.update(React.createElement(Component,{trade,active:true,preview:true})));assert.equal(calls,0);assert.match(JSON.stringify(view.toJSON()),/Representative chart data/);observer();view.unmount()
+ await act(async()=>view.update(React.createElement(Component,{trade,active:true,preview:true})));const rendered=JSON.stringify(view.toJSON());assert.equal(calls,0);assert.match(rendered,/Representative chart data/);assert.match(rendered,/2 hours/);assert.match(rendered,/1 week/);observer();view.unmount()
 })
 
 test('market history API selects only stored trade columns before loading crude candles',async()=>{
