@@ -10,7 +10,8 @@ const compile=(path,jsx=false)=>transformSync(readFileSync(new URL(path,import.m
 const load=(path,context,jsx=false)=>{const exports={};vm.runInNewContext(compile(path,jsx),{exports,URL,URLSearchParams,AbortSignal,Response,console,setTimeout,clearTimeout,setInterval,clearInterval,...context});return exports}
 const symbols=load('../lib/symbols.js',{require})
 const chart=load('../lib/marketChart.js',{require:path=>path==='./symbols'?symbols:require(path)})
-const history=load('../lib/marketHistory.js',{require:path=>path==='./symbols'?symbols:require(path),fetch})
+const pivots=load('../lib/pivots.js',{require})
+const history=load('../lib/marketHistory.js',{require:path=>path==='./symbols'?symbols:path==='./pivots'?pivots:require(path),fetch})
 const replay=load('../components/HistoricalReplayChart.js',{require:path=>path==='react'?React:path==='react/jsx-runtime'?require(path):require(path)},true)
 const trade={id:1,symbol:'CRUDE/USD',original_symbol:'CLJ6',tv_symbol:'NYMEX:CL1!',broker:'Hyperliquid',direction:'Long',entry_time:'2026-10-21T10:00:00Z',exit_time:'2026-10-21T11:00:00Z',entry_price:70,exit_price:71,duration_mins:60}
 
@@ -42,6 +43,12 @@ test('Hyperliquid candles are normalised and invalid provider rows are discarded
  const mock=async(url,init)=>{assert.equal(url,'https://api.hyperliquid.xyz/info');const body=JSON.parse(init.body);assert.equal(body.type,'candleSnapshot');assert.equal(body.req.coin,'BTC');return new Response(JSON.stringify([{t:1000,o:'10',h:'12',l:'9',c:'11',v:'7'},{t:2000,o:null,h:'12',l:'9',c:'11'}]))}
  const candles=await history.fetchHyperliquidHistory('BTC','5m',{start:0,end:10000},mock)
  assert.equal(JSON.stringify(candles),JSON.stringify([{time:1,open:10,high:12,low:9,close:11,volume:7}]))
+})
+
+test('pivot references request daily history from the start of the prior UTC year',async()=>{
+ const calls=[];const mock=async(url,init)=>{calls.push(JSON.parse(init.body));return new Response(JSON.stringify([{t:Date.parse('2025-01-01T00:00:00Z'),o:'10',h:'12',l:'9',c:'11'},{t:Date.parse('2026-01-01T00:00:00Z'),o:'11',h:'13',l:'10',c:'12'}]))}
+ const result=await history.fetchPivotReference({...trade,symbol:'BTC/USD',entry_time:'2026-10-21T10:00:00Z'},mock)
+ assert.equal(calls[0].req.interval,'1d');assert.equal(new Date(calls[0].req.startTime).toISOString(),'2025-01-01T00:00:00.000Z');assert.equal(result.source.kind,'hyperliquid')
 })
 
 test('execution markers retain imported fills and fall back to saved entry and exit',()=>{
